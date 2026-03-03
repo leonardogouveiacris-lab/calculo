@@ -186,6 +186,21 @@
     th{background:#f2f2f2}
     @page{margin:10mm;}
   }
+
+
+  /* Integração visual com o MODELO ART. 916 CPC */
+  :root{--bg:#f7f8fb;--panel:#fff;--panel2:#f8fafc;--text:#0b1220;--muted:#667085;--accent:#0b1220;--accent-soft:#f2f4f7;--line:#e6e8ef;--radius:16px;}
+  body{background:radial-gradient(1200px 500px at 50% -220px, rgba(37,99,235,.08), transparent 60%), var(--bg);color:var(--text);font-size:14px;}
+  header{background:rgba(255,255,255,.88);border-bottom:1px solid var(--line);backdrop-filter:blur(12px);}
+  .wrap{max-width:1120px;}
+  .card{border-radius:18px;border:1px solid var(--line);box-shadow:0 10px 26px rgba(16,24,40,.06);padding:14px;}
+  .card h2{font-size:15px;font-weight:600;}
+  input,select{border-radius:12px;border:1px solid var(--line);padding:10px 11px;}
+  .btn{border-radius:12px;border:1px solid var(--line);font-weight:600;}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .btn.ok{background:#ecfdf3;border-color:#ccebd7;color:#14532d;}
+  table{border-radius:14px;border:1px solid var(--line);}
+  th{background:var(--panel2);font-weight:600;text-transform:none;letter-spacing:.1px;}
 </style>
 </head>
 
@@ -575,17 +590,17 @@ function fontesHTML(tipo){
       <div class="sources">
         <div class="sources-title">Fontes dos índices utilizados</div>
         <div>• API SGS/BCB: <a href="${apiBase}" target="_blank">${apiBase}</a></div>
-        <div>• TR mensal (SGS 7811): 
+        <div>• TR mensal (SGS 7811):
           <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.7811/dados?formato=json" target="_blank">
             https://api.bcb.gov.br/dados/serie/bcdata.sgs.7811/dados?formato=json
           </a>
         </div>
-        <div>• Meta Selic (SGS 432): 
+        <div>• Meta Selic (SGS 432):
           <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados?formato=json" target="_blank">
             https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados?formato=json
           </a>
         </div>
-        <div>• Regra poupança (BCB): 
+        <div>• Regra poupança (BCB):
           <a href="https://www.bcb.gov.br/estatisticas/remuneradepositospoupanca" target="_blank">
             https://www.bcb.gov.br/estatisticas/remuneradepositospoupanca
           </a>
@@ -599,7 +614,7 @@ function fontesHTML(tipo){
       <div class="sources">
         <div class="sources-title">Fontes dos índices utilizados</div>
         <div>• API SGS/BCB: <a href="${apiBase}" target="_blank">${apiBase}</a></div>
-        <div>• TR mensal (SGS 7811): 
+        <div>• TR mensal (SGS 7811):
           <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.7811/dados?formato=json" target="_blank">
             https://api.bcb.gov.br/dados/serie/bcdata.sgs.7811/dados?formato=json
           </a>
@@ -614,7 +629,7 @@ function fontesHTML(tipo){
       <div class="sources">
         <div class="sources-title">Fontes dos índices utilizados</div>
         <div>• API SGS/BCB: <a href="${apiBase}" target="_blank">${apiBase}</a></div>
-        <div>• CDI anualizado (SGS 4389): 
+        <div>• CDI anualizado (SGS 4389):
           <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados?formato=json" target="_blank">
             https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados?formato=json
           </a>
@@ -628,7 +643,7 @@ function fontesHTML(tipo){
       <div class="sources">
         <div class="sources-title">Fontes dos índices utilizados</div>
         <div>• API SGS/BCB: <a href="${apiBase}" target="_blank">${apiBase}</a></div>
-        <div>• Selic diária (SGS 11): 
+        <div>• Selic diária (SGS 11):
           <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados?formato=json" target="_blank">
             https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados?formato=json
           </a>
