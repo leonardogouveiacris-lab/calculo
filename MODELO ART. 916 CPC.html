@@ -374,6 +374,14 @@ details > summary{
   font-size:9.5pt;
   color:var(--ink);
 }
+.page .footer::before{
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  top:-3.5mm;
+  border-top:1px solid #d1d5db;
+}
 .page .footer a{color:var(--link); text-decoration:underline}
 .page .content{
   margin-top:18mm;
@@ -478,7 +486,7 @@ h3.sec-title{
   #tab-report{display:block !important}
   .tabpane{display:block !important}
 
-  /* Fluxo linear: sem quebra forçada por seção */
+  /* Cada seção do relatório ocupa sua própria página de impressão */
   .page{
     box-shadow:none;
     margin:0 !important;
@@ -486,36 +494,32 @@ h3.sec-title{
     max-width:none !important;
     min-height:auto !important;
     border-radius:0;
+    page-break-after:always;
+    break-after:page;
+    padding:10mm 10mm 14mm 10mm !important;
+    overflow:hidden;
+  }
+  .page:last-child{
     page-break-after:auto;
     break-after:auto;
-    padding:0 10mm !important;
-    overflow:visible;
   }
 
-  /* Usa 1 header/footer fixos que se repetem em todas as páginas impressas */
-  #rptPage2 .header,
-  #rptPage2 .footer{
-    display:none !important;
+  .page .header{
+    position:relative !important;
+    top:auto !important;
+    left:auto !important;
+    right:auto !important;
   }
-  #rptPage1 .header{
-    position:fixed;
-    top:8mm;
-    left:10mm;
-    right:10mm;
-    z-index:10;
-  }
-  #rptPage1 .footer{
-    position:fixed;
-    left:10mm;
-    right:10mm;
-    bottom:8mm;
-    z-index:10;
+  .page .content{
+    margin-top:14mm !important;
+    padding-bottom:24mm !important;
   }
 
-  #rptPage1 .content,
-  #rptPage2 .content{
-    margin-top:34mm !important;
-    padding-bottom:22mm !important;
+  .page .footer{
+    position:absolute;
+    left:10mm !important;
+    right:10mm !important;
+    bottom:8mm !important;
   }
 
   /* Evita quebras aleatórias no meio de blocos/tabelas */
