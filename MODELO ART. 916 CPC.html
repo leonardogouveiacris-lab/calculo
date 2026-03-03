@@ -1006,6 +1006,48 @@ details.dropdown,
 
 
 
+/* Navegação entre sistemas */
+.system-switch{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.system-btn{
+  border:1px solid var(--border);
+  background:#fff;
+  color:var(--ink);
+  border-radius:999px;
+  padding:8px 12px;
+  font-size:12px;
+  font-weight:600;
+  cursor:pointer;
+}
+.system-btn.active{
+  background:var(--accent);
+  color:#fff;
+  border-color:var(--accent);
+}
+.system-panel{display:none}
+.system-panel.active{display:block}
+.system-placeholder{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:16px;
+  box-shadow: var(--shadow-soft);
+}
+.system-placeholder .hint{
+  margin-top:8px;
+  font-size:12px;
+}
+.embedded-system-frame{
+  width:100%;
+  min-height:1200px;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  background:#fff;
+  box-shadow: var(--shadow-soft);
+}
 /* Ocultar apenas o botão do cabeçalho */
 #btnPrint{ display:none !important; }
 
@@ -1021,6 +1063,11 @@ details.dropdown,
 
     <div class="actions" id="hdrActions">
       <button class="btn btn-primary" id="btnPrint" type="button">Imprimir / Salvar em PDF</button>
+<div class="system-switch" id="systemSwitch">
+  <button class="system-btn active" data-system="art916" type="button">Art. 916 CPC</button>
+  <button class="system-btn" data-system="sistema2" type="button">Atualização Depósito Judicial</button>
+  <button class="system-btn" data-system="sistema3" type="button">Relatório de Solicitações</button>
+</div>
 </div>
   </div>
 
@@ -1031,6 +1078,7 @@ details.dropdown,
   </div>
 </header>
 <main class="wrap" id="mainWrap">
+<section class="system-panel active" data-system="art916" id="system-art916">
 <div aria-label="Navegação" class="tabs no-print" id="tabsNav" role="tablist">
 
 <div class="tabs-head" id="tabsHead">
@@ -1518,6 +1566,24 @@ details.dropdown,
 </div>
 </section>
 </div>
+</section>
+
+<section class="system-panel" data-system="sistema2" id="system-sistema2">
+  <div class="system-placeholder no-print">
+    <h2 style="margin:0 0 6px;">Atualização Depósito Judicial</h2>
+    <div class="card-sub">Módulo incorporado ao template principal. Impressão respeita o sistema ativo.</div>
+    <div class="btn-row" style="margin-top:10px;"><button class="btn btn-primary btnPrintActive" data-target="iframeSistema2" type="button">Imprimir / Salvar em PDF</button></div>
+  </div>
+  <iframe class="embedded-system-frame" id="iframeSistema2" src="ATUALIZAÇÃO DEPÓSITO JUDICIAL.html" title="Atualização Depósito Judicial"></iframe>
+</section>
+
+<section class="system-panel" data-system="sistema3" id="system-sistema3">
+  <div class="system-placeholder no-print">
+    <h2 style="margin:0 0 6px;">Relatório de Solicitações</h2>
+    <div class="card-sub">Módulo incorporado ao template principal. Impressão respeita o sistema ativo.</div>
+    <div class="btn-row" style="margin-top:10px;"><button class="btn btn-primary btnPrintActive" data-target="iframeSistema3" type="button">Imprimir / Salvar em PDF</button></div>
+  </div>
+  <iframe class="embedded-system-frame" id="iframeSistema3" src="RELATÓRIO DE SOLICITAÇÕES.html" title="Relatório de Solicitações"></iframe>
 </section>
 </main>
 <div aria-atomic="true" aria-live="polite" class="toast-host" id="toastHost"></div>
@@ -2263,6 +2329,49 @@ const DOM = {
       });
     }
 
+    let activeSystem = "art916";
+
+    function setSystem(systemId) {
+      activeSystem = systemId;
+      document.querySelectorAll('.system-btn').forEach((btn)=>{
+        btn.classList.toggle('active', btn.dataset.system === systemId);
+      });
+      document.querySelectorAll('.system-panel').forEach((panel)=>{
+        panel.classList.toggle('active', panel.dataset.system === systemId);
+      });
+      if (systemId === 'art916') {
+        setTab('editor');
+      }
+    }
+
+    function printActiveSystem(targetId=null) {
+      if (activeSystem === 'art916') {
+        setTab('report');
+        setTimeout(() => window.print(), 50);
+        return;
+      }
+      const iframeId = targetId || (activeSystem === 'sistema2' ? 'iframeSistema2' : 'iframeSistema3');
+      const frame = document.getElementById(iframeId);
+      if (frame && frame.contentWindow) {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+      } else {
+        window.print();
+      }
+    }
+
+    function bindSystemSwitch() {
+      document.querySelectorAll('.system-btn').forEach((btn)=>{
+        btn.addEventListener('click', ()=> setSystem(btn.dataset.system));
+      });
+      document.querySelectorAll('.btnPrintActive').forEach((btn)=>{
+        btn.addEventListener('click', ()=> printActiveSystem(btn.dataset.target || null));
+      });
+      window.addEventListener('beforeprint', () => {
+        if (activeSystem === 'art916') setTab('report');
+      });
+    }
+
     function bindTabs() {
       document.querySelectorAll(".tab[data-tab]").forEach((b) => {
         b.addEventListener("click", () => setTab(b.dataset.tab));
@@ -2278,8 +2387,6 @@ const DOM = {
         });
       }
 
-      // Garante que ao imprimir a aba do relatório seja mostrada
-      window.addEventListener("beforeprint", () => setTab("report"));
     }
 
     function applyLogo() {
@@ -2306,8 +2413,9 @@ const DOM = {
       renderReport();
       bindInputs();
       bindTabs();
+      bindSystemSwitch();
       applyLogo();
-      setTab("editor");
+      setSystem("art916");
     }
 
     boot();
