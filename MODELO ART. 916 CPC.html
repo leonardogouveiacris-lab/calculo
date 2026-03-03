@@ -3966,12 +3966,42 @@ const DOM = {
         const isActive = panel.dataset.system === systemId;
         panel.classList.toggle('active', isActive);
         panel.style.display = isActive ? 'block' : 'none';
-        panel.hidden = !isActive;
+        panel.style.visibility = isActive ? 'visible' : 'hidden';
+        panel.style.opacity = isActive ? '1' : '0';
+        if (isActive) {
+          panel.removeAttribute('hidden');
+        } else {
+          panel.setAttribute('hidden', 'hidden');
+        }
       });
+
+      if (systemId !== 'art916') {
+        const iframeId = systemId === 'sistema2' ? 'iframeSistema2' : 'iframeSistema3';
+        const frame = document.getElementById(iframeId);
+        if (frame) {
+          frame.style.display = 'block';
+          frame.style.visibility = 'visible';
+          frame.style.opacity = '1';
+          frame.style.position = 'relative';
+          frame.style.zIndex = '1';
+          if ((!frame.src || frame.src === 'about:blank') && frame.srcdoc) {
+            frame.srcdoc = frame.srcdoc;
+            debugLog('Iframe recarregado ao alternar sistema', { iframeId, reason: 'src/about:blank' });
+          }
+        }
+      }
+
       if (systemId === 'art916') {
         setTab('editor');
       }
-      debugLog('Sistema alterado', { systemId });
+
+      const activePanel = document.querySelector(`.system-panel[data-system="${systemId}"]`);
+      debugLog('Sistema alterado', {
+        systemId,
+        panelVisible: !!activePanel,
+        panelDisplay: activePanel ? getComputedStyle(activePanel).display : 'n/a',
+        panelHiddenAttr: activePanel ? activePanel.hasAttribute('hidden') : null
+      });
     }
 
     function printActiveSystem(targetId=null) {
