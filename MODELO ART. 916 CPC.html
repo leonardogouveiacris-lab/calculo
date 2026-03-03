@@ -1054,8 +1054,36 @@ details.dropdown,
   color:var(--muted);
 }
 .embed-status.error{color:#b42318}
+.embedded-toolbar{display:flex;justify-content:flex-start;gap:10px;margin:0 0 10px;}
+
+/* Debug minimalista (recolhido por padrão) */
+.debug-panel.hidden{display:none !important;}
+.debug-panel.collapsed .debug-log{display:none;}
+.debug-panel.collapsed{width:auto;min-width:220px;}
+.debug-panel.collapsed .debug-head{border-bottom:0;}
+
 /* Ocultar apenas o botão do cabeçalho */
 #btnPrint{ display:none !important; }
+
+/* Debug local (carregamento módulos) */
+.debug-panel{
+  position:fixed;
+  right:12px;
+  bottom:12px;
+  z-index:120;
+  width:min(520px, calc(100vw - 24px));
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:rgba(255,255,255,.96);
+  box-shadow:var(--shadow-soft);
+}
+.debug-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);}
+.debug-title{font-size:12px;font-weight:600;color:var(--ink);}
+.debug-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.debug-log{max-height:180px;overflow:auto;padding:8px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:11px;line-height:1.35;background:#fcfdff;}
+.debug-line{padding:2px 0;border-bottom:1px dashed #eef1f5;word-break:break-word;}
+.debug-line:last-child{border-bottom:none;}
+@media print{.debug-panel{display:none !important;}}
 
 </style>
 </head>
@@ -1575,20 +1603,16 @@ details.dropdown,
 </section>
 
 <section class="system-panel" data-system="sistema2" id="system-sistema2">
-  <div class="system-placeholder no-print">
-    <h2 style="margin:0 0 6px;">Atualização Depósito Judicial</h2>
-    <div class="card-sub">Módulo incorporado ao template principal. Impressão respeita o sistema ativo.</div>
-    <div class="btn-row" style="margin-top:10px;"><button class="btn btn-primary btnPrintActive" data-target="iframeSistema2" type="button">Imprimir / Salvar em PDF</button></div>
+  <div class="embedded-toolbar no-print">
+    <button class="btn btn-primary btnPrintActive" data-target="iframeSistema2" type="button">Imprimir / Salvar em PDF</button>
   </div>
   <iframe class="embedded-system-frame" id="iframeSistema2" src="about:blank" title="Atualização Depósito Judicial"></iframe>
   <div class="embed-status" id="embedStatus2">Carregando módulo…</div>
 </section>
 
 <section class="system-panel" data-system="sistema3" id="system-sistema3">
-  <div class="system-placeholder no-print">
-    <h2 style="margin:0 0 6px;">Relatório de Solicitações</h2>
-    <div class="card-sub">Módulo incorporado ao template principal. Impressão respeita o sistema ativo.</div>
-    <div class="btn-row" style="margin-top:10px;"><button class="btn btn-primary btnPrintActive" data-target="iframeSistema3" type="button">Imprimir / Salvar em PDF</button></div>
+  <div class="embedded-toolbar no-print">
+    <button class="btn btn-primary btnPrintActive" data-target="iframeSistema3" type="button">Imprimir / Salvar em PDF</button>
   </div>
   <iframe class="embedded-system-frame" id="iframeSistema3" src="about:blank" title="Relatório de Solicitações"></iframe>
   <div class="embed-status" id="embedStatus3">Carregando módulo…</div>
@@ -1784,44 +1808,20 @@ details.dropdown,
     @page{margin:10mm;}
   }
 
-  /* Integração visual com o sistema principal (MODELO ART. 916 CPC) */
-  :root{
-    --bg:#f7f8fb;
-    --panel:#ffffff;
-    --panel2:#f8fafc;
-    --text:#0b1220;
-    --muted:#667085;
-    --accent:#0b1220;
-    --accent-soft:#f2f4f7;
-    --line:#e6e8ef;
-    --radius:16px;
-  }
-  body{
-    background: radial-gradient(1200px 500px at 50% -220px, rgba(37,99,235,.08), transparent 60%), var(--bg);
-    color:var(--text);
-    font-size:14px;
-  }
-  header{background:rgba(255,255,255,.88); border-bottom:1px solid var(--line); backdrop-filter: blur(12px);}
+
+  /* Integração visual com o MODELO ART. 916 CPC */
+  :root{--bg:#f7f8fb;--panel:#fff;--panel2:#f8fafc;--text:#0b1220;--muted:#667085;--accent:#0b1220;--accent-soft:#f2f4f7;--line:#e6e8ef;--radius:16px;}
+  body{background:radial-gradient(1200px 500px at 50% -220px, rgba(37,99,235,.08), transparent 60%), var(--bg);color:var(--text);font-size:14px;}
+  header{background:rgba(255,255,255,.88);border-bottom:1px solid var(--line);backdrop-filter:blur(12px);}
   .wrap{max-width:1120px;}
-  .card{
-    border-radius:18px;
-    border:1px solid var(--line);
-    box-shadow:0 10px 26px rgba(16,24,40,.06);
-    padding:14px;
-  }
-  .card h2{font-size:15px; font-weight:600; margin-bottom:8px;}
-  input,select{
-    border-radius:12px;
-    border:1px solid var(--line);
-    padding:10px 11px;
-  }
-  .btn{border-radius:12px; border:1px solid var(--line); font-weight:600;}
-  .btn.primary{background:var(--accent); color:#fff; border-color:var(--accent);}
-  .btn.ok{background:#ecfdf3; border-color:#ccebd7; color:#14532d;}
-  .btn.secondary{background:#fff;}
-  table{border-radius:14px; border:1px solid var(--line);}
-  th{background:var(--panel2); font-weight:600; text-transform:none; letter-spacing:.1px;}
-  .report-header h3{text-transform:none; letter-spacing:.15px; font-size:15px;}
+  .card{border-radius:18px;border:1px solid var(--line);box-shadow:0 10px 26px rgba(16,24,40,.06);padding:14px;}
+  .card h2{font-size:15px;font-weight:600;}
+  input,select{border-radius:12px;border:1px solid var(--line);padding:10px 11px;}
+  .btn{border-radius:12px;border:1px solid var(--line);font-weight:600;}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .btn.ok{background:#ecfdf3;border-color:#ccebd7;color:#14532d;}
+  table{border-radius:14px;border:1px solid var(--line);}
+  th{background:var(--panel2);font-weight:600;text-transform:none;letter-spacing:.1px;}
 </style>
 </head>
 
@@ -2422,7 +2422,6 @@ renderDeposits(); renderIndices();
 </script>
 </body>
 </html>
-
 </template>
 <template id="tplSistema3">
 <!doctype html>
@@ -2639,6 +2638,7 @@ input[type="file"] { display:none; }
   .table thead th { position: static; }
 }
 
+
 /* Integração visual com o sistema principal (MODELO ART. 916 CPC) */
 :root {
   --bg: #f7f8fb;
@@ -2656,29 +2656,12 @@ input[type="file"] { display:none; }
   --radius-md: 12px;
   --radius-sm: 12px;
 }
-body {
-  background: radial-gradient(1200px 500px at 50% -220px, rgba(37,99,235,.08), transparent 60%), var(--bg);
-  font-size: 14px;
-}
+body {background: radial-gradient(1200px 500px at 50% -220px, rgba(37,99,235,.08), transparent 60%), var(--bg); font-size: 14px;}
 .wrap { max-width: 1120px; margin: 18px auto 56px; }
-.header, .toolbar, .table-card {
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow-sm);
-}
-.label-file, .btn, .select {
-  border-radius: 12px;
-  border-color: var(--line);
-  background: #fff;
-  font-weight: 600;
-}
-.btn.primary {
-  background: var(--brand);
-  border-color: var(--brand);
-}
-.table thead th {
-  font-weight: 600;
-  background: var(--surface-2);
-}
+.header, .toolbar, .table-card {border: 1px solid var(--line);box-shadow: var(--shadow-sm);}
+.label-file, .btn, .select {border-radius: 12px;border-color: var(--line);background: #fff;font-weight: 600;}
+.btn.primary {background: var(--brand);border-color: var(--brand);}
+.table thead th {font-weight: 600;background: var(--surface-2);}
 .table tbody tr:nth-child(odd) td { background: #fff; }
 .table tbody tr:hover td { background: #f8fafc; }
 .kpi { border-radius: 999px; font-weight: 600; }
@@ -3167,9 +3150,20 @@ updateReclamadaBtnLabel();
 </script>
 </body>
 </html>
-
 </template>
 <div aria-atomic="true" aria-live="polite" class="toast-host" id="toastHost"></div>
+
+<div class="debug-panel no-print collapsed hidden" id="debugPanel">
+  <div class="debug-head">
+    <div class="debug-title">Logs de debug (modo local)</div>
+    <div class="debug-actions">
+      <button class="mini-btn" id="btnDebugToggle" type="button">Logs</button>
+      <button class="mini-btn" id="btnDebugCopy" type="button">Copiar</button>
+      <button class="mini-btn" id="btnDebugClear" type="button">Limpar</button>
+    </div>
+  </div>
+  <div class="debug-log" id="debugLog"></div>
+</div>
 
 <script>
 /* ===== app.js (inline) ===== */
@@ -3235,6 +3229,10 @@ const DOM = {
 
   // Toast (se existir)
   toastHost: '#toastHost',
+  debugLog: '#debugLog',
+  btnDebugToggle: '#btnDebugToggle',
+  btnDebugCopy: '#btnDebugCopy',
+  btnDebugClear: '#btnDebugClear',
 };
 
 // ======================
@@ -3912,19 +3910,370 @@ const DOM = {
       });
     }
 
+    const debugBuffer = [];
+
+    function debugLog(message, data = null) {
+      const now = new Date();
+      const ts = now.toLocaleTimeString('pt-BR');
+      let line = `[${ts}] ${message}`;
+      if (data !== null) {
+        try { line += ` :: ${typeof data === 'string' ? data : JSON.stringify(data)}`; }
+        catch { line += ' :: [dados não serializáveis]'; }
+      }
+      debugBuffer.push(line);
+      if (debugBuffer.length > 300) debugBuffer.shift();
+      const host = document.querySelector(DOM.debugLog);
+      if (host) {
+        const row = document.createElement('div');
+        row.className = 'debug-line';
+        row.textContent = line;
+        host.appendChild(row);
+        host.scrollTop = host.scrollHeight;
+      }
+      console.log('[DEBUG-EMBED]', line);
+    }
+
+    function bindDebugPanel() {
+      const panel = document.getElementById('debugPanel');
+      const btnToggle = document.querySelector(DOM.btnDebugToggle);
+      const btnCopy = document.querySelector(DOM.btnDebugCopy);
+      const btnClear = document.querySelector(DOM.btnDebugClear);
+
+      if (btnToggle && panel) btnToggle.addEventListener('click', () => {
+        panel.classList.remove('hidden');
+        panel.classList.toggle('collapsed');
+      });
+
+      window.addEventListener('keydown', (ev) => {
+        const isShortcut = ev.ctrlKey && ev.shiftKey && (ev.key === 'D' || ev.key === 'd');
+        if (!isShortcut) return;
+        ev.preventDefault();
+        panel.classList.toggle('hidden');
+        if (!panel.classList.contains('hidden')) panel.classList.remove('collapsed');
+        debugLog('Atalho de debug acionado (Ctrl+Shift+D)', { visible: !panel.classList.contains('hidden') });
+      });
+
+      if (btnCopy) btnCopy.addEventListener('click', async () => {
+        const text = debugBuffer.join('\n');
+        try {
+          await navigator.clipboard.writeText(text);
+          debugLog('Log copiado para a área de transferência');
+        } catch {
+          debugLog('Falha ao copiar log (clipboard indisponível no navegador)');
+        }
+      });
+      if (btnClear) btnClear.addEventListener('click', () => {
+        debugBuffer.length = 0;
+        const host = document.querySelector(DOM.debugLog);
+        if (host) host.innerHTML = '';
+        debugLog('Log limpo');
+      });
+
+      window.addEventListener('error', (ev) => {
+        debugLog('Erro global', { msg: ev.message, file: ev.filename, line: ev.lineno, col: ev.colno });
+      });
+      window.addEventListener('unhandledrejection', (ev) => {
+        debugLog('Promise rejeitada sem tratamento', String(ev.reason));
+      });
+    }
+
+
     let activeSystem = "art916";
 
+    function getEl(id) {
+      return document.getElementById(id);
+    }
+
+    function setPanelVisibility(systemId) {
+      document.querySelectorAll('.system-panel').forEach((panel) => {
+        const isActive = panel.dataset.system === systemId;
+        panel.classList.toggle('active', isActive);
+        panel.style.display = isActive ? 'block' : 'none';
+        panel.style.visibility = isActive ? 'visible' : 'hidden';
+        panel.style.opacity = isActive ? '1' : '0';
+        if (isActive) panel.removeAttribute('hidden');
+        else panel.setAttribute('hidden', 'hidden');
+      });
+    }
+
+    function normalizeSystemPanelsInMain() {
+      const main = getEl('mainWrap');
+      if (!main) {
+        debugLog('normalizeSystemPanelsInMain: mainWrap ausente');
+        return;
+      }
+
+      ['system-art916','system-sistema2','system-sistema3'].forEach((id) => {
+        const panel = getEl(id);
+        if (!panel) {
+          debugLog('Painel não encontrado para normalização', { id });
+          return;
+        }
+        const parentTag = panel.parentElement ? panel.parentElement.tagName : null;
+        const parentId = panel.parentElement ? panel.parentElement.id : null;
+        if (panel.parentElement !== main) {
+          main.appendChild(panel);
+          debugLog('Painel movido para #mainWrap', { id, fromTag: parentTag, fromId: parentId });
+        } else {
+          debugLog('Painel já estava em #mainWrap', { id, fromTag: parentTag, fromId: parentId });
+        }
+      });
+    }
+
+    function applyEmbeddedThemeToFrame(frame, systemId) {
+      const doc = frame && frame.contentDocument;
+      if (!doc) return false;
+      const head = doc.head || doc.documentElement;
+      if (!head) return false;
+
+      let style = doc.getElementById('cp-embed-theme');
+      if (!style) {
+        style = doc.createElement('style');
+        style.id = 'cp-embed-theme';
+        style.textContent = `
+:root{--cp-bg:#f7f8fb;--cp-card:#ffffff;--cp-border:#e6e8ef;--cp-muted:#667085;--cp-ink:#0b1220;--cp-soft:#f8fafc;--cp-accent:#0b1220;--cp-shadow:0 10px 26px rgba(16,24,40,.06);--cp-radius:18px;--cp-radius-sm:12px;}
+html,body{background:radial-gradient(1200px 500px at 50% -220px, rgba(37,99,235,.08), transparent 60%), var(--cp-bg) !important;color:var(--cp-ink) !important;}
+body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif !important;line-height:1.45;}
+.wrap{max-width:1120px !important;margin:0 auto !important;padding:14px 16px 24px !important;}
+.grid{grid-template-columns:1fr !important;display:grid !important;gap:12px !important;}
+.row{display:flex !important;flex-wrap:wrap !important;gap:8px !important;}
+header,.header,.toolbar,.table-card,.card,table{border-color:var(--cp-border) !important;box-shadow:var(--cp-shadow) !important;}
+header,.header,.toolbar,.table-card,.card{background:var(--cp-card) !important;border-radius:var(--cp-radius) !important;}
+.card h1,.card h2,.card h3,h1,h2,h3{color:var(--cp-ink) !important;letter-spacing:0 !important;}
+small,.note,.muted,.subtitle,.meta,.hint{color:var(--cp-muted) !important;}
+input,select,textarea{border:1px solid var(--cp-border) !important;border-radius:var(--cp-radius-sm) !important;background:#fff !important;color:var(--cp-ink) !important;}
+button,.btn,.label-file,.select{border:1px solid var(--cp-border) !important;border-radius:12px !important;font-weight:600 !important;}
+.btn.primary{background:var(--cp-accent) !important;color:#fff !important;border-color:var(--cp-accent) !important;}
+table,.table{border:1px solid var(--cp-border) !important;border-radius:14px !important;overflow:hidden;}
+th,.table thead th{background:var(--cp-soft) !important;color:#475467 !important;font-weight:600 !important;text-transform:none !important;}
+.table tbody tr:nth-child(odd) td{background:#fff !important;}
+.table tbody tr:hover td{background:var(--cp-soft) !important;}
+`;
+        head.appendChild(style);
+      }
+
+      if (doc.body) {
+        doc.body.classList.add('cp-embed-themed', `cp-${systemId}`);
+      }
+      return true;
+    }
+
+    function ensureElementIdsInEmbeddedDoc(frame, systemId) {
+      const doc = frame && frame.contentDocument;
+      if (!doc || !doc.body) return 0;
+      const prefix = `cp-${systemId}`;
+      let created = 0;
+      let idx = 0;
+      doc.querySelectorAll('*').forEach((el) => {
+        if (el.id) return;
+        const tag = (el.tagName || 'el').toLowerCase();
+        el.id = `${prefix}-${tag}-${idx++}`;
+        created += 1;
+      });
+      return created;
+    }
+
+
+    function createEmbeddedModule({ systemId, iframeId, statusId, tplId }) {
+      let loaded = false;
+
+      function ensureFrameVisible() {
+        const frame = getEl(iframeId);
+        if (!frame) {
+          debugLog('Módulo sem iframe', { systemId, iframeId });
+          return;
+        }
+        const targetHeight = Math.max(1200, window.innerHeight - 170);
+        frame.style.display = 'block';
+        frame.style.visibility = 'visible';
+        frame.style.opacity = '1';
+        frame.style.position = 'relative';
+        frame.style.zIndex = '1';
+        frame.style.width = '100%';
+        frame.style.minHeight = `${targetHeight}px`;
+        frame.style.height = `${targetHeight}px`;
+        frame.style.background = '#fff';
+        applyEmbeddedThemeToFrame(frame, systemId);
+        ensureElementIdsInEmbeddedDoc(frame, systemId);
+      }
+
+      function ensureLoaded() {
+        const frame = getEl(iframeId);
+        const status = getEl(statusId);
+        const tpl = getEl(tplId);
+
+        if (!frame || !status || !tpl) {
+          debugLog('Módulo incompleto (elementos ausentes)', {
+            systemId,
+            hasFrame: !!frame,
+            hasStatus: !!status,
+            hasTpl: !!tpl
+          });
+          return;
+        }
+
+        ensureFrameVisible();
+
+        if (loaded) {
+          debugLog('Módulo já carregado', { systemId, iframeId, mode: frame.dataset.loadMode || 'n/a' });
+          return;
+        }
+
+        try {
+          const html = tpl.innerHTML.trim();
+          const previousBlobUrl = frame.dataset.blobUrl;
+          if (previousBlobUrl) {
+            URL.revokeObjectURL(previousBlobUrl);
+            delete frame.dataset.blobUrl;
+          }
+
+          debugLog('Iniciando módulo (isolado)', {
+            systemId,
+            iframe: iframeId,
+            fileMode: location.protocol === 'file:',
+            htmlChars: html.length
+          });
+
+          frame.addEventListener('load', () => {
+            applyEmbeddedThemeToFrame(frame, systemId);
+            const idsAdded = ensureElementIdsInEmbeddedDoc(frame, systemId);
+            status.classList.remove('error');
+            status.textContent = 'Módulo carregado com sucesso.';
+            debugLog('Tema visual aplicado ao módulo', { systemId, iframeId, idsAdded });
+          }, { once: true });
+
+          try {
+            const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+            const blobUrl = URL.createObjectURL(blob);
+            frame.dataset.blobUrl = blobUrl;
+            frame.dataset.loadMode = 'blob';
+            frame.src = blobUrl;
+          } catch (blobErr) {
+            debugLog('Falha blob; tentando srcdoc (isolado)', String(blobErr));
+            try {
+              if ('srcdoc' in frame) {
+                frame.srcdoc = html;
+                frame.dataset.loadMode = 'srcdoc';
+              } else {
+                throw new Error('srcdoc indisponível');
+              }
+            } catch (srcdocErr) {
+              debugLog('Falha srcdoc; usando data URL (isolado)', String(srcdocErr));
+              frame.dataset.loadMode = 'data';
+              frame.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+            }
+          }
+
+          setTimeout(() => {
+            try {
+              const doc = frame.contentDocument;
+              const bodyText = (doc && doc.body) ? (doc.body.innerText || '').trim() : '';
+              debugLog('Validação pós-carga (isolado)', {
+                systemId,
+                mode: frame.dataset.loadMode || 'n/a',
+                bodyChars: bodyText.length,
+                frameHeight: frame.clientHeight,
+                hasBody: !!(doc && doc.body)
+              });
+              if (!bodyText.length) {
+                status.classList.add('error');
+                status.textContent = 'Módulo sem conteúdo visível. Consulte logs.';
+              }
+            } catch (probeErr) {
+              debugLog('Falha ao validar módulo isolado', { systemId, err: String(probeErr) });
+            }
+          }, 900);
+
+          loaded = true;
+        } catch (err) {
+          status.classList.add('error');
+          status.textContent = 'Falha ao carregar o módulo. Recarregue a página.';
+          debugLog('Erro em ensureLoaded (módulo isolado)', { systemId, err: String(err) });
+        }
+      }
+
+      return {
+        activate() {
+          ensureFrameVisible();
+          ensureLoaded();
+        },
+        deactivate() {
+          // sem ação destrutiva: mantém estado carregado em memória
+        },
+        preload() {
+          ensureLoaded();
+        }
+      };
+    }
+
+    const systemModules = {
+      art916: {
+        activate() {
+          setTab('editor');
+        },
+        deactivate() {},
+      },
+      sistema2: createEmbeddedModule({
+        systemId: 'sistema2',
+        iframeId: 'iframeSistema2',
+        statusId: 'embedStatus2',
+        tplId: 'tplSistema2'
+      }),
+      sistema3: createEmbeddedModule({
+        systemId: 'sistema3',
+        iframeId: 'iframeSistema3',
+        statusId: 'embedStatus3',
+        tplId: 'tplSistema3'
+      })
+    };
+
     function setSystem(systemId) {
+      if (!systemModules[systemId]) {
+        debugLog('Sistema inválido solicitado', { systemId });
+        return;
+      }
+
+      const previous = activeSystem;
+      if (systemModules[previous] && typeof systemModules[previous].deactivate === 'function') {
+        systemModules[previous].deactivate();
+      }
+
       activeSystem = systemId;
-      document.querySelectorAll('.system-btn').forEach((btn)=>{
+      document.querySelectorAll('.system-btn').forEach((btn) => {
         btn.classList.toggle('active', btn.dataset.system === systemId);
       });
-      document.querySelectorAll('.system-panel').forEach((panel)=>{
-        panel.classList.toggle('active', panel.dataset.system === systemId);
-      });
-      if (systemId === 'art916') {
-        setTab('editor');
+
+      setPanelVisibility(systemId);
+
+      if (typeof systemModules[systemId].activate === 'function') {
+        systemModules[systemId].activate();
       }
+
+      const activePanel = document.querySelector(`.system-panel[data-system="${systemId}"]`);
+      debugLog('Sistema alterado (módulo isolado)', {
+        systemId,
+        previous,
+        panelDisplay: activePanel ? getComputedStyle(activePanel).display : 'n/a',
+        panelHiddenAttr: activePanel ? activePanel.hasAttribute('hidden') : null,
+      });
+    }
+
+    function initEmbeddedSystems() {
+      if (activeSystem !== 'sistema2' && activeSystem !== 'sistema3') {
+        setPanelVisibility(activeSystem);
+      }
+
+      const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 250));
+      idle(() => {
+        ['sistema2', 'sistema3'].forEach((id) => {
+          try {
+            const mod = systemModules[id];
+            if (mod && typeof mod.preload === 'function') mod.preload();
+          } catch (err) {
+            debugLog('Falha ao preload de módulo', { id, err: String(err) });
+          }
+        });
+      });
     }
 
     function printActiveSystem(targetId=null) {
@@ -3941,36 +4290,6 @@ const DOM = {
       } else {
         window.print();
       }
-    }
-
-    function initEmbeddedSystems() {
-      const modules = [
-        { iframe: 'iframeSistema2', status: 'embedStatus2', tpl: 'tplSistema2' },
-        { iframe: 'iframeSistema3', status: 'embedStatus3', tpl: 'tplSistema3' }
-      ];
-      modules.forEach((m) => {
-        const frame = document.getElementById(m.iframe);
-        const status = document.getElementById(m.status);
-        const tpl = document.getElementById(m.tpl);
-        if (!frame || !tpl) return;
-
-        try {
-          const html = tpl.innerHTML;
-          const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
-          frame.src = dataUrl;
-          frame.addEventListener('load', () => {
-            if (status) {
-              status.classList.remove('error');
-              status.textContent = 'Módulo carregado com sucesso.';
-            }
-          }, { once: true });
-        } catch (err) {
-          if (status) {
-            status.classList.add('error');
-            status.textContent = 'Falha ao carregar o módulo. Recarregue a página.';
-          }
-        }
-      });
     }
 
     function bindSystemSwitch() {
@@ -4027,9 +4346,12 @@ const DOM = {
       bindInputs();
       bindTabs();
       bindSystemSwitch();
+      bindDebugPanel();
+      normalizeSystemPanelsInMain();
       initEmbeddedSystems();
       applyLogo();
       setSystem("art916");
+      debugLog('Boot finalizado', { protocol: location.protocol, href: location.href, debugShortcut: 'Ctrl+Shift+D' });
     }
 
     boot();
