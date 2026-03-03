@@ -3871,18 +3871,16 @@ const DOM = {
         const tpl = document.getElementById(m.tpl);
         if (!frame || !tpl) return;
 
-        const html = tpl.innerHTML;
         try {
-          frame.src = 'about:blank';
-          const doc = frame.contentWindow && frame.contentWindow.document;
-          if (!doc) throw new Error('iframe document indisponível');
-          doc.open();
-          doc.write(html);
-          doc.close();
-          if (status) {
-            status.classList.remove('error');
-            status.textContent = 'Módulo carregado com sucesso.';
-          }
+          const html = tpl.innerHTML;
+          const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+          frame.src = dataUrl;
+          frame.addEventListener('load', () => {
+            if (status) {
+              status.classList.remove('error');
+              status.textContent = 'Módulo carregado com sucesso.';
+            }
+          }, { once: true });
         } catch (err) {
           if (status) {
             status.classList.add('error');
