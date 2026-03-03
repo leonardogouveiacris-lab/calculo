@@ -1784,44 +1784,20 @@ details.dropdown,
     @page{margin:10mm;}
   }
 
-  /* Integração visual com o sistema principal (MODELO ART. 916 CPC) */
-  :root{
-    --bg:#f7f8fb;
-    --panel:#ffffff;
-    --panel2:#f8fafc;
-    --text:#0b1220;
-    --muted:#667085;
-    --accent:#0b1220;
-    --accent-soft:#f2f4f7;
-    --line:#e6e8ef;
-    --radius:16px;
-  }
-  body{
-    background: radial-gradient(1200px 500px at 50% -220px, rgba(37,99,235,.08), transparent 60%), var(--bg);
-    color:var(--text);
-    font-size:14px;
-  }
-  header{background:rgba(255,255,255,.88); border-bottom:1px solid var(--line); backdrop-filter: blur(12px);}
+
+  /* Integração visual com o MODELO ART. 916 CPC */
+  :root{--bg:#f7f8fb;--panel:#fff;--panel2:#f8fafc;--text:#0b1220;--muted:#667085;--accent:#0b1220;--accent-soft:#f2f4f7;--line:#e6e8ef;--radius:16px;}
+  body{background:radial-gradient(1200px 500px at 50% -220px, rgba(37,99,235,.08), transparent 60%), var(--bg);color:var(--text);font-size:14px;}
+  header{background:rgba(255,255,255,.88);border-bottom:1px solid var(--line);backdrop-filter:blur(12px);}
   .wrap{max-width:1120px;}
-  .card{
-    border-radius:18px;
-    border:1px solid var(--line);
-    box-shadow:0 10px 26px rgba(16,24,40,.06);
-    padding:14px;
-  }
-  .card h2{font-size:15px; font-weight:600; margin-bottom:8px;}
-  input,select{
-    border-radius:12px;
-    border:1px solid var(--line);
-    padding:10px 11px;
-  }
-  .btn{border-radius:12px; border:1px solid var(--line); font-weight:600;}
-  .btn.primary{background:var(--accent); color:#fff; border-color:var(--accent);}
-  .btn.ok{background:#ecfdf3; border-color:#ccebd7; color:#14532d;}
-  .btn.secondary{background:#fff;}
-  table{border-radius:14px; border:1px solid var(--line);}
-  th{background:var(--panel2); font-weight:600; text-transform:none; letter-spacing:.1px;}
-  .report-header h3{text-transform:none; letter-spacing:.15px; font-size:15px;}
+  .card{border-radius:18px;border:1px solid var(--line);box-shadow:0 10px 26px rgba(16,24,40,.06);padding:14px;}
+  .card h2{font-size:15px;font-weight:600;}
+  input,select{border-radius:12px;border:1px solid var(--line);padding:10px 11px;}
+  .btn{border-radius:12px;border:1px solid var(--line);font-weight:600;}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .btn.ok{background:#ecfdf3;border-color:#ccebd7;color:#14532d;}
+  table{border-radius:14px;border:1px solid var(--line);}
+  th{background:var(--panel2);font-weight:600;text-transform:none;letter-spacing:.1px;}
 </style>
 </head>
 
@@ -2422,7 +2398,6 @@ renderDeposits(); renderIndices();
 </script>
 </body>
 </html>
-
 </template>
 <template id="tplSistema3">
 <!doctype html>
@@ -2639,6 +2614,7 @@ input[type="file"] { display:none; }
   .table thead th { position: static; }
 }
 
+
 /* Integração visual com o sistema principal (MODELO ART. 916 CPC) */
 :root {
   --bg: #f7f8fb;
@@ -2656,29 +2632,12 @@ input[type="file"] { display:none; }
   --radius-md: 12px;
   --radius-sm: 12px;
 }
-body {
-  background: radial-gradient(1200px 500px at 50% -220px, rgba(37,99,235,.08), transparent 60%), var(--bg);
-  font-size: 14px;
-}
+body {background: radial-gradient(1200px 500px at 50% -220px, rgba(37,99,235,.08), transparent 60%), var(--bg); font-size: 14px;}
 .wrap { max-width: 1120px; margin: 18px auto 56px; }
-.header, .toolbar, .table-card {
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow-sm);
-}
-.label-file, .btn, .select {
-  border-radius: 12px;
-  border-color: var(--line);
-  background: #fff;
-  font-weight: 600;
-}
-.btn.primary {
-  background: var(--brand);
-  border-color: var(--brand);
-}
-.table thead th {
-  font-weight: 600;
-  background: var(--surface-2);
-}
+.header, .toolbar, .table-card {border: 1px solid var(--line);box-shadow: var(--shadow-sm);}
+.label-file, .btn, .select {border-radius: 12px;border-color: var(--line);background: #fff;font-weight: 600;}
+.btn.primary {background: var(--brand);border-color: var(--brand);}
+.table thead th {font-weight: 600;background: var(--surface-2);}
 .table tbody tr:nth-child(odd) td { background: #fff; }
 .table tbody tr:hover td { background: #f8fafc; }
 .kpi { border-radius: 999px; font-weight: 600; }
@@ -3167,7 +3126,6 @@ updateReclamadaBtnLabel();
 </script>
 </body>
 </html>
-
 </template>
 <div aria-atomic="true" aria-live="polite" class="toast-host" id="toastHost"></div>
 
@@ -3920,7 +3878,10 @@ const DOM = {
         btn.classList.toggle('active', btn.dataset.system === systemId);
       });
       document.querySelectorAll('.system-panel').forEach((panel)=>{
-        panel.classList.toggle('active', panel.dataset.system === systemId);
+        const isActive = panel.dataset.system === systemId;
+        panel.classList.toggle('active', isActive);
+        panel.style.display = isActive ? 'block' : 'none';
+        panel.hidden = !isActive;
       });
       if (systemId === 'art916') {
         setTab('editor');
@@ -3955,15 +3916,37 @@ const DOM = {
         if (!frame || !tpl) return;
 
         try {
-          const html = tpl.innerHTML;
-          const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
-          frame.src = dataUrl;
+          const html = tpl.innerHTML.trim();
+          frame.style.display = 'block';
+          frame.style.width = '100%';
+          frame.style.minHeight = '1200px';
+          frame.style.background = '#fff';
+
           frame.addEventListener('load', () => {
             if (status) {
               status.classList.remove('error');
               status.textContent = 'Módulo carregado com sucesso.';
             }
           }, { once: true });
+
+          const previousBlobUrl = frame.dataset.blobUrl;
+          if (previousBlobUrl) {
+            URL.revokeObjectURL(previousBlobUrl);
+            delete frame.dataset.blobUrl;
+          }
+
+          try {
+            const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+            const blobUrl = URL.createObjectURL(blob);
+            frame.dataset.blobUrl = blobUrl;
+            frame.src = blobUrl;
+          } catch {
+            if ('srcdoc' in frame) {
+              frame.srcdoc = html;
+            } else {
+              frame.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+            }
+          }
         } catch (err) {
           if (status) {
             status.classList.add('error');
