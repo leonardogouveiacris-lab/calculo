@@ -1048,6 +1048,12 @@ details.dropdown,
   background:#fff;
   box-shadow: var(--shadow-soft);
 }
+.embed-status{
+  margin-top:8px;
+  font-size:12px;
+  color:var(--muted);
+}
+.embed-status.error{color:#b42318}
 /* Ocultar apenas o botão do cabeçalho */
 #btnPrint{ display:none !important; }
 
@@ -1574,7 +1580,8 @@ details.dropdown,
     <div class="card-sub">Módulo incorporado ao template principal. Impressão respeita o sistema ativo.</div>
     <div class="btn-row" style="margin-top:10px;"><button class="btn btn-primary btnPrintActive" data-target="iframeSistema2" type="button">Imprimir / Salvar em PDF</button></div>
   </div>
-  <iframe class="embedded-system-frame" id="iframeSistema2" src="ATUALIZAÇÃO DEPÓSITO JUDICIAL.html" title="Atualização Depósito Judicial"></iframe>
+  <iframe class="embedded-system-frame" id="iframeSistema2" src="about:blank" title="Atualização Depósito Judicial"></iframe>
+  <div class="embed-status" id="embedStatus2">Carregando módulo…</div>
 </section>
 
 <section class="system-panel" data-system="sistema3" id="system-sistema3">
@@ -1583,7 +1590,8 @@ details.dropdown,
     <div class="card-sub">Módulo incorporado ao template principal. Impressão respeita o sistema ativo.</div>
     <div class="btn-row" style="margin-top:10px;"><button class="btn btn-primary btnPrintActive" data-target="iframeSistema3" type="button">Imprimir / Salvar em PDF</button></div>
   </div>
-  <iframe class="embedded-system-frame" id="iframeSistema3" src="RELATÓRIO DE SOLICITAÇÕES.html" title="Relatório de Solicitações"></iframe>
+  <iframe class="embedded-system-frame" id="iframeSistema3" src="about:blank" title="Relatório de Solicitações"></iframe>
+  <div class="embed-status" id="embedStatus3">Carregando módulo…</div>
 </section>
 </main>
 <div aria-atomic="true" aria-live="polite" class="toast-host" id="toastHost"></div>
@@ -2360,6 +2368,31 @@ const DOM = {
       }
     }
 
+    function initEmbeddedSystems() {
+      const modules = [
+        { iframe: 'iframeSistema2', status: 'embedStatus2', file: 'ATUALIZA%C3%87%C3%83O%20DEP%C3%93SITO%20JUDICIAL.html' },
+        { iframe: 'iframeSistema3', status: 'embedStatus3', file: 'RELAT%C3%93RIO%20DE%20SOLICITA%C3%87%C3%95ES.html' }
+      ];
+      modules.forEach((m) => {
+        const frame = document.getElementById(m.iframe);
+        const status = document.getElementById(m.status);
+        if (!frame) return;
+        frame.addEventListener('load', () => {
+          if (status) {
+            status.classList.remove('error');
+            status.textContent = 'Módulo carregado com sucesso.';
+          }
+        });
+        frame.addEventListener('error', () => {
+          if (status) {
+            status.classList.add('error');
+            status.textContent = 'Falha ao carregar o módulo. Recarregue a página.';
+          }
+        });
+        frame.src = m.file;
+      });
+    }
+
     function bindSystemSwitch() {
       document.querySelectorAll('.system-btn').forEach((btn)=>{
         btn.addEventListener('click', ()=> setSystem(btn.dataset.system));
@@ -2414,6 +2447,7 @@ const DOM = {
       bindInputs();
       bindTabs();
       bindSystemSwitch();
+      initEmbeddedSystems();
       applyLogo();
       setSystem("art916");
     }
