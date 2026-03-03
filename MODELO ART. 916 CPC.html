@@ -3878,7 +3878,10 @@ const DOM = {
         btn.classList.toggle('active', btn.dataset.system === systemId);
       });
       document.querySelectorAll('.system-panel').forEach((panel)=>{
-        panel.classList.toggle('active', panel.dataset.system === systemId);
+        const isActive = panel.dataset.system === systemId;
+        panel.classList.toggle('active', isActive);
+        panel.style.display = isActive ? 'block' : 'none';
+        panel.hidden = !isActive;
       });
       if (systemId === 'art916') {
         setTab('editor');
@@ -3914,6 +3917,11 @@ const DOM = {
 
         try {
           const html = tpl.innerHTML.trim();
+          frame.style.display = 'block';
+          frame.style.width = '100%';
+          frame.style.minHeight = '1200px';
+          frame.style.background = '#fff';
+
           frame.addEventListener('load', () => {
             if (status) {
               status.classList.remove('error');
@@ -3921,10 +3929,23 @@ const DOM = {
             }
           }, { once: true });
 
-          if ('srcdoc' in frame) {
-            frame.srcdoc = html;
-          } else {
-            frame.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+          const previousBlobUrl = frame.dataset.blobUrl;
+          if (previousBlobUrl) {
+            URL.revokeObjectURL(previousBlobUrl);
+            delete frame.dataset.blobUrl;
+          }
+
+          try {
+            const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+            const blobUrl = URL.createObjectURL(blob);
+            frame.dataset.blobUrl = blobUrl;
+            frame.src = blobUrl;
+          } catch {
+            if ('srcdoc' in frame) {
+              frame.srcdoc = html;
+            } else {
+              frame.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+            }
           }
         } catch (err) {
           if (status) {
