@@ -1057,6 +1057,26 @@ details.dropdown,
 /* Ocultar apenas o botão do cabeçalho */
 #btnPrint{ display:none !important; }
 
+/* Debug local (carregamento módulos) */
+.debug-panel{
+  position:fixed;
+  right:12px;
+  bottom:12px;
+  z-index:120;
+  width:min(520px, calc(100vw - 24px));
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:rgba(255,255,255,.96);
+  box-shadow:var(--shadow-soft);
+}
+.debug-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);}
+.debug-title{font-size:12px;font-weight:600;color:var(--ink);}
+.debug-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.debug-log{max-height:180px;overflow:auto;padding:8px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:11px;line-height:1.35;background:#fcfdff;}
+.debug-line{padding:2px 0;border-bottom:1px dashed #eef1f5;word-break:break-word;}
+.debug-line:last-child{border-bottom:none;}
+@media print{.debug-panel{display:none !important;}}
+
 </style>
 </head>
 <body>
@@ -3129,6 +3149,17 @@ updateReclamadaBtnLabel();
 </template>
 <div aria-atomic="true" aria-live="polite" class="toast-host" id="toastHost"></div>
 
+<div class="debug-panel no-print" id="debugPanel">
+  <div class="debug-head">
+    <div class="debug-title">Logs de debug (modo local)</div>
+    <div class="debug-actions">
+      <button class="mini-btn" id="btnDebugCopy" type="button">Copiar</button>
+      <button class="mini-btn" id="btnDebugClear" type="button">Limpar</button>
+    </div>
+  </div>
+  <div class="debug-log" id="debugLog"></div>
+</div>
+
 <script>
 /* ===== app.js (inline) ===== */
 /**
@@ -3193,6 +3224,9 @@ const DOM = {
 
   // Toast (se existir)
   toastHost: '#toastHost',
+  debugLog: '#debugLog',
+  btnDebugCopy: '#btnDebugCopy',
+  btnDebugClear: '#btnDebugClear',
 };
 
 // ======================
@@ -3870,6 +3904,57 @@ const DOM = {
       });
     }
 
+    const debugBuffer = [];
+
+    function debugLog(message, data = null) {
+      const now = new Date();
+      const ts = now.toLocaleTimeString('pt-BR');
+      let line = `[${ts}] ${message}`;
+      if (data !== null) {
+        try { line += ` :: ${typeof data === 'string' ? data : JSON.stringify(data)}`; }
+        catch { line += ' :: [dados não serializáveis]'; }
+      }
+      debugBuffer.push(line);
+      if (debugBuffer.length > 300) debugBuffer.shift();
+      const host = document.querySelector(DOM.debugLog);
+      if (host) {
+        const row = document.createElement('div');
+        row.className = 'debug-line';
+        row.textContent = line;
+        host.appendChild(row);
+        host.scrollTop = host.scrollHeight;
+      }
+      console.log('[DEBUG-EMBED]', line);
+    }
+
+    function bindDebugPanel() {
+      const btnCopy = document.querySelector(DOM.btnDebugCopy);
+      const btnClear = document.querySelector(DOM.btnDebugClear);
+      if (btnCopy) btnCopy.addEventListener('click', async () => {
+        const text = debugBuffer.join('\n');
+        try {
+          await navigator.clipboard.writeText(text);
+          debugLog('Log copiado para a área de transferência');
+        } catch {
+          debugLog('Falha ao copiar log (clipboard indisponível no navegador)');
+        }
+      });
+      if (btnClear) btnClear.addEventListener('click', () => {
+        debugBuffer.length = 0;
+        const host = document.querySelector(DOM.debugLog);
+        if (host) host.innerHTML = '';
+        debugLog('Log limpo');
+      });
+
+      window.addEventListener('error', (ev) => {
+        debugLog('Erro global', { msg: ev.message, file: ev.filename, line: ev.lineno, col: ev.colno });
+      });
+      window.addEventListener('unhandledrejection', (ev) => {
+        debugLog('Promise rejeitada sem tratamento', String(ev.reason));
+      });
+    }
+
+
     let activeSystem = "art916";
 
     function setSystem(systemId) {
@@ -3886,6 +3971,7 @@ const DOM = {
       if (systemId === 'art916') {
         setTab('editor');
       }
+      debugLog('Sistema alterado', { systemId });
     }
 
     function printActiveSystem(targetId=null) {
@@ -3935,23 +4021,55 @@ const DOM = {
             delete frame.dataset.blobUrl;
           }
 
+          const isFileMode = location.protocol === 'file:';
+          debugLog('Iniciando módulo', { iframe: m.iframe, tpl: m.tpl, fileMode: isFileMode, htmlChars: html.length });
+
           try {
-            const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-            const blobUrl = URL.createObjectURL(blob);
-            frame.dataset.blobUrl = blobUrl;
-            frame.src = blobUrl;
-          } catch {
             if ('srcdoc' in frame) {
               frame.srcdoc = html;
+              frame.dataset.loadMode = 'srcdoc';
             } else {
+              throw new Error('srcdoc indisponível');
+            }
+          } catch (srcdocErr) {
+            debugLog('Falha srcdoc; tentando blob', String(srcdocErr));
+            try {
+              const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+              const blobUrl = URL.createObjectURL(blob);
+              frame.dataset.blobUrl = blobUrl;
+              frame.dataset.loadMode = 'blob';
+              frame.src = blobUrl;
+            } catch (blobErr) {
+              debugLog('Falha blob; usando data URL', String(blobErr));
+              frame.dataset.loadMode = 'data';
               frame.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
             }
           }
+
+          setTimeout(() => {
+            try {
+              const doc = frame.contentDocument;
+              const bodyText = (doc && doc.body) ? (doc.body.innerText || '').trim() : '';
+              debugLog('Validação pós-carga', {
+                iframe: m.iframe,
+                mode: frame.dataset.loadMode || 'desconhecido',
+                bodyChars: bodyText.length,
+                hasBody: !!(doc && doc.body)
+              });
+              if (!bodyText.length && status) {
+                status.classList.add('error');
+                status.textContent = 'Módulo carregado, mas sem conteúdo visível. Veja os logs de debug.';
+              }
+            } catch (probeErr) {
+              debugLog('Falha ao validar conteúdo do iframe', String(probeErr));
+            }
+          }, 900);
         } catch (err) {
           if (status) {
             status.classList.add('error');
             status.textContent = 'Falha ao carregar o módulo. Recarregue a página.';
           }
+          debugLog('Erro em initEmbeddedSystems', String(err));
         }
       });
     }
@@ -4010,9 +4128,11 @@ const DOM = {
       bindInputs();
       bindTabs();
       bindSystemSwitch();
+      bindDebugPanel();
       initEmbeddedSystems();
       applyLogo();
       setSystem("art916");
+      debugLog('Boot finalizado', { protocol: location.protocol, href: location.href });
     }
 
     boot();
