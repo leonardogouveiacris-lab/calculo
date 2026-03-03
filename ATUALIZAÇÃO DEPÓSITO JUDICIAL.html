@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Atualização Bancária de Depósito Recursal</title>
+
+<style>
+  :root{
+    --bg:#f7f8fc;
+    --panel:#ffffff;
+    --panel2:#f3f5fa;
+    --text:#111827;
+    --muted:#6b7280;
+    --accent:#3b82f6;
+    --accent-soft:#eaf1ff;
+    --ok:#22c55e;
+    --ok-soft:#e9f8ef;
+    --danger:#ef4444;
+    --danger-soft:#feecec;
+    --line:#e8eaf0;
+    --radius:12px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+  }
+  header{
+    position:sticky; top:0; z-index:10;
+    background:rgba(247,248,252,.95);
+    border-bottom:1px solid var(--line);
+    backdrop-filter: blur(6px);
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:14px 16px 22px;}
+  .title{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  h1{margin:6px 0;font-size:clamp(20px,3vw,26px);font-weight:700;letter-spacing:.2px;}
+  small{color:var(--muted);font-weight:500}
+
+  .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:12px;margin-top:12px;}
+  @media(max-width:980px){.grid{grid-template-columns:1fr}}
+
+  .card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:12px;
+    box-shadow:0 4px 14px rgba(17,24,39,.04);
+  }
+  .card h2{margin:0 0 8px 0;font-size:17px;font-weight:650;}
+  label{font-size:12px;color:var(--muted);display:block;margin:6px 0;}
+  input,select,button{font:inherit}
+  input,select{
+    width:100%;
+    padding:9px 10px;
+    border-radius:9px;
+    border:1px solid var(--line);
+    background:#fff;
+    outline:none;
+  }
+  input:focus,select:focus{
+    border-color:#b7ccff;
+    box-shadow:0 0 0 3px rgba(59,130,246,.10);
+  }
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:end;}
+  .field{flex:1;min-width:160px}
+
+  .btn{
+    border:1px solid transparent;
+    border-radius:8px;
+    padding:8px 12px;
+    font-weight:600;
+    cursor:pointer;
+    white-space:nowrap;
+    transition:.15s ease;
+    box-shadow:none;
+  }
+  .btn.primary{
+    background:var(--accent-soft);
+    border-color:#d7e4ff;
+    color:#1f3f88;
+  }
+  .btn.primary:hover{filter:brightness(.98)}
+  .btn.ok{
+    background:var(--ok-soft);
+    border-color:#cdeed9;
+    color:#166534;
+  }
+  .btn.ok:hover{filter:brightness(.98)}
+  .btn.secondary{
+    background:#fff;
+    border-color:var(--line);
+    color:var(--text);
+    font-weight:550;
+  }
+  .btn.secondary:hover{background:#fafbff}
+  .btn.danger{
+    background:#fff;
+    border-color:#f2c3c3;
+    color:#991b1b;
+  }
+  .btn.danger:hover{background:var(--danger-soft)}
+
+  .hr{height:1px;background:var(--line);margin:10px 0;}
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    border:1px solid var(--line);
+    border-radius:10px;
+    overflow:hidden;
+    background:#fff;
+  }
+  th,td{
+    padding:8px;
+    border-bottom:1px solid var(--line);
+    font-size:13px;
+    text-align:left;
+    vertical-align:middle;
+    font-weight:400;
+  }
+  th{
+    background:var(--panel2);
+    text-transform:uppercase;
+    letter-spacing:.5px;
+    font-size:12px;
+    font-weight:600;
+    color:#374151;
+  }
+  tr:last-child td{border-bottom:none}
+
+  .note{font-size:12px;color:var(--muted)}
+  .right{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+
+  #manualWrap{display:none}
+
+  /* Report */
+  #report{display:none;margin-top:12px}
+  .report-header{text-align:center}
+  .report-header h3{
+    margin:0;
+    font-size:14px;
+    text-transform:uppercase;
+    font-weight:700;
+    letter-spacing:.5px;
+  }
+  .report-header .subtitle{
+    margin-top:4px;font-size:12px;color:var(--muted);font-weight:500;
+  }
+  .rep-block-title{
+    font-weight:650;
+    margin:4px 0 6px;
+    font-size:13.5px;
+    color:#111827;
+  }
+  .val-soft-strong{font-weight:600;}
+  .total-row{
+    display:flex;justify-content:flex-end;gap:6px;
+    font-weight:700;font-size:14px;color:#111827;
+  }
+
+  .sources{
+    font-size:12px;
+    color:var(--muted);
+    line-height:1.5;
+  }
+  .sources .sources-title{
+    font-weight:600;
+    color:#374151;
+    margin-bottom:4px;
+  }
+  .sources a{
+    color:#1f3f88;
+    text-decoration:none;
+  }
+  .sources a:hover{text-decoration:underline}
+
+  @media print{
+    header,.no-print{display:none !important;}
+    #report{display:block !important;}
+    body{background:#fff;color:#111}
+    .wrap{max-width:100%;padding:0 6mm}
+    .card,table{box-shadow:none;border-color:#ddd}
+    th{background:#f2f2f2}
+    @page{margin:10mm;}
+  }
+</style>
+</head>
+
+<body>
+<header class="no-print">
+  <div class="wrap title">
+    <div>
+      <h1>Atualização Bancária do Depósito Recursal</h1>
+      <small>Remuneração da conta judicial</small>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div class="grid no-print">
+    <!-- Depósitos -->
+    <section class="card">
+      <h2>Depósito(s) Recursal(is)</h2>
+      <div class="row">
+        <div class="field">
+          <label>Data do Depósito</label>
+          <input type="date" id="depDate">
+        </div>
+        <div class="field">
+          <label>Valor Depositado (R$)</label>
+          <input type="number" id="depValue" step="0.01" placeholder="Ex.: 435269,37">
+        </div>
+        <div class="field">
+          <label>Obs. (opcional)</label>
+          <input type="text" id="depObs" placeholder="Ex.: GRU / TRT / complemento">
+        </div>
+        <button class="btn ok" id="btnAddDep">Adicionar</button>
+      </div>
+
+      <div class="hr"></div>
+
+      <div style="overflow:auto">
+        <table id="depTable">
+          <thead>
+            <tr>
+              <th>#</th><th>Data</th><th>Valor</th><th>Obs.</th><th style="width:110px">Ações</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <p class="note" style="margin-top:8px">
+        Cada depósito será atualizado individualmente pelo índice bancário e somado no final.
+      </p>
+    </section>
+
+    <!-- Índices bancários -->
+    <section class="card">
+      <h2>Índice Bancário</h2>
+
+      <div class="field">
+        <label>Tipo de índice</label>
+        <select id="indexType">
+          <option value="poupanca_auto" selected>Poupança/TR automática (BCB)</option>
+          <option value="jam_auto">JAM automática (BCB)</option> <!-- // JAM -->
+          <option value="cdi">CDI bancário automático (BCB/SGS 4389)</option>
+          <option value="selic">SELIC bancária automática (BCB/SGS 11)</option>
+          <option value="manual">Manual mensal (tabela do Juízo)</option>
+        </select>
+      </div>
+
+      <div id="manualWrap">
+        <div class="hr"></div>
+        <div class="row">
+          <div class="field">
+            <label>Mês/Ano</label>
+            <input type="month" id="idxMonth">
+          </div>
+          <div class="field">
+            <label>Índice do mês (%)</label>
+            <input type="number" id="idxValue" step="0.0001" placeholder="Ex.: 0,3599">
+          </div>
+          <button class="btn ok" id="btnAddIdx">Adicionar índice</button>
+        </div>
+
+        <div class="hr"></div>
+
+        <div style="overflow:auto">
+          <table id="idxTable">
+            <thead><tr><th>#</th><th>Mês/Ano</th><th>Índice (%)</th><th style="width:110px">Ações</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="right" style="margin-top:6px">
+          <button class="btn secondary" id="btnSortIdx">Ordenar</button>
+          <button class="btn danger" id="btnClearIdx">Limpar índices</button>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+      <p class="note" id="indexHint">
+        Poupança/TR automática usa TR mensal (SGS 7811) + adicional pela meta Selic (SGS 432).
+      </p>
+    </section>
+  </div>
+
+  <!-- Controles -->
+  <section class="card no-print" style="margin-top:12px">
+    <h2>Atualizar depósitos até</h2>
+    <div class="row">
+      <div class="field">
+        <label>Data final de atualização</label>
+        <input type="date" id="endDate">
+      </div>
+      <div class="field">
+        <label>Arredondamento</label>
+        <select id="roundingEl">
+          <option value="2" selected>2 casas decimais</option>
+          <option value="4">4 casas decimais</option>
+        </select>
+      </div>
+      <button class="btn primary" id="btnCalc">Calcular</button>
+    </div>
+
+    <div class="hr"></div>
+    <div class="right">
+      <button class="btn secondary" id="btnShowReport">Gerar Relatório</button>
+      <button class="btn ok" id="btnPrint">Imprimir (Ctrl+P)</button>
+      <span class="note" id="autoStatus"></span>
+    </div>
+  </section>
+
+  <!-- RELATÓRIO -->
+  <section id="report" class="card">
+    <div class="report-header">
+      <h3>Demonstrativo da Atualização Monetária do Depósito Recursal</h3>
+      <div class="subtitle" id="repMeta"></div>
+    </div>
+
+    <div class="hr"></div>
+
+    <div id="repBlocks"></div>
+
+    <div id="repSources"></div>
+
+    <div class="hr"></div>
+    <div class="total-row">
+      TOTAL ATUALIZADO ATÉ <span id="repEnd"></span>:
+      <span id="repTotal" class="val-soft-strong"></span>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ---------- STATE ---------- */
+let deposits = [];
+let indices = []; // monthly % : {month:"YYYY-MM", value:number}
+
+/* ---------- HELPERS ---------- */
+const fmtBRL = n => n.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const pad2 = v => String(v).padStart(2,"0");
+const toDateBR = d => new Date(d+"T00:00:00").toLocaleDateString("pt-BR");
+
+function monthKeyFromDate(d){
+  const dt = new Date(d+"T00:00:00");
+  return `${dt.getFullYear()}-${pad2(dt.getMonth()+1)}`;
+}
+function addMonths(key, step=1){
+  let [y,m]=key.split("-").map(Number);
+  m += step; while(m>12){m-=12;y++;} while(m<1){m+=12;y--;}
+  return `${y}-${pad2(m)}`;
+}
+function monthsBetweenInclusive(startKey, endKey){
+  const out=[]; let k=startKey;
+  while(k<=endKey){ out.push(k); k=addMonths(k,1); }
+  return out;
+}
+function compareMonth(a,b){ return a.month.localeCompare(b.month); }
+function minDepositDate(){
+  if(!deposits.length) return null;
+  return deposits.map(d=>d.date).sort()[0];
+}
+function toBR(d){ const [y,m,da]=d.split("-"); return `${da}/${m}/${y}`; }
+
+/* ---------- UI RENDER ---------- */
+function renderDeposits(){
+  const tb = document.querySelector("#depTable tbody");
+  tb.innerHTML="";
+  deposits.forEach((d,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td>${i+1}</td>
+      <td>${toDateBR(d.date)}</td>
+      <td>${fmtBRL(d.value)}</td>
+      <td class="note">${d.obs||""}</td>
+      <td>
+        <button class="btn secondary" onclick="editDep(${i})">Editar</button>
+        <button class="btn danger" onclick="delDep(${i})">Del</button>
+      </td>`;
+    tb.appendChild(tr);
+  });
+}
+function renderIndices(){
+  const tb = document.querySelector("#idxTable tbody");
+  tb.innerHTML="";
+  indices.forEach((d,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td>${i+1}</td>
+      <td>${d.month.split("-")[1]}/${d.month.split("-")[0]}</td>
+      <td>${d.value.toLocaleString("pt-BR")} %</td>
+      <td>
+        <button class="btn secondary" onclick="editIdx(${i})">Editar</button>
+        <button class="btn danger" onclick="delIdx(${i})">Del</button>
+      </td>`;
+    tb.appendChild(tr);
+  });
+}
+
+/* ---------- CRUD DEP ---------- */
+btnAddDep.onclick=()=>{
+  const date=depDate.value;
+  const value=parseFloat(depValue.value);
+  const obs=depObs.value.trim();
+  if(!date || isNaN(value)) return alert("Informe data e valor.");
+  deposits.push({date,value,obs});
+  depDate.value=""; depValue.value=""; depObs.value="";
+  renderDeposits();
+};
+window.delDep=i=>{deposits.splice(i,1);renderDeposits();};
+window.editDep=i=>{
+  const d=deposits[i];
+  const nd=prompt("Data (YYYY-MM-DD):",d.date); if(!nd) return;
+  const nv=parseFloat(prompt("Valor (R$):",d.value)); if(isNaN(nv)) return;
+  const no=prompt("Obs.:",d.obs||"") ?? d.obs;
+  deposits[i]={date:nd,value:nv,obs:no}; renderDeposits();
+};
+
+/* ---------- CRUD IDX (manual) ---------- */
+btnAddIdx.onclick=()=>{
+  const month=idxMonth.value;
+  const value=parseFloat(idxValue.value);
+  if(!month || isNaN(value)) return alert("Informe mês e índice.");
+  const ex=indices.find(x=>x.month===month);
+  if(ex) ex.value=value; else indices.push({month,value});
+  idxMonth.value=""; idxValue.value="";
+  indices.sort(compareMonth); renderIndices();
+};
+window.delIdx=i=>{indices.splice(i,1);renderIndices();};
+window.editIdx=i=>{
+  const d=indices[i];
+  const nm=prompt("Mês (YYYY-MM):",d.month); if(!nm) return;
+  const nv=parseFloat(prompt("Índice (%):",d.value)); if(isNaN(nv)) return;
+  indices[i]={month:nm,value:nv}; indices.sort(compareMonth); renderIndices();
+};
+btnSortIdx.onclick=()=>{indices.sort(compareMonth);renderIndices();};
+btnClearIdx.onclick=()=>{ if(confirm("Limpar todos os índices?")){indices=[];renderIndices();} };
+
+/* ---------- INDEX TYPE TOGGLE + HINT ---------- */
+function toggleManual(){
+  manualWrap.style.display = (indexType.value==="manual") ? "block" : "none";
+
+  if(indexType.value==="poupanca_auto"){
+    indexHint.textContent = "Poupança/TR automática usa TR mensal (SGS 7811) + adicional pela meta Selic (SGS 432).";
+  } else if(indexType.value==="jam_auto"){ // JAM
+    indexHint.textContent = "JAM automática usa TR mensal (SGS 7811) + juros fixos de 3% a.a. (0,25% a.m.).";
+  } else {
+    indexHint.textContent = "";
+  }
+}
+indexType.onchange=toggleManual; toggleManual();
+
+/* ---------- BCB FETCH (fatiamento 10 anos) ---------- */
+async function fetchSeries(code, startDate, endDate){
+  let results=[];
+  let curStart=new Date(startDate+"T00:00:00");
+  const final=new Date(endDate+"T00:00:00");
+
+  while(curStart<=final){
+    const curEnd=new Date(curStart);
+    curEnd.setFullYear(curEnd.getFullYear()+9);
+    if(curEnd>final) curEnd.setTime(final.getTime());
+
+    const s=curStart.toISOString().slice(0,10);
+    const e=curEnd.toISOString().slice(0,10);
+
+    const url=`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${code}/dados?formato=json`
+      +`&dataInicial=${encodeURIComponent(toBR(s))}`
+      +`&dataFinal=${encodeURIComponent(toBR(e))}`;
+    const r=await fetch(url);
+    if(!r.ok) throw new Error("BCB erro");
+    const part=await r.json();
+    results=results.concat(part);
+
+    curStart=new Date(curEnd);
+    curStart.setDate(curStart.getDate()+1);
+  }
+  return results;
+}
+
+/* ---------- AUTO CDI/SELIC ---------- */
+function dailyToMonthlyEffective(dailyList, seriesCode){
+  const byMonth=new Map();
+  for(const it of dailyList){
+    const [dd,mm,yy]=it.data.split("/");
+    const key=`${yy}-${mm}`;
+    const v=parseFloat(String(it.valor).replace(",","."));
+    if(isNaN(v)) continue;
+    let dailyRate;
+    if(seriesCode==="4389"){
+      const aa=v/100;
+      dailyRate=Math.pow(1+aa,1/252)-1;
+    } else {
+      dailyRate=v/100;
+    }
+    if(!byMonth.has(key)) byMonth.set(key,[]);
+    byMonth.get(key).push(dailyRate);
+  }
+  const out=[];
+  [...byMonth.keys()].sort().forEach(key=>{
+    let factor=1;
+    byMonth.get(key).forEach(r=>factor*=(1+r));
+    out.push({month:key,value:(factor-1)*100});
+  });
+  return out;
+}
+
+/* ---------- AUTO POUPANÇA/TR ---------- */
+function buildPoupancaMonthly(trList, metaSelicList){
+  const trByMonth=new Map();
+  trList.forEach(it=>{
+    const [dd,mm,yy]=it.data.split("/");
+    const key=`${yy}-${mm}`;
+    const v=parseFloat(String(it.valor).replace(",","."));
+    if(!isNaN(v)) trByMonth.set(key, v);
+  });
+
+  const selicByMonth=new Map();
+  metaSelicList.forEach(it=>{
+    const [dd,mm,yy]=it.data.split("/");
+    const key=`${yy}-${mm}`;
+    const v=parseFloat(String(it.valor).replace(",","."));
+    if(!isNaN(v)) selicByMonth.set(key, v);
+  });
+
+  const months=[...new Set([...trByMonth.keys(), ...selicByMonth.keys()])].sort();
+  const out=[];
+  months.forEach(mk=>{
+    const tr = trByMonth.get(mk) ?? 0;
+    const selicAA = selicByMonth.get(mk) ?? 0;
+
+    let adicional;
+    if(selicAA > 8.5){
+      adicional = 0.5;
+    } else {
+      adicional = 0.70 * (selicAA/12);
+    }
+    out.push({month:mk, value: tr + adicional});
+  });
+  return out;
+}
+
+/* ---------- AUTO JAM ---------- */
+function buildJamMonthly(trList){
+  const trByMonth=new Map();
+  trList.forEach(it=>{
+    const [dd,mm,yy]=it.data.split("/");
+    const key=`${yy}-${mm}`;
+    const v=parseFloat(String(it.valor).replace(",","."));
+    if(!isNaN(v)) trByMonth.set(key, v);
+  });
+
+  const months=[...trByMonth.keys()].sort();
+  const out=[];
+  months.forEach(mk=>{
+    const tr = trByMonth.get(mk) ?? 0;
+    const jurosFGTS = 0.25; // 3% a.a. = 0,25% a.m.
+    out.push({month:mk, value: tr + jurosFGTS});
+  });
+  return out;
+}
+
+/* ---------- FONTES AUTOMÁTICAS ---------- */
+function fontesHTML(tipo){
+  const apiBase = `https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados?formato=json`;
+  if(tipo==="poupanca_auto"){
+    return `
+      <div class="hr"></div>
+      <div class="sources">
+        <div class="sources-title">Fontes dos índices utilizados</div>
+        <div>• API SGS/BCB: <a href="${apiBase}" target="_blank">${apiBase}</a></div>
+        <div>• TR mensal (SGS 7811): 
+          <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.7811/dados?formato=json" target="_blank">
+            https://api.bcb.gov.br/dados/serie/bcdata.sgs.7811/dados?formato=json
+          </a>
+        </div>
+        <div>• Meta Selic (SGS 432): 
+          <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados?formato=json" target="_blank">
+            https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados?formato=json
+          </a>
+        </div>
+        <div>• Regra poupança (BCB): 
+          <a href="https://www.bcb.gov.br/estatisticas/remuneradepositospoupanca" target="_blank">
+            https://www.bcb.gov.br/estatisticas/remuneradepositospoupanca
+          </a>
+        </div>
+      </div>
+    `;
+  }
+  if(tipo==="jam_auto"){
+    return `
+      <div class="hr"></div>
+      <div class="sources">
+        <div class="sources-title">Fontes dos índices utilizados</div>
+        <div>• API SGS/BCB: <a href="${apiBase}" target="_blank">${apiBase}</a></div>
+        <div>• TR mensal (SGS 7811): 
+          <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.7811/dados?formato=json" target="_blank">
+            https://api.bcb.gov.br/dados/serie/bcdata.sgs.7811/dados?formato=json
+          </a>
+        </div>
+        <div>• Juros fixos de 3% a.a. (0,25% a.m.) conforme regra histórica do JAM.</div>
+      </div>
+    `;
+  }
+  if(tipo==="cdi"){
+    return `
+      <div class="hr"></div>
+      <div class="sources">
+        <div class="sources-title">Fontes dos índices utilizados</div>
+        <div>• API SGS/BCB: <a href="${apiBase}" target="_blank">${apiBase}</a></div>
+        <div>• CDI anualizado (SGS 4389): 
+          <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados?formato=json" target="_blank">
+            https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados?formato=json
+          </a>
+        </div>
+      </div>
+    `;
+  }
+  if(tipo==="selic"){
+    return `
+      <div class="hr"></div>
+      <div class="sources">
+        <div class="sources-title">Fontes dos índices utilizados</div>
+        <div>• API SGS/BCB: <a href="${apiBase}" target="_blank">${apiBase}</a></div>
+        <div>• Selic diária (SGS 11): 
+          <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados?formato=json" target="_blank">
+            https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados?formato=json
+          </a>
+        </div>
+      </div>
+    `;
+  }
+  return `
+    <div class="hr"></div>
+    <div class="sources">
+      <div class="sources-title">Fontes dos índices utilizados</div>
+      <div>• Índices inseridos manualmente a partir da tabela do Juízo/Tribunal.</div>
+    </div>
+  `;
+}
+
+/* ---------- CALC CORE ---------- */
+function getManualIndex(key){
+  const ex=indices.find(i=>i.month===key);
+  return ex ? ex.value/100 : 0;
+}
+
+async function calculateAll(){
+  if(!deposits.length) return alert("Cadastre depósitos."), null;
+  if(!endDate.value) return alert("Informe data final."), null;
+
+  const end=endDate.value;
+  const endKey=monthKeyFromDate(end);
+  const rounding=parseInt(roundingEl.value,10);
+  const start=minDepositDate();
+
+  if(indexType.value==="cdi" || indexType.value==="selic"){
+    autoStatus.textContent="Buscando índices no BCB...";
+    const series = indexType.value==="cdi" ? "4389" : "11";
+    const daily = await fetchSeries(series, start, end);
+    indices = dailyToMonthlyEffective(daily, series);
+    autoStatus.textContent=`OK (${indices.length} meses).`;
+  }
+
+  if(indexType.value==="poupanca_auto"){
+    autoStatus.textContent="Buscando TR e Meta Selic no BCB...";
+    const trList = await fetchSeries("7811", start, end);
+    const metaSelicList = await fetchSeries("432", start, end);
+    indices = buildPoupancaMonthly(trList, metaSelicList);
+    autoStatus.textContent=`OK (${indices.length} meses).`;
+  }
+
+  if(indexType.value==="jam_auto"){ // JAM
+    autoStatus.textContent="Buscando TR no BCB...";
+    const trList = await fetchSeries("7811", start, end);
+    indices = buildJamMonthly(trList);
+    autoStatus.textContent=`OK (${indices.length} meses).`;
+  }
+
+  if(indexType.value==="manual"){
+    autoStatus.textContent="";
+  }
+
+  let totalUpdated=0;
+  repBlocks.innerHTML="";
+
+  for(const dep of deposits){
+    const startKey=monthKeyFromDate(dep.date);
+    const months=monthsBetweenInclusive(startKey,endKey);
+
+    let saldo=dep.value;
+    const rows=[];
+
+    months.forEach((mk, idx)=>{
+      const idxMes = (indexType.value==="manual")
+        ? getManualIndex(mk)
+        : ((indices.find(i=>i.month===mk)?.value||0)/100);
+
+      const saldoAnterior = saldo;
+      const jurosMes = saldoAnterior * idxMes;
+      saldo = saldoAnterior + jurosMes;
+
+      rows.push({ mk, idxMes, saldoAnterior, jurosMes, saldo });
+    });
+
+    const block=document.createElement("div");
+    block.style.marginBottom="10px";
+    block.innerHTML=`
+      <div class="rep-block-title">
+        Depósito em ${toDateBR(dep.date)} • ${fmtBRL(dep.value)} ${dep.obs?("• "+dep.obs):""}
+      </div>
+      <div style="overflow:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Data do Depósito</th>
+              <th>Valor Depositado</th>
+              <th>Índice de Atualização Monetária + Juros</th>
+              <th>Data da Atualização</th>
+              <th>Saldo Anterior</th>
+              <th>Juros e Atualização Monetária</th>
+              <th>Valor Atualizado</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((r,i)=>`
+              <tr>
+                <td>${i===0?toDateBR(dep.date):"-"}</td>
+                <td>${i===0?fmtBRL(dep.value):"-"}</td>
+                <td>${r.idxMes.toFixed(6).replace(".",",")}</td>
+                <td>${r.mk.split("-")[1]}/${r.mk.split("-")[0]}</td>
+                <td>${fmtBRL(r.saldoAnterior)}</td>
+                <td>${fmtBRL(r.jurosMes)}</td>
+                <td class="val-soft-strong">${fmtBRL(r.saldo)}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div style="display:flex;justify-content:flex-end;font-weight:600;margin-top:4px;color:#111827">
+        Subtotal atualizado: ${fmtBRL(saldo)}
+      </div>
+    `;
+    repBlocks.appendChild(block);
+
+    const pow=Math.pow(10,rounding);
+    saldo=Math.round(saldo*pow)/pow;
+    totalUpdated += saldo;
+  }
+
+  repSources.innerHTML = fontesHTML(indexType.value);
+
+  return {
+    end, totalUpdated,
+    indexLabel:indexType.options[indexType.selectedIndex].text
+  };
+}
+
+/* ---------- BUTTONS ---------- */
+btnCalc.onclick=async()=>{ await calculateAll(); alert("Cálculo pronto. Gere o relatório."); };
+
+btnShowReport.onclick=async()=>{
+  const res=await calculateAll(); if(!res) return;
+  report.style.display="block";
+  repMeta.textContent=`Índice bancário: ${res.indexLabel} • Data final: ${toDateBR(res.end)}`;
+  repEnd.textContent=toDateBR(res.end);
+  repTotal.textContent=fmtBRL(res.totalUpdated);
+  report.scrollIntoView({behavior:"smooth",block:"start"});
+};
+
+btnPrint.onclick=async()=>{
+  const res=await calculateAll(); if(!res) return;
+  report.style.display="block";
+  repMeta.textContent=`Índice bancário: ${res.indexLabel} • Data final: ${toDateBR(res.end)}`;
+  repEnd.textContent=toDateBR(res.end);
+  repTotal.textContent=fmtBRL(res.totalUpdated);
+  window.print();
+};
+
+renderDeposits(); renderIndices();
+</script>
+</body>
+</html>
