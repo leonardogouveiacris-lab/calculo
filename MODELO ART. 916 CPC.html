@@ -3913,15 +3913,19 @@ const DOM = {
         if (!frame || !tpl) return;
 
         try {
-          const html = tpl.innerHTML;
-          const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
-          frame.src = dataUrl;
+          const html = tpl.innerHTML.trim();
           frame.addEventListener('load', () => {
             if (status) {
               status.classList.remove('error');
               status.textContent = 'Módulo carregado com sucesso.';
             }
           }, { once: true });
+
+          if ('srcdoc' in frame) {
+            frame.srcdoc = html;
+          } else {
+            frame.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+          }
         } catch (err) {
           if (status) {
             status.classList.add('error');
