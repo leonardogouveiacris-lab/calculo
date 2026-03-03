@@ -212,6 +212,34 @@ input[type="file"] { display:none; }
   .table thead th { position: static; }
 }
 
+
+/* Integração visual com o sistema principal (MODELO ART. 916 CPC) */
+:root {
+  --bg: #f7f8fb;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --text: #0b1220;
+  --muted: #667085;
+  --line: #e6e8ef;
+  --brand: #0b1220;
+  --brand-2: #0b1220;
+  --accent-bg: #f2f4f7;
+  --shadow-sm: 0 10px 26px rgba(16,24,40,.06);
+  --shadow-md: 0 18px 45px rgba(16,24,40,.10);
+  --radius-lg: 18px;
+  --radius-md: 12px;
+  --radius-sm: 12px;
+}
+body {background: radial-gradient(1200px 500px at 50% -220px, rgba(37,99,235,.08), transparent 60%), var(--bg); font-size: 14px;}
+.wrap { max-width: 1120px; margin: 18px auto 56px; }
+.header, .toolbar, .table-card {border: 1px solid var(--line);box-shadow: var(--shadow-sm);}
+.label-file, .btn, .select {border-radius: 12px;border-color: var(--line);background: #fff;font-weight: 600;}
+.btn.primary {background: var(--brand);border-color: var(--brand);}
+.table thead th {font-weight: 600;background: var(--surface-2);}
+.table tbody tr:nth-child(odd) td { background: #fff; }
+.table tbody tr:hover td { background: #f8fafc; }
+.kpi { border-radius: 999px; font-weight: 600; }
+
 </style>
 </head>
 
