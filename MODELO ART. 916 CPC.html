@@ -3870,19 +3870,25 @@ const DOM = {
         const status = document.getElementById(m.status);
         const tpl = document.getElementById(m.tpl);
         if (!frame || !tpl) return;
-        frame.addEventListener('load', () => {
+
+        const html = tpl.innerHTML;
+        try {
+          frame.src = 'about:blank';
+          const doc = frame.contentWindow && frame.contentWindow.document;
+          if (!doc) throw new Error('iframe document indisponível');
+          doc.open();
+          doc.write(html);
+          doc.close();
           if (status) {
             status.classList.remove('error');
             status.textContent = 'Módulo carregado com sucesso.';
           }
-        });
-        frame.addEventListener('error', () => {
+        } catch (err) {
           if (status) {
             status.classList.add('error');
             status.textContent = 'Falha ao carregar o módulo. Recarregue a página.';
           }
-        });
-        frame.srcdoc = tpl.innerHTML;
+        }
       });
     }
 
