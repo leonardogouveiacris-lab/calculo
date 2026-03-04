@@ -457,6 +457,42 @@ h3.sec-title{
 /* Second page spacing similar to the PDF */
 .page2 .content{ margin-top:54mm; }
 
+/* Institutional report theme (somente relatório) */
+#tab-report #reportRoot.report--institutional{
+  --report-text:#1f2937;
+  --report-muted:#6b7280;
+  --report-border:#d9d9d9;
+}
+#tab-report #reportRoot.report--institutional .page{
+  background:#fff;
+  box-shadow:none;
+  border-radius:0;
+  border:1px solid var(--report-border);
+  color:var(--report-text);
+}
+#tab-report #reportRoot.report--institutional .contact,
+#tab-report #reportRoot.report--institutional .footer,
+#tab-report #reportRoot.report--institutional .case-label,
+#tab-report #reportRoot.report--institutional .small{
+  color:var(--report-muted);
+}
+#tab-report #reportRoot.report--institutional .contact a,
+#tab-report #reportRoot.report--institutional .footer a,
+#tab-report #reportRoot.report--institutional .danger-txt{
+  color:var(--report-text);
+}
+#tab-report #reportRoot.report--institutional .case-info,
+#tab-report #reportRoot.report--institutional .report-table th,
+#tab-report #reportRoot.report--institutional .report-table td,
+#tab-report #reportRoot.report--institutional .kv td{
+  border-color:var(--report-border);
+}
+#tab-report #reportRoot.report--institutional .report-table th,
+#tab-report #reportRoot.report--institutional .kv td.k{
+  background:#fff;
+  color:var(--report-muted);
+}
+
 /* Print */
 @page{
   size: A4;
@@ -511,6 +547,13 @@ h3.sec-title{
 
   .title{ margin:10mm 0 4mm !important; }
   h3.sec-title[style*="margin-top:18mm"]{ margin-top:12mm !important; }
+
+  #tab-report #reportRoot.report--institutional .page{
+    background:#fff !important;
+    box-shadow:none !important;
+    border-radius:0 !important;
+    border:1px solid #d9d9d9 !important;
+  }
 }
 
 /* Typography refinements */
@@ -1243,7 +1286,7 @@ details.dropdown,
 <button class="btn" id="btnBackToData" type="button">Voltar para dados</button>
 </div>
 </div>
-<div id="reportRoot">
+<div class="report--institutional" id="reportRoot">
 <!-- PAGE 1 -->
 <section class="page page1" id="rptPage1">
 <div class="header" id="rptHeader1" style="max-height: 60px;">
