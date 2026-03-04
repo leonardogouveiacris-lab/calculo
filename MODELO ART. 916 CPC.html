@@ -1030,6 +1030,13 @@ body.solicitacoes-mode #solicitacoesStandalone{display:block !important;}
 body.solicitacoes-mode #solicitacoesBackBtn{display:inline-flex !important;}
 body.solicitacoes-mode #btnOpenSolicitacoes{display:none !important;}
 body.solicitacoes-mode #btnPrint{display:none !important;}
+body.solicitacoes-printing #mainWrap,
+body.solicitacoes-printing #tabsNav,
+body.solicitacoes-printing #hdrHintbar,
+body.solicitacoes-printing #btnOpenSolicitacoes,
+body.solicitacoes-printing #solicitacoesBackBtn,
+body.solicitacoes-printing #btnPrint{display:none !important;}
+body.solicitacoes-printing #solicitacoesStandalone{display:block !important;}
 
 
 </style>
@@ -2526,7 +2533,7 @@ const DOM = {
       }
 
       // Garante que ao imprimir a aba do relatório seja mostrada
-      window.addEventListener("beforeprint", () => setTab("report"));
+      window.addEventListener("beforeprint", () => { if (!document.body.classList.contains("solicitacoes-mode")) setTab("report"); });
     }
 
     function applyLogo() {
@@ -3046,8 +3053,18 @@ const DOM = {
     const comp = competenciaAtual === '—' ? 'Sem competência' : competenciaAtual;
     const fname = sanitizeFilename(`${comp} - ${currentClient || '(Todos)'}`);
     document.title = fname || 'relatorio';
-    try { window.focus(); window.print(); } catch (e) { debugLog('Falha no window.print()', e); alert("Não foi possível abrir a impressão neste navegador."); }
-    setTimeout(() => { document.title = originalTitle; }, 500);
+    document.body.classList.add('solicitacoes-printing');
+    const clearPrintState = () => {
+      document.body.classList.remove('solicitacoes-printing');
+      document.title = originalTitle;
+    };
+    const onceAfterPrint = () => {
+      clearPrintState();
+      window.removeEventListener('afterprint', onceAfterPrint);
+    };
+    window.addEventListener('afterprint', onceAfterPrint);
+    try { window.focus(); window.print(); } catch (e) { debugLog('Falha no window.print()', e); alert("Não foi possível abrir a impressão neste navegador."); clearPrintState(); }
+    setTimeout(clearPrintState, 1200);
   }
 
   function exportVisibleToXLSX(){
@@ -3162,6 +3179,95 @@ const DOM = {
   window.addEventListener('error', (e)=> window.AppDebug?.error('window.onerror', e.message, (e.filename||'')+':'+(e.lineno||'')));
   window.addEventListener('unhandledrejection', (e)=> window.AppDebug?.error('unhandledrejection', e.reason));
   window.AppDebug.log('Debug console inicializado. Atalho: CTRL+SHIFT+D');
+})();
+</script>
+
+<script>
+/* ===== Telemetria Global de Debug ===== */
+(function(){
+  const L = (...a)=>window.AppDebug?.log?.('[Telemetry]', ...a);
+  const W = (...a)=>window.AppDebug?.warn?.('[Telemetry]', ...a);
+  const E = (...a)=>window.AppDebug?.error?.('[Telemetry]', ...a);
+  const short = (v)=>{
+    const s = String(v ?? '');
+    return s.length > 120 ? s.slice(0,120) + '…' : s;
+  };
+
+  const describeEl = (el)=>{
+    if (!el || !(el instanceof Element)) return '(sem elemento)';
+    const id = el.id ? `#${el.id}` : '';
+    const nm = el.getAttribute('name') ? `[name="${el.getAttribute('name')}"]` : '';
+    const cls = (el.className && typeof el.className === 'string') ? '.' + el.className.trim().split(/\s+/).filter(Boolean).slice(0,2).join('.') : '';
+    return `${el.tagName.toLowerCase()}${id}${nm}${cls}`;
+  };
+
+  document.addEventListener('click', (ev)=>{
+    const el = ev.target;
+    L('click', describeEl(el));
+  }, true);
+
+  document.addEventListener('change', (ev)=>{
+    const el = ev.target;
+    if (!(el instanceof HTMLElement)) return;
+    let value = '';
+    if (el instanceof HTMLInputElement && el.type === 'file') {
+      value = el.files?.[0]?.name || '(sem arquivo)';
+    } else {
+      value = short(el.value ?? el.textContent ?? '');
+    }
+    L('change', describeEl(el), 'value=', value);
+  }, true);
+
+  document.addEventListener('input', (ev)=>{
+    const el = ev.target;
+    if (!(el instanceof HTMLElement)) return;
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
+      L('input', describeEl(el), 'value=', short(el.value));
+    }
+  }, true);
+
+  window.addEventListener('keydown', (ev)=>{
+    L('keydown', { key: ev.key, ctrl: ev.ctrlKey, shift: ev.shiftKey, alt: ev.altKey });
+  }, true);
+
+  const _fetch = window.fetch;
+  if (typeof _fetch === 'function') {
+    window.fetch = async function(...args){
+      L('fetch:start', args[0]);
+      try {
+        const res = await _fetch.apply(this,args);
+        L('fetch:end', args[0], res.status);
+        return res;
+      } catch(err){
+        E('fetch:error', args[0], err);
+        throw err;
+      }
+    };
+  }
+
+  const origOpen = XMLHttpRequest.prototype.open;
+  const origSend = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function(method, url, ...rest){
+    this.__dbg = { method, url };
+    return origOpen.call(this, method, url, ...rest);
+  };
+  XMLHttpRequest.prototype.send = function(...rest){
+    const meta = this.__dbg || {};
+    L('xhr:start', meta.method, meta.url);
+    this.addEventListener('loadend', ()=> L('xhr:end', meta.method, meta.url, this.status));
+    return origSend.apply(this, rest);
+  };
+
+  const _setTab = window.setTab;
+  if (typeof _setTab === 'function' && !window.__setTabDebugWrapped) {
+    window.__setTabDebugWrapped = true;
+    window.setTab = function(which){
+      L('setTab', which);
+      return _setTab.apply(this, arguments);
+    };
+  }
+
+  L('Telemetria global inicializada');
 })();
 </script>
 
