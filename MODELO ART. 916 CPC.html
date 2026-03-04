@@ -1072,6 +1072,7 @@ body.solicitacoes-printing #solicitacoesStandalone{display:block !important;}
 <div class="tabs-buttons" id="tabsButtons">
 <button aria-selected="true" class="tab active" data-tab="editor" id="tabBtnEditor" type="button">Dados</button>
 <button aria-selected="false" class="tab" data-tab="report" id="tabBtnReport" type="button">Relatório</button>
+<button aria-selected="false" class="tab" data-tab="solicitacoes" id="tabBtnSolicitacoes" type="button">Solicitações</button>
 </div>
 </div>
 <section class="tabpane active" data-scope="editor" id="tab-editor">
@@ -1573,6 +1574,58 @@ body.solicitacoes-printing #solicitacoesStandalone{display:block !important;}
 </section>
 </div>
 </section>
+<section class="tabpane" data-scope="solicitacoes" id="tab-solicitacoes">
+<div class="grid">
+  <div class="card" id="solicitacoesRoot">
+    <h2 style="margin-bottom:6px;">Sistema de Solicitações</h2>
+    <div class="card-sub">Importe planilhas, filtre e exporte os dados visíveis.</div>
+
+    <div class="btn-row" style="margin-top:12px;align-items:center;gap:8px;flex-wrap:wrap;">
+      <label class="btn btn-file" for="solicitacoesFileInput">Importar arquivo (.xlsx/.xls/.csv)</label>
+      <input accept=".xlsx,.xls,.csv" id="solicitacoesFileInput" type="file" style="display:none;"/>
+      <span class="note" id="solicitacoesFileName" style="margin:0;">Nenhum arquivo selecionado</span>
+    </div>
+
+    <div class="btn-row" style="margin-top:12px;align-items:flex-end;gap:8px;flex-wrap:wrap;">
+      <div style="min-width:220px;flex:1;">
+        <label for="solicitacoesClienteSelect">Cliente</label>
+        <select id="solicitacoesClienteSelect"><option value="(Todos)">(Todos)</option></select>
+      </div>
+
+      <div style="position:relative;min-width:260px;flex:1;">
+        <label>Reclamada</label>
+        <button class="btn" id="solicitacoesReclamadaBtn" type="button">Reclamada: (Todas)</button>
+        <div id="solicitacoesReclamadaPanel" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:30;background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px;box-shadow:var(--shadow-soft);margin-top:6px;">
+          <input id="solicitacoesReclamadaSearch" placeholder="Buscar reclamada..." type="text"/>
+          <div class="btn-row" style="margin-top:8px;gap:6px;">
+            <button class="btn" id="solicitacoesReclamadaMarkAll" type="button">Marcar todas</button>
+            <button class="btn" id="solicitacoesReclamadaClear" type="button">Limpar</button>
+          </div>
+          <div id="solicitacoesReclamadaList" style="max-height:220px;overflow:auto;margin-top:8px;"></div>
+        </div>
+      </div>
+
+      <button class="btn" id="solicitacoesLimparFiltroBtn" type="button">Limpar filtro</button>
+      <button class="btn" id="solicitacoesLimparDadosBtn" type="button">Limpar dados importados</button>
+      <button class="btn" id="solicitacoesExportBtn" type="button">Exportar XLSX</button>
+      <button class="btn btn-primary" id="solicitacoesPrintBtn" type="button">Imprimir / PDF</button>
+    </div>
+
+    <div class="btn-row" style="margin-top:12px;gap:10px;">
+      <div class="note" id="solicitacoesTotalCount" style="margin:0;">0 solicitações</div>
+      <div class="note" id="solicitacoesSumTotal" style="margin:0;">R$ 0,00</div>
+      <div class="note" id="solicitacoesCompetencia" style="margin:0;">Competência: —</div>
+    </div>
+
+    <div style="overflow:auto;margin-top:10px;">
+      <table class="editor-table" id="solicitacoesTable">
+        <thead id="solicitacoesThead"></thead>
+        <tbody id="solicitacoesTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</section>
 </main>
 
 <main class="wrap" id="solicitacoesStandalone">
@@ -1660,6 +1713,7 @@ const DOM = {
   tabsNav: '#tabsNav',
   tabBtnEditor: '#tabBtnEditor',
   tabBtnReport: '#tabBtnReport',
+  tabBtnSolicitacoes: '#tabBtnSolicitacoes',
 
   // Ações principais
   btnPrint: '#btnPrint',
@@ -2406,7 +2460,13 @@ const DOM = {
 
     function bindTabs() {
       document.querySelectorAll(".tab[data-tab]").forEach((b) => {
-        b.addEventListener("click", () => setTab(b.dataset.tab));
+        b.addEventListener("click", () => {
+          if (b.id === "tabBtnSolicitacoes") {
+            openSolicitacoesScreen();
+            return;
+          }
+          setTab(b.dataset.tab);
+        });
       });
 
       const goto = document.getElementById("gotoReport");
