@@ -12,7 +12,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,
 .topbar{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.78);backdrop-filter:blur(14px);border-bottom:1px solid var(--border)}
 .topbar-inner{max-width:1120px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:10px}
-.brand-logo{width:20px;height:20px;display:block}
+.brand-logo{height:30px;width:auto;display:block}
 .brand-title{margin:0;font-size:14px;font-weight:700}
 .actions{display:flex;gap:10px;flex-wrap:wrap}
 .hintbar{border-top:1px solid var(--border);background:rgba(255,255,255,.58)}
@@ -21,7 +21,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,
 .wrap{max-width:1120px;margin:0 auto;padding:18px 16px 64px}
 .tabs{display:flex;justify-content:center;gap:10px;margin:16px 0 18px}
 .tabs-head{text-align:center}
-.tabs-title{font-size:36px;font-weight:800;line-height:1;margin:0}
+.tabs-title{font-size:28px;font-weight:700;line-height:1.1;margin:0}
 .tabs-sub{font-size:12px;color:var(--muted);margin-top:6px}
 .btn,button{appearance:none;border:1px solid var(--border);background:#fff;border-radius:12px;padding:10px 12px;font-size:13px;cursor:pointer;color:var(--ink);transition:.15s}
 .btn:hover,button:hover{border-color:var(--border-strong)}
@@ -29,7 +29,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,
 .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .grid{display:grid;grid-template-columns:minmax(0,880px);justify-content:center;gap:14px;margin:0 auto}
 .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow-soft)}
-.card h2{margin:0 0 8px;font-size:28px;line-height:1}
+.card h2{margin:0 0 10px;font-size:13.5px;letter-spacing:.2px;line-height:1.2}
 .card-sub{font-size:12px;color:var(--muted);margin:0 0 10px}
 .btn-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
 label{display:block;font-size:12px;color:var(--muted);margin:10px 0 6px}
@@ -64,7 +64,7 @@ input[type=text],select{width:100%;padding:10px;border:1px solid var(--border);b
 <header class="topbar no-print">
   <div class="topbar-inner">
     <div class="brand">
-      <svg class="brand-logo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="4" fill="#22d3ee"/><path d="M7 8h4v4H7zM13 8h4v2h-4zM13 12h4v4h-4zM7 14h4v2H7z" fill="#0b1220"/></svg>
+      <img class="brand-logo" src="https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png" alt="CalculoPro"/>
       <p class="brand-title">calculopro</p>
     </div>
     <div class="actions"><button class="btn" id="btnBack">Voltar ao Art. 916</button></div>
@@ -82,7 +82,7 @@ input[type=text],select{width:100%;padding:10px;border:1px solid var(--border);b
 
   <div class="grid">
     <section class="card no-print" id="solicitacoesRoot">
-      <h2>Sistema de Solicitações</h2>
+      <h2>Ações do Sistema de Solicitações</h2>
       <p class="card-sub">Importe planilhas, filtre e exporte os dados visíveis.</p>
 
       <div class="btn-row">
@@ -121,7 +121,7 @@ input[type=text],select{width:100%;padding:10px;border:1px solid var(--border);b
 
     <section class="print-sheet" id="printReport">
       <div class="print-header">
-        <div><strong>calculopro</strong></div>
+        <div><img src="https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png" alt="CalculoPro" style="height:24px;width:auto;display:block"/></div>
         <div class="meta" style="text-align:right">Leonardo G. Cristiano<br/>Tel.: (14) 99606-7654<br/>suporte@calculopro.com.br</div>
       </div>
       <div class="print-title">RELATÓRIO DE SOLICITAÇÕES</div>
