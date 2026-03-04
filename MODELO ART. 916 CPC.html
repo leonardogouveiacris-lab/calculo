@@ -1043,19 +1043,47 @@ details.dropdown,
 .embedded-system-frame{
   width:100%;
   min-height:1200px;
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  background:#fff;
-  box-shadow: var(--shadow-soft);
+  border:0;
+  border-radius:0;
+  background:transparent;
+  box-shadow:none;
 }
 .embed-status{
   margin-top:8px;
   font-size:12px;
   color:var(--muted);
+  display:none;
 }
-.embed-status.error{color:#b42318}
+.embed-status.error{color:#b42318;display:block;}
+
+/* Debug minimalista (recolhido por padrão) */
+.debug-panel.hidden{display:none !important;}
+.debug-panel.collapsed .debug-log{display:none;}
+.debug-panel.collapsed{width:auto;min-width:220px;}
+.debug-panel.collapsed .debug-head{border-bottom:0;}
+
 /* Ocultar apenas o botão do cabeçalho */
 #btnPrint{ display:none !important; }
+
+/* Debug local (carregamento módulos) */
+.debug-panel{
+  position:fixed;
+  right:12px;
+  bottom:12px;
+  z-index:120;
+  width:min(520px, calc(100vw - 24px));
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:rgba(255,255,255,.96);
+  box-shadow:var(--shadow-soft);
+}
+.debug-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border);}
+.debug-title{font-size:12px;font-weight:600;color:var(--ink);}
+.debug-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.debug-log{max-height:180px;overflow:auto;padding:8px 10px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:11px;line-height:1.35;background:#fcfdff;}
+.debug-line{padding:2px 0;border-bottom:1px dashed #eef1f5;word-break:break-word;}
+.debug-line:last-child{border-bottom:none;}
+@media print{.debug-panel{display:none !important;}}
 
 </style>
 </head>
@@ -1575,21 +1603,11 @@ details.dropdown,
 </section>
 
 <section class="system-panel" data-system="sistema2" id="system-sistema2">
-  <div class="system-placeholder no-print">
-    <h2 style="margin:0 0 6px;">Atualização Depósito Judicial</h2>
-    <div class="card-sub">Módulo incorporado ao template principal. Impressão respeita o sistema ativo.</div>
-    <div class="btn-row" style="margin-top:10px;"><button class="btn btn-primary btnPrintActive" data-target="iframeSistema2" type="button">Imprimir / Salvar em PDF</button></div>
-  </div>
   <iframe class="embedded-system-frame" id="iframeSistema2" src="about:blank" title="Atualização Depósito Judicial"></iframe>
   <div class="embed-status" id="embedStatus2">Carregando módulo…</div>
 </section>
 
 <section class="system-panel" data-system="sistema3" id="system-sistema3">
-  <div class="system-placeholder no-print">
-    <h2 style="margin:0 0 6px;">Relatório de Solicitações</h2>
-    <div class="card-sub">Módulo incorporado ao template principal. Impressão respeita o sistema ativo.</div>
-    <div class="btn-row" style="margin-top:10px;"><button class="btn btn-primary btnPrintActive" data-target="iframeSistema3" type="button">Imprimir / Salvar em PDF</button></div>
-  </div>
   <iframe class="embedded-system-frame" id="iframeSistema3" src="about:blank" title="Relatório de Solicitações"></iframe>
   <div class="embed-status" id="embedStatus3">Carregando módulo…</div>
 </section>
@@ -1604,224 +1622,77 @@ details.dropdown,
 
 <style>
   :root{
-    --bg:#f7f8fc;
-    --panel:#ffffff;
-    --panel2:#f3f5fa;
-    --text:#111827;
-    --muted:#6b7280;
-    --accent:#3b82f6;
-    --accent-soft:#eaf1ff;
-    --ok:#22c55e;
-    --ok-soft:#e9f8ef;
-    --danger:#ef4444;
-    --danger-soft:#feecec;
-    --line:#e8eaf0;
-    --radius:12px;
+    --bg:#f7f8fb;
+    --surface:#ffffff;
+    --soft:#f8fafc;
+    --line:#e4e7ef;
+    --ink:#101828;
+    --muted:#667085;
+    --accent:#0f172a;
+    --ok:#14532d;
+    --ok-bg:#ecfdf3;
+    --danger:#b42318;
+    --radius:14px;
+    --radius-sm:10px;
   }
   *{box-sizing:border-box}
-  body{
-    margin:0;
-    font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    background:var(--bg);
-    color:var(--text);
-  }
-  header{
-    position:sticky; top:0; z-index:10;
-    background:rgba(247,248,252,.95);
-    border-bottom:1px solid var(--line);
-    backdrop-filter: blur(6px);
-  }
-  .wrap{max-width:1080px;margin:0 auto;padding:14px 16px 22px;}
-  .title{display:flex;justify-content:space-between;align-items:center;gap:10px;}
-  h1{margin:6px 0;font-size:clamp(20px,3vw,26px);font-weight:700;letter-spacing:.2px;}
-  small{color:var(--muted);font-weight:500}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  header{display:none}
+  .wrap{max-width:940px;margin:0 auto;padding:12px 14px 24px}
+  .title{display:block;margin:0 0 14px}
+  h1{margin:0;font-size:20px;font-weight:700;letter-spacing:.1px}
+  small{display:block;margin-top:6px;font-size:12px;color:var(--muted)}
 
-  .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:12px;margin-top:12px;}
-  @media(max-width:980px){.grid{grid-template-columns:1fr}}
+  .grid{display:grid;grid-template-columns:1fr;gap:12px;margin:0}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 12px 10px;box-shadow:none}
+  .card h2{margin:0 0 10px;padding:0 0 8px;border-bottom:1px solid var(--line);font-size:16px;font-weight:650}
 
-  .card{
-    background:var(--panel);
-    border:1px solid var(--line);
-    border-radius:var(--radius);
-    padding:12px;
-    box-shadow:0 4px 14px rgba(17,24,39,.04);
-  }
-  .card h2{margin:0 0 8px 0;font-size:17px;font-weight:650;}
-  label{font-size:12px;color:var(--muted);display:block;margin:6px 0;}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+  .field{flex:1 1 220px;min-width:220px}
+  label{display:block;margin:0 0 6px;font-size:12px;color:var(--muted);font-weight:500}
   input,select,button{font:inherit}
-  input,select{
-    width:100%;
-    padding:9px 10px;
-    border-radius:9px;
-    border:1px solid var(--line);
-    background:#fff;
-    outline:none;
-  }
-  input:focus,select:focus{
-    border-color:#b7ccff;
-    box-shadow:0 0 0 3px rgba(59,130,246,.10);
-  }
-  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:end;}
-  .field{flex:1;min-width:160px}
+  input,select{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;color:var(--ink);outline:none}
+  input:focus,select:focus{border-color:#98a2b3;box-shadow:0 0 0 3px rgba(15,23,42,.08)}
 
-  .btn{
-    border:1px solid transparent;
-    border-radius:8px;
-    padding:8px 12px;
-    font-weight:600;
-    cursor:pointer;
-    white-space:nowrap;
-    transition:.15s ease;
-    box-shadow:none;
-  }
-  .btn.primary{
-    background:var(--accent-soft);
-    border-color:#d7e4ff;
-    color:#1f3f88;
-  }
-  .btn.primary:hover{filter:brightness(.98)}
-  .btn.ok{
-    background:var(--ok-soft);
-    border-color:#cdeed9;
-    color:#166534;
-  }
-  .btn.ok:hover{filter:brightness(.98)}
-  .btn.secondary{
-    background:#fff;
-    border-color:var(--line);
-    color:var(--text);
-    font-weight:550;
-  }
-  .btn.secondary:hover{background:#fafbff}
-  .btn.danger{
-    background:#fff;
-    border-color:#f2c3c3;
-    color:#991b1b;
-  }
-  .btn.danger:hover{background:var(--danger-soft)}
+  .btn{border:1px solid var(--line);border-radius:12px;padding:9px 13px;cursor:pointer;font-weight:600;background:#fff;color:var(--ink);box-shadow:none;transition:.15s}
+  .btn:hover{border-color:#d0d5dd;background:var(--soft)}
+  .btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #0f172a;outline-offset:1px}
+  .empty-state{padding:14px;text-align:center;color:var(--muted);font-size:12px}
+  .toast-inline{position:fixed;right:14px;bottom:14px;background:#101828;color:#fff;padding:8px 11px;border-radius:10px;font-size:12px;z-index:99;opacity:.96}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.ok{background:var(--ok-bg);border-color:#ccebd7;color:var(--ok)}
+  .btn.secondary{background:#fff}
+  .btn.danger{background:#fff;border-color:#ffd7d3;color:var(--danger)}
 
-  .hr{height:1px;background:var(--line);margin:10px 0;}
-
-  table{
-    width:100%;
-    border-collapse:collapse;
-    border:1px solid var(--line);
-    border-radius:10px;
-    overflow:hidden;
-    background:#fff;
-  }
-  th,td{
-    padding:8px;
-    border-bottom:1px solid var(--line);
-    font-size:13px;
-    text-align:left;
-    vertical-align:middle;
-    font-weight:400;
-  }
-  th{
-    background:var(--panel2);
-    text-transform:uppercase;
-    letter-spacing:.5px;
-    font-size:12px;
-    font-weight:600;
-    color:#374151;
-  }
+  .hr{height:1px;background:var(--line);margin:10px 0}
+  table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+  th,td{padding:9px 8px;border-bottom:1px solid var(--line);font-size:13px;text-align:left;vertical-align:middle}
+  th{background:var(--soft);font-size:12px;color:#475467;font-weight:600;text-transform:none;letter-spacing:.1px}
   tr:last-child td{border-bottom:none}
-
-  .note{font-size:12px;color:var(--muted)}
+  .note,.sources,.subtitle{font-size:12px;color:var(--muted)}
   .right{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 
   #manualWrap{display:none}
-
-  /* Report */
   #report{display:none;margin-top:12px}
-  .report-header{text-align:center}
-  .report-header h3{
-    margin:0;
-    font-size:14px;
-    text-transform:uppercase;
-    font-weight:700;
-    letter-spacing:.5px;
-  }
-  .report-header .subtitle{
-    margin-top:4px;font-size:12px;color:var(--muted);font-weight:500;
-  }
-  .rep-block-title{
-    font-weight:650;
-    margin:4px 0 6px;
-    font-size:13.5px;
-    color:#111827;
-  }
-  .val-soft-strong{font-weight:600;}
-  .total-row{
-    display:flex;justify-content:flex-end;gap:6px;
-    font-weight:700;font-size:14px;color:#111827;
-  }
+  .report-header{text-align:left}
+  .report-header h3{margin:0;font-size:16px;font-weight:700;text-transform:none;letter-spacing:0}
+  .report-header .subtitle{margin-top:4px}
+  .rep-block-title{font-weight:650;margin:4px 0 6px;font-size:13px}
+  .val-soft-strong{font-weight:600}
+  .total-row{display:flex;justify-content:flex-end;gap:8px;font-weight:700;font-size:14px}
 
-  .sources{
-    font-size:12px;
-    color:var(--muted);
-    line-height:1.5;
+  @media (max-width:760px){
+    .wrap{padding:10px 10px 20px}
+    .field{min-width:100%}
+    .right{justify-content:flex-start}
   }
-  .sources .sources-title{
-    font-weight:600;
-    color:#374151;
-    margin-bottom:4px;
-  }
-  .sources a{
-    color:#1f3f88;
-    text-decoration:none;
-  }
-  .sources a:hover{text-decoration:underline}
 
   @media print{
-    header,.no-print{display:none !important;}
-    #report{display:block !important;}
-    body{background:#fff;color:#111}
-    .wrap{max-width:100%;padding:0 6mm}
-    .card,table{box-shadow:none;border-color:#ddd}
-    th{background:#f2f2f2}
-    @page{margin:10mm;}
+    body{background:#fff}
+    .wrap{max-width:100%;padding:0}
+    .no-print,[class*="btn"]{display:none!important}
+    .card,table{box-shadow:none}
   }
-
-  /* Integração visual com o sistema principal (MODELO ART. 916 CPC) */
-  :root{
-    --bg:#f7f8fb;
-    --panel:#ffffff;
-    --panel2:#f8fafc;
-    --text:#0b1220;
-    --muted:#667085;
-    --accent:#0b1220;
-    --accent-soft:#f2f4f7;
-    --line:#e6e8ef;
-    --radius:16px;
-  }
-  body{
-    background: radial-gradient(1200px 500px at 50% -220px, rgba(37,99,235,.08), transparent 60%), var(--bg);
-    color:var(--text);
-    font-size:14px;
-  }
-  header{background:rgba(255,255,255,.88); border-bottom:1px solid var(--line); backdrop-filter: blur(12px);}
-  .wrap{max-width:1120px;}
-  .card{
-    border-radius:18px;
-    border:1px solid var(--line);
-    box-shadow:0 10px 26px rgba(16,24,40,.06);
-    padding:14px;
-  }
-  .card h2{font-size:15px; font-weight:600; margin-bottom:8px;}
-  input,select{
-    border-radius:12px;
-    border:1px solid var(--line);
-    padding:10px 11px;
-  }
-  .btn{border-radius:12px; border:1px solid var(--line); font-weight:600;}
-  .btn.primary{background:var(--accent); color:#fff; border-color:var(--accent);}
-  .btn.ok{background:#ecfdf3; border-color:#ccebd7; color:#14532d;}
-  .btn.secondary{background:#fff;}
-  table{border-radius:14px; border:1px solid var(--line);}
-  th{background:var(--panel2); font-weight:600; text-transform:none; letter-spacing:.1px;}
-  .report-header h3{text-transform:none; letter-spacing:.15px; font-size:15px;}
 </style>
 </head>
 
@@ -2004,39 +1875,68 @@ function minDepositDate(){
 }
 function toBR(d){ const [y,m,da]=d.split("-"); return `${da}/${m}/${y}`; }
 
+function notify(msg){
+  const old=document.getElementById('s2ToastInline');
+  if(old) old.remove();
+  const t=document.createElement('div');
+  t.id='s2ToastInline';
+  t.className='toast-inline';
+  t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(),1700);
+}
+function assignMissingIds(prefix='s2'){
+  let idx=0;
+  document.querySelectorAll('*').forEach((el)=>{
+    if(!el.id){ el.id=`${prefix}-el-${idx++}`; }
+  });
+}
+
 /* ---------- UI RENDER ---------- */
 function renderDeposits(){
   const tb = document.querySelector("#depTable tbody");
   tb.innerHTML="";
+  if(!deposits.length){
+    tb.innerHTML = '<tr id="s2-row-empty-deposit"><td colspan="5" class="empty-state">Nenhum depósito cadastrado ainda.</td></tr>';
+    return;
+  }
   deposits.forEach((d,i)=>{
     const tr=document.createElement("tr");
+    tr.id = `s2-row-deposit-${i}`;
     tr.innerHTML=`
-      <td>${i+1}</td>
-      <td>${toDateBR(d.date)}</td>
-      <td>${fmtBRL(d.value)}</td>
-      <td class="note">${d.obs||""}</td>
-      <td>
-        <button class="btn secondary" onclick="editDep(${i})">Editar</button>
-        <button class="btn danger" onclick="delDep(${i})">Del</button>
+      <td id="s2-cell-deposit-index-${i}">${i+1}</td>
+      <td id="s2-cell-deposit-date-${i}">${toDateBR(d.date)}</td>
+      <td id="s2-cell-deposit-value-${i}">${fmtBRL(d.value)}</td>
+      <td id="s2-cell-deposit-obs-${i}" class="note">${d.obs||""}</td>
+      <td id="s2-cell-deposit-actions-${i}">
+        <button id="s2-btn-edit-dep-${i}" class="btn secondary" onclick="editDep(${i})">Editar</button>
+        <button id="s2-btn-del-dep-${i}" class="btn danger" onclick="delDep(${i})">Excluir</button>
       </td>`;
     tb.appendChild(tr);
   });
+  assignMissingIds('s2');
 }
 function renderIndices(){
   const tb = document.querySelector("#idxTable tbody");
   tb.innerHTML="";
+  if(!indices.length){
+    tb.innerHTML = '<tr id="s2-row-empty-index"><td colspan="4" class="empty-state">Nenhum índice manual cadastrado.</td></tr>';
+    return;
+  }
   indices.forEach((d,i)=>{
     const tr=document.createElement("tr");
+    tr.id = `s2-row-index-${i}`;
     tr.innerHTML=`
-      <td>${i+1}</td>
-      <td>${d.month.split("-")[1]}/${d.month.split("-")[0]}</td>
-      <td>${d.value.toLocaleString("pt-BR")} %</td>
-      <td>
-        <button class="btn secondary" onclick="editIdx(${i})">Editar</button>
-        <button class="btn danger" onclick="delIdx(${i})">Del</button>
+      <td id="s2-cell-index-n-${i}">${i+1}</td>
+      <td id="s2-cell-index-month-${i}">${d.month.split("-")[1]}/${d.month.split("-")[0]}</td>
+      <td id="s2-cell-index-value-${i}">${d.value.toLocaleString("pt-BR")} %</td>
+      <td id="s2-cell-index-actions-${i}">
+        <button id="s2-btn-edit-idx-${i}" class="btn secondary" onclick="editIdx(${i})">Editar</button>
+        <button id="s2-btn-del-idx-${i}" class="btn danger" onclick="delIdx(${i})">Excluir</button>
       </td>`;
     tb.appendChild(tr);
   });
+  assignMissingIds('s2');
 }
 
 /* ---------- CRUD DEP ---------- */
@@ -2048,6 +1948,7 @@ btnAddDep.onclick=()=>{
   deposits.push({date,value,obs});
   depDate.value=""; depValue.value=""; depObs.value="";
   renderDeposits();
+  notify("Depósito adicionado.");
 };
 window.delDep=i=>{deposits.splice(i,1);renderDeposits();};
 window.editDep=i=>{
@@ -2067,6 +1968,7 @@ btnAddIdx.onclick=()=>{
   if(ex) ex.value=value; else indices.push({month,value});
   idxMonth.value=""; idxValue.value="";
   indices.sort(compareMonth); renderIndices();
+  notify("Índice adicionado/atualizado.");
 };
 window.delIdx=i=>{indices.splice(i,1);renderIndices();};
 window.editIdx=i=>{
@@ -2398,7 +2300,7 @@ async function calculateAll(){
 }
 
 /* ---------- BUTTONS ---------- */
-btnCalc.onclick=async()=>{ await calculateAll(); alert("Cálculo pronto. Gere o relatório."); };
+btnCalc.onclick=async()=>{ await calculateAll(); notify("Cálculo pronto. Gere o relatório."); };
 
 btnShowReport.onclick=async()=>{
   const res=await calculateAll(); if(!res) return;
@@ -2419,10 +2321,10 @@ btnPrint.onclick=async()=>{
 };
 
 renderDeposits(); renderIndices();
+assignMissingIds('s2');
 </script>
 </body>
 </html>
-
 </template>
 <template id="tplSistema3">
 <!doctype html>
@@ -2433,256 +2335,76 @@ renderDeposits(); renderIndices();
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
+:root{
+  --bg:#f7f8fb;
+  --surface:#ffffff;
+  --soft:#f8fafc;
+  --line:#e4e7ef;
+  --ink:#101828;
+  --muted:#667085;
+  --accent:#0f172a;
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:12px 14px 30px}
 
-:root {
-  --bg: #f6f8fb;
-  --surface: #ffffff;
-  --surface-2: #fbfdff;
-  --text: #121734;
-  --muted: #667099;
-  --line: #e7ecf5;
-  --brand: #00C8F3;
-  --brand-2: #0aa7ca;
-  --accent-bg: #eaf9ff;
-  --shadow-sm: 0 2px 10px rgba(14, 28, 54, .06);
-  --shadow-md: 0 10px 30px rgba(14, 28, 54, .10);
-  --radius-lg: 16px;
-  --radius-md: 12px;
-  --radius-sm: 10px;
-}
-* { box-sizing: border-box; }
-html, body {
-  background: var(--bg);
-  color: var(--text);
-  font: 14px/1.6 Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-  margin: 0;
-}
-.wrap { max-width: 1120px; margin: 22px auto 64px; padding: 0 18px; }
+.header{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-bottom:10px;padding:0;border:0;background:transparent;box-shadow:none;text-align:left}
+.brand img{display:none}
+h1{margin:0;font-size:20px;font-weight:700;letter-spacing:.1px}
+.badges{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.badge{padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:#344054;font-weight:600;font-size:12px}
 
-/* Header */
-.header {
-  display:flex; align-items:center; justify-content:center;
-  gap:16px; padding: 18px 14px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  margin-bottom: 12px;
-  text-align: center;
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-start;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:10px;box-shadow:none;margin:0 0 12px}
+input[type="file"]{display:none}
+.label-file,.btn,.select{
+  appearance:none;border:1px solid var(--line);background:#fff;color:var(--ink);
+  padding:9px 12px;border-radius:12px;font-weight:600;font-size:13px;transition:.15s;box-shadow:none
 }
-.brand {
-  display:flex; align-items:center; gap:12px;
-}
-.brand img { height: 36px; width:auto; display:block; }
-h1 {
-  margin:0;
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: .2px;
-}
-.badges { display:flex; gap:8px; align-items:center; }
-.badge {
-  padding:6px 10px; border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--accent-bg);
-  color: var(--text);
-  font-weight: 700; font-size: 12px;
-  white-space: nowrap;
-}
+.label-file,.btn{cursor:pointer}
+.label-file:hover,.btn:hover,.select:hover{border-color:#d0d5dd;background:var(--soft);transform:none;box-shadow:none}
+.label-file:focus-visible,.btn:focus-visible,.select:focus-visible,input:focus-visible{outline:2px solid #0f172a;outline-offset:1px}
+.empty-state{padding:16px;text-align:center;color:var(--muted);font-size:12px}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.ghost{background:#fff}
+.select{padding-right:30px;background-image:linear-gradient(45deg,transparent 50%,#667085 50%),linear-gradient(135deg,#667085 50%,transparent 50%);background-position:calc(100% - 16px) calc(50% - 3px),calc(100% - 10px) calc(50% - 3px);background-size:6px 6px;background-repeat:no-repeat}
 
-/* Toolbar (centered card) */
-.toolbar {
-  display:flex; flex-wrap: wrap; gap: 8px; align-items:center; justify-content:center;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  padding: 10px;
-  box-shadow: var(--shadow-md);
-  margin: 12px 0 14px;
-}
-input[type="file"] { display:none; }
+.meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0 10px;color:var(--muted);font-size:12px}
+.kpis{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-weight:600;color:var(--ink);box-shadow:none}
 
-.label-file, .btn, .select {
-  -webkit-appearance: none; appearance: none;
-  border: 1px solid var(--line);
-  background: var(--surface-2);
-  color: var(--text);
-  padding: 9px 12px;
-  border-radius: var(--radius-sm);
-  font-weight: 700; font-size: 13px;
-  transition: .12s ease;
-  box-shadow: var(--shadow-sm);
-}
-.label-file { cursor:pointer; }
-.btn { cursor:pointer; }
-.label-file:hover, .btn:hover, .select:hover {
-  transform: translateY(-1px);
-  border-color: #d7dfef;
-  box-shadow: var(--shadow-md);
-}
-.btn:active, .label-file:active { transform: translateY(0); }
+.table-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:none;overflow:hidden}
+.table-wrap{overflow:auto}
+.table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;min-width:860px}
+.table thead th{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);color:#475467;font-weight:600;background:var(--soft);position:sticky;top:0;z-index:2;white-space:nowrap}
+.table tbody td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.table tbody tr:nth-child(odd) td{background:#fff}
+.table tbody tr:hover td{background:var(--soft)}
+.right{text-align:right;white-space:nowrap}
 
-.btn.primary {
-  background: linear-gradient(180deg, var(--brand) 0%, var(--brand-2) 100%);
-  color: #fff; border-color: transparent;
-}
-.btn.ghost {
-  background: #fff;
-}
+.dropdown{position:relative;display:inline-block}
+.dropdown-btn{cursor:pointer;user-select:none;min-width:180px}
+.dropdown-panel{position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:none;min-width:280px;max-height:360px;overflow:auto;padding:8px;z-index:50;display:none}
+.dropdown.open .dropdown-panel{display:block}
+.dd-item{display:flex;gap:8px;align-items:flex-start;padding:6px;border-radius:8px}
+.dd-item:hover{background:var(--soft)}
+.dd-item input{margin-top:2px}
+.dd-actions{display:flex;gap:6px;padding-top:8px;border-top:1px solid var(--line);margin-top:8px}
 
-.select {
-  padding-right: 28px;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
-    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
-  background-position:
-    calc(100% - 16px) calc(50% - 3px),
-    calc(100% - 10px) calc(50% - 3px);
-  background-size: 6px 6px;
-  background-repeat: no-repeat;
-}
+.hint{font-size:12px;color:var(--muted)}
 
-/* Meta/KPIs */
-.meta {
-  display:flex; align-items:center; justify-content:space-between; gap:10px;
-  margin: 6px 0 10px;
-  color: var(--muted); font-size: 12px;
+@media (max-width:760px){
+  .wrap{padding:10px}
+  .header{flex-direction:column;align-items:flex-start}
+  .toolbar{justify-content:flex-start}
+  .meta{flex-direction:column;align-items:flex-start}
 }
-.kpis { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-.kpi {
-  background: var(--surface);
-  border:1px solid var(--line);
-  border-radius: 999px;
-  padding:6px 10px; font-weight:800; color: var(--text);
-  box-shadow: var(--shadow-sm);
+@media print{
+  body{background:#fff}
+  .wrap{max-width:100%;padding:0}
+  .toolbar,.no-print,.dropdown-panel{display:none!important}
+  .table-card{border:1px solid #d0d5dd}
 }
-
-/* Table card */
-.table-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  overflow: hidden;
-}
-.table-wrap { overflow:auto; }
-
-/* Table */
-.table { width:100%; border-collapse: collapse; font-size: 13px; min-width: 860px;}
-.table thead th {
-  text-align:left; padding: 10px 8px;
-  border-bottom: 1px solid var(--line);
-  color: var(--muted); font-weight: 800;
-  background: #f9fbff;
-  position: sticky; top: 0; z-index: 2;
-  white-space: nowrap;
-}
-.table tbody td {
-  padding: 10px 8px;
-  border-bottom: 1px solid var(--line);
-  vertical-align: top;
-}
-.table tbody tr:nth-child(odd) td { background: #fcfdff; }
-.table tbody tr:hover td { background: #f2f8ff; }
-.right { text-align: right; white-space: nowrap; }
-
-/* Dropdown (light) */
-.dropdown { position: relative; display: inline-block; }
-.dropdown-btn { cursor:pointer; user-select:none; min-width: 180px; }
-.dropdown-panel {
-  position: absolute; top: calc(100% + 6px); left: 0;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  padding: 8px;
-  width: 320px; max-height: 300px; overflow:auto;
-  display:none; z-index: 9999;
-}
-.dropdown.open .dropdown-panel { display:block; }
-.dropdown-search {
-  width:100%;
-  border:1px solid var(--line);
-  border-radius: 8px;
-  padding:6px 8px;
-  font-size:12px;
-  margin-bottom:6px;
-}
-.dropdown-item {
-  display:flex; align-items:flex-start; gap:8px;
-  padding:6px 6px; border-radius:8px; font-size:12px;
-}
-.dropdown-item:hover { background: #f6f9ff; }
-.dropdown-item input { margin-top:2px; }
-.dropdown-actions {
-  display:flex; gap:6px; padding-top:6px;
-  border-top:1px dashed var(--line); margin-top:6px;
-}
-.dropdown-actions button {
-  font-size:12px; padding:6px 8px; border-radius:8px;
-  border:1px solid var(--line); background:#fff; cursor:pointer; font-weight:800;
-}
-
-/* Responsive */
-@media (max-width: 720px) {
-  .header { flex-direction: column; }
-  .meta { flex-direction: column; align-items:flex-start; }
-  .table { min-width: 720px; }
-}
-
-/* Print */
-@media print {
-  .toolbar, #fileName, .dropdown-panel { display:none !important; }
-  body { background:#fff; }
-  .wrap { margin:0; padding:0; }
-  .header, .table-card { border:none; box-shadow:none; }
-  .table thead th { position: static; }
-}
-
-/* Integração visual com o sistema principal (MODELO ART. 916 CPC) */
-:root {
-  --bg: #f7f8fb;
-  --surface: #ffffff;
-  --surface-2: #f8fafc;
-  --text: #0b1220;
-  --muted: #667085;
-  --line: #e6e8ef;
-  --brand: #0b1220;
-  --brand-2: #0b1220;
-  --accent-bg: #f2f4f7;
-  --shadow-sm: 0 10px 26px rgba(16,24,40,.06);
-  --shadow-md: 0 18px 45px rgba(16,24,40,.10);
-  --radius-lg: 18px;
-  --radius-md: 12px;
-  --radius-sm: 12px;
-}
-body {
-  background: radial-gradient(1200px 500px at 50% -220px, rgba(37,99,235,.08), transparent 60%), var(--bg);
-  font-size: 14px;
-}
-.wrap { max-width: 1120px; margin: 18px auto 56px; }
-.header, .toolbar, .table-card {
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow-sm);
-}
-.label-file, .btn, .select {
-  border-radius: 12px;
-  border-color: var(--line);
-  background: #fff;
-  font-weight: 600;
-}
-.btn.primary {
-  background: var(--brand);
-  border-color: var(--brand);
-}
-.table thead th {
-  font-weight: 600;
-  background: var(--surface-2);
-}
-.table tbody tr:nth-child(odd) td { background: #fff; }
-.table tbody tr:hover td { background: #f8fafc; }
-.kpi { border-radius: 999px; font-weight: 600; }
-
 </style>
 </head>
 
@@ -2762,6 +2484,23 @@ const COLS = [
 let allRows = [...initialData];
 let currentRows = [...initialData];
 let currentClient = "(Todos)";
+
+function assignMissingIds(prefix='s3'){
+  let idx=0;
+  document.querySelectorAll('*').forEach((el)=>{
+    if(!el.id){ el.id = `${prefix}-el-${idx++}`; }
+  });
+}
+function showInlineFeedback(msg){
+  const old=document.getElementById('s3InlineToast');
+  if(old) old.remove();
+  const box=document.createElement('div');
+  box.id='s3InlineToast';
+  box.className='kpi';
+  box.textContent=msg;
+  document.querySelector('.meta')?.prepend(box);
+  setTimeout(()=>box.remove(),1800);
+}
 
 /* ====== UTILITÁRIOS ====== */
 function setClientsSelect(names) {
@@ -2919,13 +2658,20 @@ function updateMeta(rows) {
 function renderTable(rows) {
   const thead = document.getElementById("thead");
   const tbody = document.getElementById("tbody");
-  thead.innerHTML = "<tr>" + COLS.map(c => `<th>${c.label}</th>`).join("") + "</tr>";
-  tbody.innerHTML = rows.map(r => {
-    return "<tr>" + COLS.map(c =>
-      `<td ${c.label==="Total" ? 'class="right"':''}>${r[c.key] ?? ""}</td>`
+  thead.innerHTML = `<tr id="s3-row-head">` + COLS.map((c,i) => `<th id="s3-th-${i}">${c.label}</th>`).join("") + `</tr>`;
+  if(!rows.length){
+    tbody.innerHTML = '<tr id="s3-row-empty"><td id="s3-cell-empty" class="empty-state" colspan="7">Sem dados para exibir. Importe uma planilha para começar.</td></tr>';
+    updateMeta(rows);
+    assignMissingIds('s3');
+    return;
+  }
+  tbody.innerHTML = rows.map((r,rowIdx) => {
+    return `<tr id="s3-row-${rowIdx}">` + COLS.map((c,colIdx) =>
+      `<td id="s3-cell-${rowIdx}-${colIdx}" ${c.label==="Total" ? 'class="right"':''}>${r[c.key] ?? ""}</td>`
     ).join("") + "</tr>";
   }).join("");
   updateMeta(rows);
+  assignMissingIds('s3');
 }
 
 /* ====== IMPORTAÇÃO + proteção ====== */
@@ -2948,6 +2694,7 @@ document.getElementById("fileInput").addEventListener("change", async (evt) => {
           return obj;
         });
       afterImport(data);
+      showInlineFeedback("Arquivo importado com sucesso.");
     } else {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(buffer, { type: "array", raw: true, cellDates: false });
@@ -2955,6 +2702,7 @@ document.getElementById("fileInput").addEventListener("change", async (evt) => {
       const ws = wb.Sheets[wsname];
       const data = XLSX.utils.sheet_to_json(ws, { defval: "", raw: true });
       afterImport(data);
+      showInlineFeedback("Arquivo importado com sucesso.");
     }
   } catch (err) {
     console.error(err);
@@ -3110,7 +2858,7 @@ function clearImportedData() {
   renderTable(currentRows);
 }
 
-document.getElementById("clearDataBtn").addEventListener("click", clearImportedData);
+document.getElementById("clearDataBtn").addEventListener("click", () => { clearImportedData(); showInlineFeedback("Dados limpos."); });
 
 document.getElementById("btnPrint").addEventListener("click", () => {
   const compText = document.getElementById("badgeCompetencia")
@@ -3153,6 +2901,7 @@ document.getElementById("btnExportXlsx").addEventListener("click", () => {
   const now = new Date();
   const fileName = `solicitacoes_${now.toISOString().slice(0,10)}.xlsx`;
   XLSX.writeFile(workbook, fileName);
+  showInlineFeedback("Exportação .xlsx concluída.");
 });
 
 
@@ -3164,12 +2913,24 @@ const initialRecls = Array.from(new Set(initialData.map(r => (r["Reclamada"]||""
   .filter(Boolean).sort();
 setReclamadaDropdown(initialRecls);
 updateReclamadaBtnLabel();
+assignMissingIds('s3');
 </script>
 </body>
 </html>
-
 </template>
 <div aria-atomic="true" aria-live="polite" class="toast-host" id="toastHost"></div>
+
+<div class="debug-panel no-print collapsed hidden" id="debugPanel">
+  <div class="debug-head">
+    <div class="debug-title">Logs de debug (modo local)</div>
+    <div class="debug-actions">
+      <button class="mini-btn" id="btnDebugToggle" type="button">Logs</button>
+      <button class="mini-btn" id="btnDebugCopy" type="button">Copiar</button>
+      <button class="mini-btn" id="btnDebugClear" type="button">Limpar</button>
+    </div>
+  </div>
+  <div class="debug-log" id="debugLog"></div>
+</div>
 
 <script>
 /* ===== app.js (inline) ===== */
@@ -3235,6 +2996,10 @@ const DOM = {
 
   // Toast (se existir)
   toastHost: '#toastHost',
+  debugLog: '#debugLog',
+  btnDebugToggle: '#btnDebugToggle',
+  btnDebugCopy: '#btnDebugCopy',
+  btnDebugClear: '#btnDebugClear',
 };
 
 // ======================
@@ -3912,19 +3677,369 @@ const DOM = {
       });
     }
 
+    const debugBuffer = [];
+
+    function debugLog(message, data = null) {
+      const now = new Date();
+      const ts = now.toLocaleTimeString('pt-BR');
+      let line = `[${ts}] ${message}`;
+      if (data !== null) {
+        try { line += ` :: ${typeof data === 'string' ? data : JSON.stringify(data)}`; }
+        catch { line += ' :: [dados não serializáveis]'; }
+      }
+      debugBuffer.push(line);
+      if (debugBuffer.length > 300) debugBuffer.shift();
+      const host = document.querySelector(DOM.debugLog);
+      if (host) {
+        const row = document.createElement('div');
+        row.className = 'debug-line';
+        row.textContent = line;
+        host.appendChild(row);
+        host.scrollTop = host.scrollHeight;
+      }
+      console.log('[DEBUG-EMBED]', line);
+    }
+
+    function bindDebugPanel() {
+      const panel = document.getElementById('debugPanel');
+      const btnToggle = document.querySelector(DOM.btnDebugToggle);
+      const btnCopy = document.querySelector(DOM.btnDebugCopy);
+      const btnClear = document.querySelector(DOM.btnDebugClear);
+
+      if (btnToggle && panel) btnToggle.addEventListener('click', () => {
+        panel.classList.remove('hidden');
+        panel.classList.toggle('collapsed');
+      });
+
+      window.addEventListener('keydown', (ev) => {
+        const isShortcut = ev.ctrlKey && ev.shiftKey && (ev.key === 'D' || ev.key === 'd');
+        if (!isShortcut) return;
+        ev.preventDefault();
+        panel.classList.toggle('hidden');
+        if (!panel.classList.contains('hidden')) panel.classList.remove('collapsed');
+        debugLog('Atalho de debug acionado (Ctrl+Shift+D)', { visible: !panel.classList.contains('hidden') });
+      });
+
+      if (btnCopy) btnCopy.addEventListener('click', async () => {
+        const text = debugBuffer.join('\n');
+        try {
+          await navigator.clipboard.writeText(text);
+          debugLog('Log copiado para a área de transferência');
+        } catch {
+          debugLog('Falha ao copiar log (clipboard indisponível no navegador)');
+        }
+      });
+      if (btnClear) btnClear.addEventListener('click', () => {
+        debugBuffer.length = 0;
+        const host = document.querySelector(DOM.debugLog);
+        if (host) host.innerHTML = '';
+        debugLog('Log limpo');
+      });
+
+      window.addEventListener('error', (ev) => {
+        debugLog('Erro global', { msg: ev.message, file: ev.filename, line: ev.lineno, col: ev.colno });
+      });
+      window.addEventListener('unhandledrejection', (ev) => {
+        debugLog('Promise rejeitada sem tratamento', String(ev.reason));
+      });
+    }
+
+
     let activeSystem = "art916";
 
+    function getEl(id) {
+      return document.getElementById(id);
+    }
+
+    function setPanelVisibility(systemId) {
+      document.querySelectorAll('.system-panel').forEach((panel) => {
+        const isActive = panel.dataset.system === systemId;
+        panel.classList.toggle('active', isActive);
+        panel.style.display = isActive ? 'block' : 'none';
+        panel.style.visibility = isActive ? 'visible' : 'hidden';
+        panel.style.opacity = isActive ? '1' : '0';
+        if (isActive) panel.removeAttribute('hidden');
+        else panel.setAttribute('hidden', 'hidden');
+      });
+    }
+
+    function normalizeSystemPanelsInMain() {
+      const main = getEl('mainWrap');
+      if (!main) {
+        debugLog('normalizeSystemPanelsInMain: mainWrap ausente');
+        return;
+      }
+
+      ['system-art916','system-sistema2','system-sistema3'].forEach((id) => {
+        const panel = getEl(id);
+        if (!panel) {
+          debugLog('Painel não encontrado para normalização', { id });
+          return;
+        }
+        const parentTag = panel.parentElement ? panel.parentElement.tagName : null;
+        const parentId = panel.parentElement ? panel.parentElement.id : null;
+        if (panel.parentElement !== main) {
+          main.appendChild(panel);
+          debugLog('Painel movido para #mainWrap', { id, fromTag: parentTag, fromId: parentId });
+        } else {
+          debugLog('Painel já estava em #mainWrap', { id, fromTag: parentTag, fromId: parentId });
+        }
+      });
+    }
+
+    function applyEmbeddedThemeToFrame(frame, systemId) {
+      const doc = frame && frame.contentDocument;
+      if (!doc) return false;
+      const head = doc.head || doc.documentElement;
+      if (!head) return false;
+
+      let style = doc.getElementById('cp-embed-theme');
+      if (!style) {
+        style = doc.createElement('style');
+        style.id = 'cp-embed-theme';
+        style.textContent = `
+:root{color-scheme:light;}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+.brand img,.brand-logo{display:none !important;}
+`;
+        head.appendChild(style);
+      }
+
+      if (doc.body) {
+        doc.body.classList.add('cp-embed-themed', `cp-${systemId}`);
+      }
+      return true;
+    }
+
+    function ensureElementIdsInEmbeddedDoc(frame, systemId) {
+      const doc = frame && frame.contentDocument;
+      if (!doc || !doc.body) return 0;
+      const prefix = `cp-${systemId}`;
+      let created = 0;
+      let idx = 0;
+      doc.querySelectorAll('*').forEach((el) => {
+        if (el.id) return;
+        const tag = (el.tagName || 'el').toLowerCase();
+        el.id = `${prefix}-${tag}-${idx++}`;
+        created += 1;
+      });
+      return created;
+    }
+
+    function sanitizeEmbeddedUi(frame) {
+      const doc = frame && frame.contentDocument;
+      if (!doc || !doc.body) return;
+      doc.querySelectorAll('button, .btn, .label-file').forEach((el) => {
+        let txt = (el.textContent || '');
+        txt = txt.replace('🧹', '').replace('⬇️', '').replace('✅', '').replace('✔️', '').replace('☑️', '');
+        el.textContent = txt.replace(/\s{2,}/g, ' ').trim();
+      });
+    }
+
+
+    function createEmbeddedModule({ systemId, iframeId, statusId, tplId }) {
+      let loaded = false;
+
+      function ensureFrameVisible() {
+        const frame = getEl(iframeId);
+        if (!frame) {
+          debugLog('Módulo sem iframe', { systemId, iframeId });
+          return;
+        }
+        const targetHeight = Math.max(1200, window.innerHeight - 170);
+        frame.style.display = 'block';
+        frame.style.visibility = 'visible';
+        frame.style.opacity = '1';
+        frame.style.position = 'relative';
+        frame.style.zIndex = '1';
+        frame.style.width = '100%';
+        frame.style.minHeight = `${targetHeight}px`;
+        frame.style.height = `${targetHeight}px`;
+        frame.style.background = '#fff';
+        applyEmbeddedThemeToFrame(frame, systemId);
+        ensureElementIdsInEmbeddedDoc(frame, systemId);
+        sanitizeEmbeddedUi(frame);
+      }
+
+      function ensureLoaded() {
+        const frame = getEl(iframeId);
+        const status = getEl(statusId);
+        const tpl = getEl(tplId);
+
+        if (!frame || !status || !tpl) {
+          debugLog('Módulo incompleto (elementos ausentes)', {
+            systemId,
+            hasFrame: !!frame,
+            hasStatus: !!status,
+            hasTpl: !!tpl
+          });
+          return;
+        }
+
+        ensureFrameVisible();
+
+        if (loaded) {
+          debugLog('Módulo já carregado', { systemId, iframeId, mode: frame.dataset.loadMode || 'n/a' });
+          return;
+        }
+
+        try {
+          const html = tpl.innerHTML.trim();
+          const previousBlobUrl = frame.dataset.blobUrl;
+          if (previousBlobUrl) {
+            URL.revokeObjectURL(previousBlobUrl);
+            delete frame.dataset.blobUrl;
+          }
+
+          debugLog('Iniciando módulo (isolado)', {
+            systemId,
+            iframe: iframeId,
+            fileMode: location.protocol === 'file:',
+            htmlChars: html.length
+          });
+
+          frame.addEventListener('load', () => {
+            applyEmbeddedThemeToFrame(frame, systemId);
+            const idsAdded = ensureElementIdsInEmbeddedDoc(frame, systemId);
+            sanitizeEmbeddedUi(frame);
+            status.classList.remove('error');
+            status.textContent = 'Módulo carregado com sucesso.';
+            debugLog('Tema visual aplicado ao módulo', { systemId, iframeId, idsAdded });
+          }, { once: true });
+
+          try {
+            const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+            const blobUrl = URL.createObjectURL(blob);
+            frame.dataset.blobUrl = blobUrl;
+            frame.dataset.loadMode = 'blob';
+            frame.src = blobUrl;
+          } catch (blobErr) {
+            debugLog('Falha blob; tentando srcdoc (isolado)', String(blobErr));
+            try {
+              if ('srcdoc' in frame) {
+                frame.srcdoc = html;
+                frame.dataset.loadMode = 'srcdoc';
+              } else {
+                throw new Error('srcdoc indisponível');
+              }
+            } catch (srcdocErr) {
+              debugLog('Falha srcdoc; usando data URL (isolado)', String(srcdocErr));
+              frame.dataset.loadMode = 'data';
+              frame.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+            }
+          }
+
+          setTimeout(() => {
+            try {
+              const doc = frame.contentDocument;
+              const bodyText = (doc && doc.body) ? (doc.body.innerText || '').trim() : '';
+              debugLog('Validação pós-carga (isolado)', {
+                systemId,
+                mode: frame.dataset.loadMode || 'n/a',
+                bodyChars: bodyText.length,
+                frameHeight: frame.clientHeight,
+                hasBody: !!(doc && doc.body)
+              });
+              if (!bodyText.length) {
+                status.classList.add('error');
+                status.textContent = 'Módulo sem conteúdo visível. Consulte logs.';
+              }
+            } catch (probeErr) {
+              debugLog('Falha ao validar módulo isolado', { systemId, err: String(probeErr) });
+            }
+          }, 900);
+
+          loaded = true;
+        } catch (err) {
+          status.classList.add('error');
+          status.textContent = 'Falha ao carregar o módulo. Recarregue a página.';
+          debugLog('Erro em ensureLoaded (módulo isolado)', { systemId, err: String(err) });
+        }
+      }
+
+      return {
+        activate() {
+          ensureFrameVisible();
+          ensureLoaded();
+        },
+        deactivate() {
+          // sem ação destrutiva: mantém estado carregado em memória
+        },
+        preload() {
+          ensureLoaded();
+        }
+      };
+    }
+
+    const systemModules = {
+      art916: {
+        activate() {
+          setTab('editor');
+        },
+        deactivate() {},
+      },
+      sistema2: createEmbeddedModule({
+        systemId: 'sistema2',
+        iframeId: 'iframeSistema2',
+        statusId: 'embedStatus2',
+        tplId: 'tplSistema2'
+      }),
+      sistema3: createEmbeddedModule({
+        systemId: 'sistema3',
+        iframeId: 'iframeSistema3',
+        statusId: 'embedStatus3',
+        tplId: 'tplSistema3'
+      })
+    };
+
     function setSystem(systemId) {
+      if (!systemModules[systemId]) {
+        debugLog('Sistema inválido solicitado', { systemId });
+        return;
+      }
+
+      const previous = activeSystem;
+      if (systemModules[previous] && typeof systemModules[previous].deactivate === 'function') {
+        systemModules[previous].deactivate();
+      }
+
       activeSystem = systemId;
-      document.querySelectorAll('.system-btn').forEach((btn)=>{
+      document.querySelectorAll('.system-btn').forEach((btn) => {
         btn.classList.toggle('active', btn.dataset.system === systemId);
       });
-      document.querySelectorAll('.system-panel').forEach((panel)=>{
-        panel.classList.toggle('active', panel.dataset.system === systemId);
-      });
-      if (systemId === 'art916') {
-        setTab('editor');
+
+      setPanelVisibility(systemId);
+
+      if (typeof systemModules[systemId].activate === 'function') {
+        systemModules[systemId].activate();
       }
+
+      const activePanel = document.querySelector(`.system-panel[data-system="${systemId}"]`);
+      debugLog('Sistema alterado (módulo isolado)', {
+        systemId,
+        previous,
+        panelDisplay: activePanel ? getComputedStyle(activePanel).display : 'n/a',
+        panelHiddenAttr: activePanel ? activePanel.hasAttribute('hidden') : null,
+      });
+    }
+
+    function initEmbeddedSystems() {
+      if (activeSystem !== 'sistema2' && activeSystem !== 'sistema3') {
+        setPanelVisibility(activeSystem);
+      }
+
+      const idle = window.requestIdleCallback || ((cb) => setTimeout(cb, 250));
+      idle(() => {
+        ['sistema2', 'sistema3'].forEach((id) => {
+          try {
+            const mod = systemModules[id];
+            if (mod && typeof mod.preload === 'function') mod.preload();
+          } catch (err) {
+            debugLog('Falha ao preload de módulo', { id, err: String(err) });
+          }
+        });
+      });
     }
 
     function printActiveSystem(targetId=null) {
@@ -3941,36 +4056,6 @@ const DOM = {
       } else {
         window.print();
       }
-    }
-
-    function initEmbeddedSystems() {
-      const modules = [
-        { iframe: 'iframeSistema2', status: 'embedStatus2', tpl: 'tplSistema2' },
-        { iframe: 'iframeSistema3', status: 'embedStatus3', tpl: 'tplSistema3' }
-      ];
-      modules.forEach((m) => {
-        const frame = document.getElementById(m.iframe);
-        const status = document.getElementById(m.status);
-        const tpl = document.getElementById(m.tpl);
-        if (!frame || !tpl) return;
-
-        try {
-          const html = tpl.innerHTML;
-          const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
-          frame.src = dataUrl;
-          frame.addEventListener('load', () => {
-            if (status) {
-              status.classList.remove('error');
-              status.textContent = 'Módulo carregado com sucesso.';
-            }
-          }, { once: true });
-        } catch (err) {
-          if (status) {
-            status.classList.add('error');
-            status.textContent = 'Falha ao carregar o módulo. Recarregue a página.';
-          }
-        }
-      });
     }
 
     function bindSystemSwitch() {
@@ -4027,9 +4112,12 @@ const DOM = {
       bindInputs();
       bindTabs();
       bindSystemSwitch();
+      bindDebugPanel();
+      normalizeSystemPanelsInMain();
       initEmbeddedSystems();
       applyLogo();
       setSystem("art916");
+      debugLog('Boot finalizado', { protocol: location.protocol, href: location.href, debugShortcut: 'Ctrl+Shift+D' });
     }
 
     boot();
