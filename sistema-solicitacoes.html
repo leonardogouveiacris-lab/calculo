@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Sistema de Solicitações</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root{--bg:#f7f8fb;--card:#fff;--border:#e6e8ef;--ink:#0b1220;--muted:#667085;--accent:#0b1220;--radius:16px;--radius-sm:12px;--shadow:0 10px 26px rgba(16,24,40,.06)}
+    *{box-sizing:border-box} body{margin:0;font-family:ui-sans-serif,system-ui;background:var(--bg);color:var(--ink)}
+    .topbar{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);z-index:20}
+    .topbar-inner{max-width:1120px;margin:0 auto;padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
+    .btn{border:1px solid var(--border);background:#fff;border-radius:12px;padding:10px 12px;font-size:13px;cursor:pointer}
+    .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+    .wrap{max-width:1120px;margin:0 auto;padding:18px 16px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+    .card-sub{font-size:12px;color:var(--muted);margin:0 0 10px}
+    .btn-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+    label{display:block;font-size:12px;color:var(--muted);margin:10px 0 6px}
+    input[type=text],select{width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm)}
+    .editor-table{width:100%;border-collapse:collapse;font-size:12px}
+    .editor-table th,.editor-table td{border:1px solid var(--border);padding:7px;text-align:left}
+    #reclamadaPanel{display:none;position:absolute;left:0;right:0;top:100%;z-index:40;background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px}
+    .meta{font-size:12px;color:var(--muted)}
+    #dbg{position:fixed;right:12px;bottom:12px;width:min(680px,92vw);height:36vh;background:#081225;color:#e5e7eb;display:none;border-radius:12px;border:1px solid #334155;z-index:99999}
+    #dbg pre{height:calc(100% - 38px);overflow:auto;margin:0;padding:8px;font:12px/1.4 ui-monospace,Consolas,monospace}
+    #dbgbar{display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #334155}
+  </style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <strong>sistema de solicitações</strong>
+    <button class="btn" id="btnBack">Voltar ao Art. 916</button>
+  </div>
+</header>
+<main class="wrap">
+  <div class="card" id="solicitacoesRoot">
+    <h2 style="margin:0 0 6px">Sistema de Solicitações</h2>
+    <p class="card-sub">Importe planilhas, filtre e exporte os dados visíveis.</p>
+
+    <div class="btn-row">
+      <label class="btn" for="solicitacoesFileInput" style="margin:0">Importar arquivo (.xlsx/.xls/.csv)</label>
+      <input id="solicitacoesFileInput" type="file" accept=".xlsx,.xls,.csv" style="display:none"/>
+      <span class="meta" id="solicitacoesFileName">Nenhum arquivo selecionado</span>
+    </div>
+
+    <div class="btn-row" style="margin-top:8px">
+      <div style="min-width:240px;flex:1">
+        <label for="solicitacoesClienteSelect">Cliente</label>
+        <select id="solicitacoesClienteSelect"><option value="(Todos)">(Todos)</option></select>
+      </div>
+      <div style="position:relative;min-width:240px;flex:1">
+        <label>Reclamada</label>
+        <button class="btn" id="solicitacoesReclamadaBtn" type="button">Reclamada: (Todas)</button>
+        <div id="reclamadaPanel">
+          <input id="solicitacoesReclamadaSearch" type="text" placeholder="Buscar reclamada..."/>
+          <div class="btn-row" style="margin-top:8px"><button class="btn" id="solicitacoesReclamadaMarkAll" type="button">Marcar todas</button><button class="btn" id="solicitacoesReclamadaClear" type="button">Limpar</button></div>
+          <div id="solicitacoesReclamadaList" style="max-height:220px;overflow:auto;margin-top:8px"></div>
+        </div>
+      </div>
+      <button class="btn" id="solicitacoesLimparFiltroBtn" type="button">Limpar filtro</button>
+      <button class="btn" id="solicitacoesLimparDadosBtn" type="button">Limpar dados importados</button>
+      <button class="btn" id="solicitacoesExportBtn" type="button">Exportar XLSX</button>
+      <button class="btn btn-primary" id="solicitacoesPrintBtn" type="button">Imprimir / PDF</button>
+    </div>
+
+    <div class="btn-row" style="margin-top:10px">
+      <span class="meta" id="solicitacoesTotalCount">0 solicitações</span>
+      <span class="meta" id="solicitacoesSumTotal">R$ 0,00</span>
+      <span class="meta" id="solicitacoesCompetencia">Competência: —</span>
+    </div>
+
+    <div style="overflow:auto;margin-top:8px">
+      <table class="editor-table">
+        <thead id="solicitacoesThead"></thead>
+        <tbody id="solicitacoesTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<div id="dbg"><div id="dbgbar"><b>Debug Console</b><button class="btn" id="dbgClose">Fechar</button></div><pre id="dbgOut"></pre></div>
+
+<script>
+(() => {
+  const COLUMNS = ['Entrega em','Contato: Primeiro nome','Numero do Processo','Reclamante','Reclamada','Serviços','Total (Total)'];
+  const ALIASES = {
+    'Entrega em':['Entrega em','Data','Data Entrega','Entrega'],
+    'Contato: Primeiro nome':['Contato: Primeiro nome','Cliente','Contato'],
+    'Numero do Processo':['Numero do Processo','Número do Processo','Processo'],
+    'Reclamante':['Reclamante'],'Reclamada':['Reclamada'],'Serviços':['Serviços','Servico','Serviço'],'Total (Total)':['Total (Total)','Total','Valor']
+  };
+  const E = id => document.getElementById(id);
+  let allRows = [], currentRows = [], currentClient='(Todos)', selectedReclamadas=new Set(), competenciaAtual='—';
+
+  const dbg = {
+    enabled:false,
+    log(...a){ console.log('[Solicitações]',...a); if(!this.enabled) return; const o=E('dbgOut'); o.textContent += `[${new Date().toLocaleTimeString('pt-BR')}] ${a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ')}\n`; o.scrollTop=o.scrollHeight; },
+    toggle(){ this.enabled=!this.enabled; E('dbg').style.display=this.enabled?'block':'none'; }
+  };
+  document.addEventListener('keydown',e=>{ if(e.ctrlKey&&e.shiftKey&&(e.key==='D'||e.key==='d')){e.preventDefault();dbg.toggle();} },true);
+  E('dbgClose').addEventListener('click',()=>dbg.toggle());
+
+  const canonical = s => String(s||'').trim().toLowerCase();
+  const getCell = (row, names) => {
+    for (const n of names){ const target = canonical(n); for (const k of Object.keys(row||{})){ if(canonical(k)===target) return row[k]; } }
+    return '';
+  };
+  const toBRL = n => n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const parseCurrencyBRL = v => {
+    if (typeof v==='number') return Number.isFinite(v)?v:0;
+    const txt=String(v??'').trim(); if(!txt) return 0;
+    const clean=txt.replace(/[^\d,.-]/g,''); const norm=clean.includes(',')?clean.replace(/\./g,'').replace(',','.'):clean;
+    const n=Number(norm); return Number.isFinite(n)?n:0;
+  };
+  const parseDateAny = (v) => {
+    if (v==null||v==='') return null;
+    if (v instanceof Date && !isNaN(v)) return new Date(Date.UTC(v.getFullYear(),v.getMonth(),v.getDate()));
+    if (typeof v==='number' && Number.isFinite(v)) return new Date(Date.UTC(1899,11,30)+Math.round(v*86400000));
+    const t=String(v).trim();
+    let m=t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if(m) return new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));
+    m=t.match(/^(\d{2})-(\d{2})-(\d{4})$/); if(m) return new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));
+    m=t.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})$/); if(m) return new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));
+    return null;
+  };
+  const dateBR = d => `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}`;
+
+  function normalizeAndFormat(data){
+    const out=(data||[]).map(r=>{
+      const o={};
+      COLUMNS.forEach(c=>{
+        const raw=getCell(r,ALIASES[c]);
+        if(c==='Entrega em'){ const d=parseDateAny(raw); o[c]=d?dateBR(d):(raw??''); }
+        else if(c==='Total (Total)'){ const n=parseCurrencyBRL(raw); o[c]=(String(raw??'').trim() && n===0 && !/0/.test(String(raw)))?String(raw):toBRL(n); }
+        else o[c]=raw??'';
+      });
+      return o;
+    });
+    out.sort((a,b)=>{ const da=parseDateAny(a['Entrega em']), db=parseDateAny(b['Entrega em']); if(!da&&!db) return 0; if(!da) return 1; if(!db) return -1; return db-da; });
+    return out;
+  }
+
+  function updateCompetencia(rows){
+    const map=new Map();
+    rows.forEach(r=>{ const d=parseDateAny(r['Entrega em']); if(!d) return; const k=`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`; map.set(k,(map.get(k)||0)+1); });
+    let winner=null,best=-1; for(const [k,c] of map){ if(c>best || (c===best && k>winner)){best=c;winner=k;} }
+    if(!winner){competenciaAtual='—'; E('solicitacoesCompetencia').textContent='Competência: —'; return;}
+    const [y,m]=winner.split('-').map(Number); const dt=new Date(Date.UTC(y,m-1,1)); const mes=dt.toLocaleDateString('pt-BR',{month:'long'}); competenciaAtual=mes.charAt(0).toUpperCase()+mes.slice(1)+` de ${y}`;
+    E('solicitacoesCompetencia').textContent=`Competência: ${competenciaAtual}`;
+  }
+
+  function updateMeta(rows){
+    E('solicitacoesTotalCount').textContent=`${rows.length} solicitações`;
+    const sum=rows.reduce((a,r)=>a+parseCurrencyBRL(r['Total (Total)']),0);
+    E('solicitacoesSumTotal').textContent=toBRL(sum);
+    updateCompetencia(rows);
+  }
+
+  function renderTable(rows){
+    dbg.log('renderTable', {rows:rows.length});
+    E('solicitacoesThead').innerHTML=`<tr>${COLUMNS.map(c=>`<th>${c}</th>`).join('')}</tr>`;
+    E('solicitacoesTbody').innerHTML=rows.map(r=>`<tr>${COLUMNS.map(c=>`<td>${r[c]??''}</td>`).join('')}</tr>`).join('');
+    updateMeta(rows);
+  }
+
+  function updateReclamadaBtnLabel(){
+    const arr=[...selectedReclamadas];
+    E('solicitacoesReclamadaBtn').textContent=!arr.length?'Reclamada: (Todas)':arr.length<=2?`Reclamada: ${arr.join(', ')}`:`Reclamada: ${arr.length} selecionadas`;
+  }
+
+  function applyFilters(){
+    currentClient=E('solicitacoesClienteSelect').value||'(Todos)';
+    let rows=[...allRows];
+    if(currentClient!=='(Todos)') rows=rows.filter(r=>String(r['Contato: Primeiro nome']||'').trim()===currentClient);
+    if(selectedReclamadas.size) rows=rows.filter(r=>selectedReclamadas.has(String(r['Reclamada']||'').trim()));
+    currentRows=rows; renderTable(rows);
+  }
+
+  function setReclamadaDropdown(list){
+    const host=E('solicitacoesReclamadaList');
+    host.innerHTML=list.map((n,i)=>`<label data-item="1" style="display:flex;gap:8px;padding:4px 0"><input type="checkbox" data-reclamada="${String(n).replace(/"/g,'&quot;')}" id="r_${i}"><span>${n}</span></label>`).join('');
+    host.querySelectorAll('input[type="checkbox"]').forEach(ch=>ch.addEventListener('change',()=>{ const v=ch.dataset.reclamada||''; ch.checked?selectedReclamadas.add(v):selectedReclamadas.delete(v); updateReclamadaBtnLabel(); applyFilters(); }));
+  }
+
+  function afterImport(data){
+    dbg.log('afterImport', {raw:Array.isArray(data)?data.length:0});
+    allRows=normalizeAndFormat(data); currentRows=[...allRows]; renderTable(currentRows);
+    const clients=[...new Set(allRows.map(r=>String(r['Contato: Primeiro nome']||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    E('solicitacoesClienteSelect').innerHTML=['(Todos)',...clients].map(c=>`<option value="${c.replace(/"/g,'&quot;')}">${c}</option>`).join('');
+    const recl=[...new Set(allRows.map(r=>String(r['Reclamada']||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    selectedReclamadas.clear(); setReclamadaDropdown(recl); updateReclamadaBtnLabel();
+  }
+
+  function parseCSV(text){
+    const clean=String(text||'').replace(/^\uFEFF/,'');
+    const lines=clean.split(/\r?\n/).filter(l=>l.trim()!=='');
+    if(!lines.length) return [];
+    const seps=[',',';','\t']; const h=lines[0]; const sep=seps.map(s=>({s,n:h.split(s).length})).sort((a,b)=>b.n-a.n)[0].s;
+    const headers=h.split(sep).map(x=>x.trim());
+    return lines.slice(1).map(line=>{ const cols=line.split(sep); const row={}; headers.forEach((hh,i)=>row[hh]=(cols[i]||'').trim()); return row; });
+  }
+
+  async function handleFileImport(ev){
+    const file=ev.target.files?.[0]; if(!file) return;
+    E('solicitacoesFileName').textContent=file.name; dbg.log('handleFileImport', file.name);
+    try{
+      let data=[];
+      if(/\.csv$/i.test(file.name)){ data=parseCSV(await file.text()); }
+      else if(/\.(xlsx|xls)$/i.test(file.name)){ if(!window.XLSX) throw new Error('SheetJS indisponível'); const wb=XLSX.read(await file.arrayBuffer(),{type:'array'}); data=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}); }
+      else throw new Error('Formato não suportado');
+      afterImport(data);
+    }catch(err){ dbg.log('erro importação', String(err)); alert('Erro ao importar arquivo: '+(err.message||err)); }
+  }
+
+  function clearFilters(){ E('solicitacoesClienteSelect').value='(Todos)'; selectedReclamadas.clear(); E('solicitacoesReclamadaList').querySelectorAll('input').forEach(i=>i.checked=false); updateReclamadaBtnLabel(); applyFilters(); }
+  function clearData(){ allRows=[]; currentRows=[]; currentClient='(Todos)'; selectedReclamadas.clear(); E('solicitacoesClienteSelect').innerHTML='<option value="(Todos)">(Todos)</option>'; E('solicitacoesReclamadaList').innerHTML=''; E('solicitacoesFileName').textContent='Nenhum arquivo selecionado'; E('solicitacoesFileInput').value=''; renderTable([]); }
+  function sanitizeFilename(n){ return String(n||'').replace(/[\\/:*?"<>|]/g,' ').replace(/\s+/g,' ').trim(); }
+  function printReport(){ const ot=document.title; document.title=sanitizeFilename((competenciaAtual==='—'?'Sem competência':competenciaAtual)+' - '+(currentClient||'(Todos)')); document.body.classList.add('printing-sol'); window.print(); setTimeout(()=>{document.body.classList.remove('printing-sol');document.title=ot;},800); }
+  function exportVisible(){ if(!currentRows.length) return alert('Nenhum dado disponível para exportar.'); if(!window.XLSX) return alert('SheetJS indisponível.');
+    const data=currentRows.map(r=>({'Entrega em':r['Entrega em'],'Cliente':r['Contato: Primeiro nome'],'Número do Processo':r['Numero do Processo'],'Reclamante':r['Reclamante'],'Reclamada':r['Reclamada'],'Serviço':r['Serviços'],'Total':r['Total (Total)']}));
+    const ws=XLSX.utils.json_to_sheet(data), wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Solicitacoes'); const d=new Date(); const stamp=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; XLSX.writeFile(wb,`solicitacoes_${stamp}.xlsx`); }
+
+  E('btnBack').addEventListener('click',()=>location.href='MODELO ART. 916 CPC.html');
+  E('solicitacoesFileInput').addEventListener('change',handleFileImport);
+  E('solicitacoesClienteSelect').addEventListener('change',applyFilters);
+  E('solicitacoesLimparFiltroBtn').addEventListener('click',clearFilters);
+  E('solicitacoesLimparDadosBtn').addEventListener('click',clearData);
+  E('solicitacoesPrintBtn').addEventListener('click',printReport);
+  E('solicitacoesExportBtn').addEventListener('click',exportVisible);
+  E('solicitacoesReclamadaBtn').addEventListener('click',e=>{ e.stopPropagation(); const p=E('reclamadaPanel'); p.style.display=p.style.display==='block'?'none':'block'; });
+  E('reclamadaPanel').addEventListener('click',e=>e.stopPropagation());
+  document.addEventListener('click',()=>E('reclamadaPanel').style.display='none');
+  E('solicitacoesReclamadaSearch').addEventListener('input',()=>{ const q=E('solicitacoesReclamadaSearch').value.toLowerCase(); E('solicitacoesReclamadaList').querySelectorAll('[data-item="1"]').forEach(n=>n.style.display=n.textContent.toLowerCase().includes(q)?'flex':'none'); });
+  E('solicitacoesReclamadaMarkAll').addEventListener('click',()=>{ E('solicitacoesReclamadaList').querySelectorAll('input').forEach(i=>{i.checked=true;selectedReclamadas.add(i.dataset.reclamada||'')}); updateReclamadaBtnLabel(); applyFilters(); });
+  E('solicitacoesReclamadaClear').addEventListener('click',()=>{ E('solicitacoesReclamadaList').querySelectorAll('input').forEach(i=>i.checked=false); selectedReclamadas.clear(); updateReclamadaBtnLabel(); applyFilters(); });
+
+  renderTable([]); dbg.log('Sistema inicializado');
+})();
+</script>
+</body>
+</html>
