@@ -6,6 +6,7 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>Parcelamento Art. 916 CPC — Sistema (HTML)</title>
 <link href="styles.css" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
 /* ===== styles.css (inline) ===== */
@@ -1017,6 +1018,27 @@ details.dropdown,
 /* Ocultar apenas o botão do cabeçalho */
 #btnPrint{ display:none !important; }
 
+/* Tela separada do Sistema de Solicitações */
+body.solicitacoes-mode #mainWrap,
+body.solicitacoes-mode #tabsNav,
+body.solicitacoes-mode #tab-editor,
+body.solicitacoes-mode #tab-report,
+body.solicitacoes-mode #hdrHintbar{display:none !important;}
+body.solicitacoes-mode #solicitacoesStandalone{display:block !important;}
+#solicitacoesStandalone{display:none;}
+#solicitacoesBackBtn{display:none;}
+body.solicitacoes-mode #solicitacoesBackBtn{display:inline-flex !important;}
+body.solicitacoes-mode #btnOpenSolicitacoes{display:none !important;}
+body.solicitacoes-mode #btnPrint{display:none !important;}
+body.solicitacoes-printing #mainWrap,
+body.solicitacoes-printing #tabsNav,
+body.solicitacoes-printing #hdrHintbar,
+body.solicitacoes-printing #btnOpenSolicitacoes,
+body.solicitacoes-printing #solicitacoesBackBtn,
+body.solicitacoes-printing #btnPrint{display:none !important;}
+body.solicitacoes-printing #solicitacoesStandalone{display:block !important;}
+
+
 </style>
 </head>
 <body>
@@ -1028,6 +1050,8 @@ details.dropdown,
     </div>
 
     <div class="actions" id="hdrActions">
+      <button class="btn" id="btnOpenSolicitacoes" type="button">Sistema de Solicitações</button>
+      <button class="btn" id="solicitacoesBackBtn" type="button">Voltar ao Art. 916</button>
       <button class="btn btn-primary" id="btnPrint" type="button">Imprimir / Salvar em PDF</button>
 </div>
   </div>
@@ -1550,6 +1574,60 @@ details.dropdown,
 </div>
 </section>
 </main>
+
+<main class="wrap" id="solicitacoesStandalone">
+<div class="grid">
+  <div class="card" id="solicitacoesRoot">
+    <h2 style="margin-bottom:6px;">Sistema de Solicitações</h2>
+    <div class="card-sub">Importe planilhas, filtre e exporte os dados visíveis.</div>
+
+    <div class="btn-row" style="margin-top:12px;align-items:center;gap:8px;flex-wrap:wrap;">
+      <label class="btn btn-file" for="solicitacoesFileInput">Importar arquivo (.xlsx/.xls/.csv)</label>
+      <input accept=".xlsx,.xls,.csv" id="solicitacoesFileInput" type="file" style="display:none;"/>
+      <span class="note" id="solicitacoesFileName" style="margin:0;">Nenhum arquivo selecionado</span>
+    </div>
+
+    <div class="btn-row" style="margin-top:12px;align-items:flex-end;gap:8px;flex-wrap:wrap;">
+      <div style="min-width:220px;flex:1;">
+        <label for="solicitacoesClienteSelect">Cliente</label>
+        <select id="solicitacoesClienteSelect"><option value="(Todos)">(Todos)</option></select>
+      </div>
+
+      <div style="position:relative;min-width:260px;flex:1;">
+        <label>Reclamada</label>
+        <button class="btn" id="solicitacoesReclamadaBtn" type="button">Reclamada: (Todas)</button>
+        <div id="solicitacoesReclamadaPanel" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:30;background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px;box-shadow:var(--shadow-soft);margin-top:6px;">
+          <input id="solicitacoesReclamadaSearch" placeholder="Buscar reclamada..." type="text"/>
+          <div class="btn-row" style="margin-top:8px;gap:6px;">
+            <button class="btn" id="solicitacoesReclamadaMarkAll" type="button">Marcar todas</button>
+            <button class="btn" id="solicitacoesReclamadaClear" type="button">Limpar</button>
+          </div>
+          <div id="solicitacoesReclamadaList" style="max-height:220px;overflow:auto;margin-top:8px;"></div>
+        </div>
+      </div>
+
+      <button class="btn" id="solicitacoesLimparFiltroBtn" type="button">Limpar filtro</button>
+      <button class="btn" id="solicitacoesLimparDadosBtn" type="button">Limpar dados importados</button>
+      <button class="btn" id="solicitacoesExportBtn" type="button">Exportar XLSX</button>
+      <button class="btn btn-primary" id="solicitacoesPrintBtn" type="button">Imprimir / PDF</button>
+    </div>
+
+    <div class="btn-row" style="margin-top:12px;gap:10px;">
+      <div class="note" id="solicitacoesTotalCount" style="margin:0;">0 solicitações</div>
+      <div class="note" id="solicitacoesSumTotal" style="margin:0;">R$ 0,00</div>
+      <div class="note" id="solicitacoesCompetencia" style="margin:0;">Competência: —</div>
+    </div>
+
+    <div style="overflow:auto;margin-top:10px;">
+      <table class="editor-table" id="solicitacoesTable">
+        <thead id="solicitacoesThead"></thead>
+        <tbody id="solicitacoesTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</main>
+
 <div aria-atomic="true" aria-live="polite" class="toast-host" id="toastHost"></div>
 
 <script>
@@ -1585,6 +1663,7 @@ const DOM = {
 
   // Ações principais
   btnPrint: '#btnPrint',
+  btnOpenSolicitacoes: '#btnOpenSolicitacoes',
   btnPrint2: '#btnPrint2',
   btnReset: '#btnReset',
   btnExport: '#btnExport',
@@ -2116,6 +2195,17 @@ const DOM = {
       });
 
       // Toolbar buttons
+      const btnOpenSolicitacoes = el("btnOpenSolicitacoes");
+      if (btnOpenSolicitacoes) {
+        btnOpenSolicitacoes.addEventListener("click", ()=>{
+          window.AppDebug?.log?.('[UI]', 'Header -> abrir Solicitações');
+          openSolicitacoesScreen();
+        });
+      }
+      const solicitacoesBackBtn = document.getElementById("solicitacoesBackBtn");
+      if (solicitacoesBackBtn) {
+        solicitacoesBackBtn.addEventListener("click", ()=> { window.AppDebug?.log?.('[UI]', 'Header -> voltar ao Art. 916'); closeSolicitacoesScreen(); });
+      }
       el("btnPrint").addEventListener("click", ()=>{ setTab("report"); setTimeout(()=>window.print(), 50); });
       const btnPrint2 = el("btnPrint2");
       if (btnPrint2) btnPrint2.addEventListener("click", ()=>{ setTab("report"); setTimeout(()=>window.print(), 50); });
@@ -2252,6 +2342,7 @@ const DOM = {
         persistAndRender(true);
         renderFixedInputs();
       } catch (err) {
+      debugLog('Erro na importação:', err);
         alert("Falha ao importar JSON. Verifique o arquivo.");
       } finally {
         ev.target.value = "";
@@ -2281,6 +2372,20 @@ const DOM = {
     }
 
     
+
+    function openSolicitacoesScreen() {
+      window.AppDebug?.log?.('[UI]', 'Abrindo tela separada de Solicitações');
+      document.body.classList.add("solicitacoes-mode");
+      const target = document.getElementById("solicitacoesRoot");
+      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function closeSolicitacoesScreen() {
+      window.AppDebug?.log?.('[UI]', 'Voltando para Art. 916');
+      document.body.classList.remove("solicitacoes-mode");
+      setTab("editor");
+    }
+
     // ======================
     // Navegação (abas)
     // ======================
@@ -2315,7 +2420,7 @@ const DOM = {
       }
 
       // Garante que ao imprimir a aba do relatório seja mostrada
-      window.addEventListener("beforeprint", () => setTab("report"));
+      window.addEventListener("beforeprint", () => { if (!document.body.classList.contains("solicitacoes-mode")) setTab("report"); });
     }
 
     function applyLogo() {
@@ -2420,6 +2525,641 @@ const DOM = {
   try{ syncPreview(); }catch(e){}
 })();
 
+</script>
+
+<script>
+/* ===== Módulo: Relatório de Solicitações ===== */
+(function(){
+  const DEFAULT_IDS = {
+    fileInput: 'solicitacoesFileInput',
+    fileNameText: 'solicitacoesFileName',
+    tableHead: 'solicitacoesThead',
+    tableBody: 'solicitacoesTbody',
+    clientSelect: 'solicitacoesClienteSelect',
+    reclamadaBtn: 'solicitacoesReclamadaBtn',
+    reclamadaPanel: 'solicitacoesReclamadaPanel',
+    reclamadaList: 'solicitacoesReclamadaList',
+    reclamadaSearch: 'solicitacoesReclamadaSearch',
+    reclamadaMarkAll: 'solicitacoesReclamadaMarkAll',
+    reclamadaClear: 'solicitacoesReclamadaClear',
+    clearFiltersBtn: 'solicitacoesLimparFiltroBtn',
+    clearDataBtn: 'solicitacoesLimparDadosBtn',
+    printBtn: 'solicitacoesPrintBtn',
+    exportBtn: 'solicitacoesExportBtn',
+    totalCount: 'solicitacoesTotalCount',
+    sumTotal: 'solicitacoesSumTotal',
+    competencia: 'solicitacoesCompetencia'
+  };
+
+  const COLUMNS = [
+    'Entrega em',
+    'Contato: Primeiro nome',
+    'Numero do Processo',
+    'Reclamante',
+    'Reclamada',
+    'Serviços',
+    'Total (Total)'
+  ];
+
+  const HEADER_ALIASES = {
+    'Entrega em': ['Entrega em', 'Data', 'Data Entrega', 'Entrega'],
+    'Contato: Primeiro nome': ['Contato: Primeiro nome', 'Cliente', 'Contato'],
+    'Numero do Processo': ['Numero do Processo', 'Número do Processo', 'Processo'],
+    'Reclamante': ['Reclamante'],
+    'Reclamada': ['Reclamada'],
+    'Serviços': ['Serviços', 'Servico', 'Serviço'],
+    'Total (Total)': ['Total (Total)', 'Total', 'Valor']
+  };
+
+  let allRows = [];
+  let currentRows = [];
+  let currentClient = '(Todos)';
+  let selectedReclamadas = new Set();
+  let competenciaAtual = '—';
+  let ids = { ...DEFAULT_IDS };
+  let eventsBound = false;
+  const debugLog = (...a) => { if (window.AppDebug?.log) window.AppDebug.log('[Solicitacoes]', ...a); else console.log('[Solicitacoes]', ...a); };
+
+  const el = (key) => document.getElementById(ids[key]);
+  const canonical = (str) => String(str || '').trim().toLowerCase();
+
+  function getCell(row, names){
+    for (const n of names) {
+      const target = canonical(n);
+      for (const key of Object.keys(row || {})) {
+        if (canonical(key) === target) return row[key];
+      }
+    }
+    return '';
+  }
+
+  function dateToBR(date){
+    const dd = String(date.getUTCDate()).padStart(2, '0');
+    const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const yyyy = date.getUTCFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  function parseDateAny(value){
+    if (value == null || value === '') return null;
+    if (value instanceof Date && !isNaN(value.getTime())) {
+      return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()));
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      const ms = Date.UTC(1899, 11, 30) + Math.round(value * 86400000);
+      const d = new Date(ms);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    const txt = String(value).trim();
+
+    let m = txt.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (m) return new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])));
+
+    m = txt.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (m) return new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])));
+
+    m = txt.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})$/);
+    if (m) return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+
+    return null;
+  }
+
+  function parseCurrencyBRL(value){
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    if (value == null) return 0;
+    let txt = String(value).trim();
+    if (!txt) return 0;
+    txt = txt.replace(/[^\d,.-]/g, '');
+    if (txt.includes(',')) txt = txt.replace(/\./g, '').replace(',', '.');
+    const n = Number(txt);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function toBRL(value){
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function normalizeAndFormat(data){
+    const out = (data || []).map((row) => {
+      const norm = {};
+      COLUMNS.forEach((col) => {
+        const raw = getCell(row, HEADER_ALIASES[col]);
+        if (col === 'Entrega em') {
+          const d = parseDateAny(raw);
+          norm[col] = d ? dateToBR(d) : (raw ?? '');
+        } else if (col === 'Total (Total)') {
+          const n = parseCurrencyBRL(raw);
+          norm[col] = (raw != null && String(raw).trim() !== '' && n === 0 && !/[0]/.test(String(raw)))
+            ? raw
+            : toBRL(n);
+        } else {
+          norm[col] = raw ?? '';
+        }
+      });
+      return norm;
+    });
+
+    out.sort((a, b) => {
+      const da = parseDateAny(a['Entrega em']);
+      const db = parseDateAny(b['Entrega em']);
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return db.getTime() - da.getTime();
+    });
+
+    return out;
+  }
+
+  function renderTable(rows){
+    debugLog('renderTable', { rows: rows?.length || 0 });
+    const thead = el('tableHead');
+    const tbody = el('tableBody');
+    if (!thead || !tbody) return;
+
+    thead.innerHTML = `<tr>${COLUMNS.map((c) => `<th>${c}</th>`).join('')}</tr>`;
+    tbody.innerHTML = rows.map((r) => `<tr>${COLUMNS.map((c) => `<td>${r[c] ?? ''}</td>`).join('')}</tr>`).join('');
+
+    updateMeta(rows);
+  }
+
+  function updateCompetencia(rows){
+    const map = new Map();
+    rows.forEach((r) => {
+      const d = parseDateAny(r['Entrega em']);
+      if (!d) return;
+      const k = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+      map.set(k, (map.get(k) || 0) + 1);
+    });
+
+    let winner = null;
+    let bestCount = -1;
+    map.forEach((count, key) => {
+      if (count > bestCount || (count === bestCount && key > winner)) {
+        bestCount = count;
+        winner = key;
+      }
+    });
+
+    const badge = el('competencia');
+    if (!winner) {
+      competenciaAtual = '—';
+      if (badge) badge.textContent = 'Competência: —';
+      return;
+    }
+
+    const [y, m] = winner.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, 1));
+    const nomeMes = dt.toLocaleDateString('pt-BR', { month: 'long' });
+    const rotulo = `${nomeMes.charAt(0).toUpperCase()}${nomeMes.slice(1)} de ${y}`;
+    competenciaAtual = rotulo;
+    if (badge) badge.textContent = `Competência: ${rotulo}`;
+  }
+
+  function updateMeta(rows){
+    const countEl = el('totalCount');
+    const sumEl = el('sumTotal');
+
+    if (countEl) countEl.textContent = `${rows.length} solicitações`;
+    const sum = rows.reduce((acc, r) => acc + parseCurrencyBRL(r['Total (Total)']), 0);
+    if (sumEl) sumEl.textContent = toBRL(sum);
+    updateCompetencia(rows);
+  }
+
+  function updateReclamadaBtnLabel(){
+    const btn = el('reclamadaBtn');
+    if (!btn) return;
+    const arr = Array.from(selectedReclamadas);
+    if (!arr.length) {
+      btn.textContent = 'Reclamada: (Todas)';
+    } else if (arr.length <= 2) {
+      btn.textContent = `Reclamada: ${arr.join(', ')}`;
+    } else {
+      btn.textContent = `Reclamada: ${arr.length} selecionadas`;
+    }
+  }
+
+  function applyFilters(){
+    const client = el('clientSelect')?.value || '(Todos)';
+    currentClient = client;
+
+    let rows = [...allRows];
+    if (client !== '(Todos)') {
+      rows = rows.filter((r) => String(r['Contato: Primeiro nome'] || '').trim() === client);
+    }
+    if (selectedReclamadas.size > 0) {
+      rows = rows.filter((r) => selectedReclamadas.has(String(r['Reclamada'] || '').trim()));
+    }
+
+    currentRows = rows;
+    renderTable(currentRows);
+  }
+
+  function setReclamadaDropdown(reclamadas){
+    const list = el('reclamadaList');
+    if (!list) return;
+
+    list.innerHTML = reclamadas.map((nome, i) => `
+      <label data-item="1" style="display:flex;align-items:center;gap:8px;padding:4px 0;">
+        <input type="checkbox" data-reclamada="${String(nome).replace(/"/g, '&quot;')}" id="reclamadaOpt_${i}">
+        <span>${nome}</span>
+      </label>
+    `).join('');
+
+    list.querySelectorAll('input[type="checkbox"]').forEach((chk) => {
+      chk.addEventListener('change', () => {
+        const nome = chk.getAttribute('data-reclamada') || '';
+        if (chk.checked) selectedReclamadas.add(nome);
+        else selectedReclamadas.delete(nome);
+        updateReclamadaBtnLabel();
+        applyFilters();
+      });
+    });
+  }
+
+  function setupDropdownBehavior(){
+    const btn = el('reclamadaBtn');
+    const panel = el('reclamadaPanel');
+    const search = el('reclamadaSearch');
+    const list = el('reclamadaList');
+    const markAll = el('reclamadaMarkAll');
+    const clear = el('reclamadaClear');
+
+    if (btn && panel) {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        panel.classList.toggle('open');
+        panel.style.display = panel.classList.contains('open') ? 'block' : 'none';
+      });
+
+      panel.addEventListener('click', (ev) => ev.stopPropagation());
+      document.addEventListener('click', () => { panel.classList.remove('open'); panel.style.display = 'none'; });
+    }
+
+    if (search && list) {
+      search.addEventListener('input', () => {
+        const q = search.value.trim().toLowerCase();
+        list.querySelectorAll('[data-item="1"]').forEach((node) => {
+          const txt = node.textContent.toLowerCase();
+          node.style.display = txt.includes(q) ? 'flex' : 'none';
+        });
+      });
+    }
+
+    if (markAll && list) {
+      markAll.addEventListener('click', () => {
+        list.querySelectorAll('input[type="checkbox"]').forEach((chk) => {
+          chk.checked = true;
+          selectedReclamadas.add(chk.getAttribute('data-reclamada') || '');
+        });
+        updateReclamadaBtnLabel();
+        applyFilters();
+      });
+    }
+
+    if (clear && list) {
+      clear.addEventListener('click', () => {
+        list.querySelectorAll('input[type="checkbox"]').forEach((chk) => { chk.checked = false; });
+        selectedReclamadas.clear();
+        updateReclamadaBtnLabel();
+        applyFilters();
+      });
+    }
+  }
+
+  function afterImport(data){
+    debugLog('afterImport rows brutas:', Array.isArray(data) ? data.length : 0);
+    allRows = normalizeAndFormat(data);
+    currentRows = [...allRows];
+    renderTable(currentRows);
+
+    const clientSelect = el('clientSelect');
+    if (clientSelect) {
+      const clients = [...new Set(allRows.map((r) => String(r['Contato: Primeiro nome'] || '').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+      clientSelect.innerHTML = ['(Todos)', ...clients].map((c) => `<option value="${c.replace(/"/g, '&quot;')}">${c}</option>`).join('');
+      clientSelect.value = '(Todos)';
+    }
+
+    const reclamadas = [...new Set(allRows.map((r) => String(r['Reclamada'] || '').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    setReclamadaDropdown(reclamadas);
+    selectedReclamadas.clear();
+    updateReclamadaBtnLabel();
+  }
+
+  function parseCSV(text){
+    const clean = String(text || '').replace(/^\uFEFF/, '');
+    const lines = clean.split(/\r?\n/).filter((l) => l.trim() !== '');
+    if (!lines.length) return [];
+    const seps = [',', ';', '\t'];
+    const header = lines[0];
+    const sep = seps.map((s) => ({ s, n: header.split(s).length })).sort((a,b)=>b.n-a.n)[0].s;
+    const headers = header.split(sep).map((h) => h.trim());
+    return lines.slice(1).map((line) => {
+      const cols = line.split(sep);
+      const row = {};
+      headers.forEach((h, i) => { row[h] = (cols[i] || '').trim(); });
+      return row;
+    });
+  }
+
+  async function handleFileImport(ev){
+    debugLog('handleFileImport iniciado');
+    const file = ev.target.files?.[0];
+    const fileNameText = el('fileNameText');
+    if (!file) return;
+    if (fileNameText) fileNameText.textContent = file.name;
+
+    try {
+      const isCSV = /\.csv$/i.test(file.name);
+      let data = [];
+      if (isCSV) {
+        debugLog('Importando CSV:', file.name);
+        const txt = await file.text();
+        data = parseCSV(txt);
+      } else if (/\.(xlsx|xls)$/i.test(file.name)) {
+        debugLog('Importando Excel:', file.name, 'XLSX disponível?', !!window.XLSX);
+        if (!window.XLSX) throw new Error('SheetJS (XLSX) não está carregado.');
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: 'array' });
+        const first = wb.SheetNames[0];
+        data = XLSX.utils.sheet_to_json(wb.Sheets[first], { defval: '' });
+      } else {
+        throw new Error('Formato de arquivo não suportado. Use .xlsx, .xls ou .csv');
+      }
+      debugLog('Importação concluída. Linhas:', data.length);
+      afterImport(data);
+    } catch (err) {
+      debugLog('Erro na importação:', err);
+      alert(`Erro ao importar arquivo: ${err.message || err}`);
+    }
+  }
+
+  function resetFilters(){
+    const clientSelect = el('clientSelect');
+    if (clientSelect) clientSelect.value = '(Todos)';
+    selectedReclamadas.clear();
+    const list = el('reclamadaList');
+    if (list) list.querySelectorAll('input[type="checkbox"]').forEach((chk) => chk.checked = false);
+    updateReclamadaBtnLabel();
+    applyFilters();
+  }
+
+  function clearImportedData(){
+    allRows = [];
+    currentRows = [];
+    currentClient = '(Todos)';
+    selectedReclamadas.clear();
+
+    const clientSelect = el('clientSelect');
+    if (clientSelect) clientSelect.innerHTML = '<option value="(Todos)">(Todos)</option>';
+
+    const list = el('reclamadaList');
+    if (list) list.innerHTML = '';
+
+    const fileNameText = el('fileNameText');
+    if (fileNameText) fileNameText.textContent = 'Nenhum arquivo selecionado';
+
+    const fileInput = el('fileInput');
+    if (fileInput) fileInput.value = '';
+
+    const comp = el('competencia');
+    if (comp) comp.textContent = 'Competência: —';
+
+    updateReclamadaBtnLabel();
+    renderTable(currentRows);
+  }
+
+  function sanitizeFilename(name){
+    return String(name || '')
+      .replace(/[\/:*?"<>|]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function printWithSuggestedName(){
+    debugLog('Impressão acionada', { competenciaAtual, currentClient, rows: currentRows.length });
+    const originalTitle = document.title;
+    const comp = competenciaAtual === '—' ? 'Sem competência' : competenciaAtual;
+    const fname = sanitizeFilename(`${comp} - ${currentClient || '(Todos)'}`);
+    document.title = fname || 'relatorio';
+    document.body.classList.add('solicitacoes-printing');
+    const clearPrintState = () => {
+      document.body.classList.remove('solicitacoes-printing');
+      document.title = originalTitle;
+    };
+    const onceAfterPrint = () => {
+      clearPrintState();
+      window.removeEventListener('afterprint', onceAfterPrint);
+    };
+    window.addEventListener('afterprint', onceAfterPrint);
+    try { window.focus(); window.print(); } catch (e) { debugLog('Falha no window.print()', e); alert("Não foi possível abrir a impressão neste navegador."); clearPrintState(); }
+    setTimeout(clearPrintState, 1200);
+  }
+
+  function exportVisibleToXLSX(){
+    if (!currentRows.length) {
+      alert('Nenhum dado disponível para exportar.');
+      return;
+    }
+    if (!window.XLSX) {
+      alert('SheetJS (XLSX) não está carregado.');
+      return;
+    }
+
+    const exported = currentRows.map((r) => ({
+      'Entrega em': getCell(r, ['Entrega em', 'Data', 'Data Entrega', 'Entrega']),
+      'Cliente': getCell(r, ['Contato: Primeiro nome', 'Cliente', 'Contato']),
+      'Número do Processo': getCell(r, ['Número do Processo', 'Numero do Processo', 'Processo']),
+      'Reclamante': getCell(r, ['Reclamante']),
+      'Reclamada': getCell(r, ['Reclamada']),
+      'Serviço': getCell(r, ['Serviços', 'Servico', 'Serviço']),
+      'Total': getCell(r, ['Total (Total)', 'Total', 'Valor'])
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exported);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Solicitacoes');
+    const hoje = new Date();
+    const stamp = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
+    XLSX.writeFile(wb, `solicitacoes_${stamp}.xlsx`);
+  }
+
+  function bindEvents(){
+    if (eventsBound) { debugLog('bindEvents ignorado (já vinculado)'); return; }
+    eventsBound = true;
+    debugLog('bindEvents');
+
+    const fileInput = el('fileInput');
+    if (fileInput) fileInput.addEventListener('change', handleFileImport);
+
+    const clientSelect = el('clientSelect');
+    if (clientSelect) clientSelect.addEventListener('change', applyFilters);
+
+    const clearFiltersBtn = el('clearFiltersBtn');
+    if (clearFiltersBtn) clearFiltersBtn.addEventListener('click', resetFilters);
+
+    const clearDataBtn = el('clearDataBtn');
+    if (clearDataBtn) clearDataBtn.addEventListener('click', clearImportedData);
+
+    const printBtn = el('printBtn');
+    if (printBtn) printBtn.addEventListener('click', printWithSuggestedName);
+
+    const exportBtn = el('exportBtn');
+    if (exportBtn) exportBtn.addEventListener('click', exportVisibleToXLSX);
+  }
+
+  function init(customIds = {}){
+    ids = { ...DEFAULT_IDS, ...customIds };
+    bindEvents();
+    setupDropdownBehavior();
+    updateReclamadaBtnLabel();
+    renderTable([]);
+    debugLog('init concluído', { ids });
+  }
+
+  window.SolicitacoesReportModule = {
+    init,
+    afterImport,
+    normalizeAndFormat,
+    parseCurrencyBRL,
+    applyFilters,
+    get state(){
+      return { allRows, currentRows, currentClient, selectedReclamadas };
+    }
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => init());
+  } else {
+    init();
+  }
+})();
+</script>
+
+<script>
+/* ===== Console de Debug (CTRL+SHIFT+D) ===== */
+(function(){
+  const host = document.createElement('div');
+  host.id = 'appDebugConsole';
+  host.style.cssText = 'position:fixed;right:12px;bottom:48px;width:min(820px,92vw);height:38vh;background:#0b1220;color:#e5e7eb;border:1px solid #334155;border-radius:12px;display:none;z-index:100000;box-shadow:0 20px 40px rgba(0,0,0,.35);font:12px/1.4 ui-monospace,Consolas,monospace;';
+  host.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-bottom:1px solid #334155"><b>Debug Console</b><div><button id="dbgClear" style="margin-right:6px">Limpar</button><button id="dbgClose">Fechar</button></div></div><pre id="dbgOut" style="margin:0;padding:8px 10px;height:calc(100% - 42px);overflow:auto;white-space:pre-wrap"></pre>';
+  document.body.appendChild(host);
+  const out = host.querySelector('#dbgOut');
+  const append = (lvl,args)=>{
+    const msg = `[${new Date().toLocaleTimeString('pt-BR')}] ${lvl} ` + args.map(a=>{
+      if (typeof a === 'string') return a;
+      try { return JSON.stringify(a); } catch { return String(a); }
+    }).join(' ');
+    out.textContent += msg + '\n';
+    out.scrollTop = out.scrollHeight;
+  };
+  window.AppDebug = {
+    enabled:false,
+    toggle(){ this.enabled=!this.enabled; host.style.display=this.enabled?'block':'none'; append('SYS',['Debug', this.enabled?'ON':'OFF']); },
+    log(...a){ append('LOG', a); },
+    warn(...a){ append('WRN', a); },
+    error(...a){ append('ERR', a); }
+  };
+  const orig = { log: console.log.bind(console), warn: console.warn.bind(console), error: console.error.bind(console) };
+  console.log = (...a)=>{ orig.log(...a); window.AppDebug?.log(...a); };
+  console.warn = (...a)=>{ orig.warn(...a); window.AppDebug?.warn(...a); };
+  console.error = (...a)=>{ orig.error(...a); window.AppDebug?.error(...a); };
+  document.addEventListener('keydown', (e)=>{ if (e.ctrlKey && e.shiftKey && (e.key==='D' || e.key==='d')) { e.preventDefault(); window.AppDebug.toggle(); } }, true);
+  host.querySelector('#dbgClear').addEventListener('click', ()=> out.textContent='');
+  host.querySelector('#dbgClose').addEventListener('click', ()=> window.AppDebug.toggle());
+  window.addEventListener('error', (e)=> window.AppDebug?.error('window.onerror', e.message, (e.filename||'')+':'+(e.lineno||'')));
+  window.addEventListener('unhandledrejection', (e)=> window.AppDebug?.error('unhandledrejection', e.reason));
+  window.AppDebug.log('Debug console inicializado. Atalho: CTRL+SHIFT+D');
+})();
+</script>
+
+<script>
+/* ===== Telemetria Global de Debug ===== */
+(function(){
+  const L = (...a)=>window.AppDebug?.log?.('[Telemetry]', ...a);
+  const W = (...a)=>window.AppDebug?.warn?.('[Telemetry]', ...a);
+  const E = (...a)=>window.AppDebug?.error?.('[Telemetry]', ...a);
+  const short = (v)=>{
+    const s = String(v ?? '');
+    return s.length > 120 ? s.slice(0,120) + '…' : s;
+  };
+
+  const describeEl = (el)=>{
+    if (!el || !(el instanceof Element)) return '(sem elemento)';
+    const id = el.id ? `#${el.id}` : '';
+    const nm = el.getAttribute('name') ? `[name="${el.getAttribute('name')}"]` : '';
+    const cls = (el.className && typeof el.className === 'string') ? '.' + el.className.trim().split(/\s+/).filter(Boolean).slice(0,2).join('.') : '';
+    return `${el.tagName.toLowerCase()}${id}${nm}${cls}`;
+  };
+
+  document.addEventListener('click', (ev)=>{
+    const el = ev.target;
+    L('click', describeEl(el));
+  }, true);
+
+  document.addEventListener('change', (ev)=>{
+    const el = ev.target;
+    if (!(el instanceof HTMLElement)) return;
+    let value = '';
+    if (el instanceof HTMLInputElement && el.type === 'file') {
+      value = el.files?.[0]?.name || '(sem arquivo)';
+    } else {
+      value = short(el.value ?? el.textContent ?? '');
+    }
+    L('change', describeEl(el), 'value=', value);
+  }, true);
+
+  document.addEventListener('input', (ev)=>{
+    const el = ev.target;
+    if (!(el instanceof HTMLElement)) return;
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
+      L('input', describeEl(el), 'value=', short(el.value));
+    }
+  }, true);
+
+  window.addEventListener('keydown', (ev)=>{
+    L('keydown', { key: ev.key, ctrl: ev.ctrlKey, shift: ev.shiftKey, alt: ev.altKey });
+  }, true);
+
+  const _fetch = window.fetch;
+  if (typeof _fetch === 'function') {
+    window.fetch = async function(...args){
+      L('fetch:start', args[0]);
+      try {
+        const res = await _fetch.apply(this,args);
+        L('fetch:end', args[0], res.status);
+        return res;
+      } catch(err){
+        E('fetch:error', args[0], err);
+        throw err;
+      }
+    };
+  }
+
+  const origOpen = XMLHttpRequest.prototype.open;
+  const origSend = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.open = function(method, url, ...rest){
+    this.__dbg = { method, url };
+    return origOpen.call(this, method, url, ...rest);
+  };
+  XMLHttpRequest.prototype.send = function(...rest){
+    const meta = this.__dbg || {};
+    L('xhr:start', meta.method, meta.url);
+    this.addEventListener('loadend', ()=> L('xhr:end', meta.method, meta.url, this.status));
+    return origSend.apply(this, rest);
+  };
+
+  const _setTab = window.setTab;
+  if (typeof _setTab === 'function' && !window.__setTabDebugWrapped) {
+    window.__setTabDebugWrapped = true;
+    window.setTab = function(which){
+      L('setTab', which);
+      return _setTab.apply(this, arguments);
+    };
+  }
+
+  L('Telemetria global inicializada');
+})();
 </script>
 
 <script>
