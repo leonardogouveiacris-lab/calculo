@@ -516,26 +516,23 @@ h3.sec-title{
     border-radius:0;
     page-break-after:always;
     break-after:page;
-    padding:10mm !important;
+    padding:9mm 10mm 10mm !important;
     overflow:hidden;
-    display:flex;
-    flex-direction:column;
+    position:relative;
   }
   .page:last-child{page-break-after:auto; break-after:auto}
 
   .page .content{
-    margin-top:10mm !important;
-    padding-bottom:0 !important;
-    flex:1 1 auto;
-    min-height:0;
+    margin-top:7mm !important;
+    padding-bottom:18mm !important;
   }
 
   .page .footer{
-    position:relative !important;
-    left:auto !important;
-    right:auto !important;
-    bottom:auto !important;
-    margin-top:6mm;
+    position:absolute !important;
+    left:10mm !important;
+    right:10mm !important;
+    bottom:8mm !important;
+    margin-top:0 !important;
   }
 
   .case-info, .legal-box, .sec-title, .kv{
@@ -547,8 +544,8 @@ h3.sec-title{
   .report-table th, .report-table td,
   .kv td{ padding:5px 7px !important; }
 
-  .title{ margin:6mm 0 4mm !important; }
-  h3.sec-title[style*="margin-top:18mm"]{ margin-top:6mm !important; }
+  .title{ margin:4mm 0 3mm !important; }
+  h3.sec-title[style*="margin-top:18mm"]{ margin-top:4mm !important; }
 
 }
 
@@ -614,17 +611,19 @@ small,.help,.muted,.hint{font-weight:400}
 
 /* Report — bloco do dispositivo legal (Art. 916 CPC) */
 .legal-box{
-  margin: 10px 0 14px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: linear-gradient(180deg, #ffffff, #fbfcfe);
+  margin: 8px 0 12px;
+  padding: 0 0 8px;
+  border: none;
+  border-bottom: 1px solid #d5dbe6;
+  border-radius: 0;
+  background: transparent;
 }
 .legal-title{
-  font-size: 12px;
-  font-weight: 650;
+  font-size: 10.8pt;
+  font-weight: 400;
   color: var(--ink);
-  margin: 0 0 6px;
+  margin: 0;
+  line-height: 1.4;
 }
 .legal-text{
   font-size: 10.8pt;
@@ -1310,7 +1309,7 @@ details.dropdown,
 <div class="title">PARCELAMENTO – ART. 916 DO CPC</div>
 
 <div class="legal-box" id="rptLegal916">
-  <div class="legal-title">Art. 916 do CPC: No prazo para embargos, reconhecendo o crédito do exequente e comprovando o depósito de trinta por cento do valor em execução, acrescido de custas e de honorários de advogado, o executado poderá requerer que lhe seja permitido pagar o restante em até 6 (seis) parcelas mensais, acrescidas de correção monetária e de juros de um por cento ao mês.</div>
+  <p class="legal-text"><strong>Art. 916 do CPC:</strong> No prazo para embargos, reconhecendo o crédito do exequente e comprovando o depósito de trinta por cento do valor em execução, acrescido de custas e de honorários de advogado, o executado poderá requerer que lhe seja permitido pagar o restante em até 6 (seis) parcelas mensais, acrescidas de correção monetária e de juros de um por cento ao mês.</p>
 </div>
 
 <h3 class="sec-title">Créditos Reclamante</h3>
