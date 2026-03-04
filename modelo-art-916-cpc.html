@@ -1017,6 +1017,8 @@ details.dropdown,
 /* Ocultar apenas o botão do cabeçalho */
 #btnPrint{ display:none !important; }
 
+
+
 </style>
 </head>
 <body>
@@ -1028,6 +1030,7 @@ details.dropdown,
     </div>
 
     <div class="actions" id="hdrActions">
+      <button class="btn" id="btnOpenSolicitacoes" type="button">Sistema de Solicitações</button>
       <button class="btn btn-primary" id="btnPrint" type="button">Imprimir / Salvar em PDF</button>
 </div>
   </div>
@@ -1550,6 +1553,9 @@ details.dropdown,
 </div>
 </section>
 </main>
+
+
+
 <div aria-atomic="true" aria-live="polite" class="toast-host" id="toastHost"></div>
 
 <script>
@@ -1585,6 +1591,7 @@ const DOM = {
 
   // Ações principais
   btnPrint: '#btnPrint',
+  btnOpenSolicitacoes: '#btnOpenSolicitacoes',
   btnPrint2: '#btnPrint2',
   btnReset: '#btnReset',
   btnExport: '#btnExport',
@@ -2116,6 +2123,12 @@ const DOM = {
       });
 
       // Toolbar buttons
+      const btnOpenSolicitacoes = el("btnOpenSolicitacoes");
+      if (btnOpenSolicitacoes) {
+        btnOpenSolicitacoes.addEventListener("click", ()=>{
+          window.location.href = "sistema-solicitacoes.html";
+        });
+      }
       el("btnPrint").addEventListener("click", ()=>{ setTab("report"); setTimeout(()=>window.print(), 50); });
       const btnPrint2 = el("btnPrint2");
       if (btnPrint2) btnPrint2.addEventListener("click", ()=>{ setTab("report"); setTimeout(()=>window.print(), 50); });
@@ -2252,6 +2265,7 @@ const DOM = {
         persistAndRender(true);
         renderFixedInputs();
       } catch (err) {
+      debugLog('Erro na importação:', err);
         alert("Falha ao importar JSON. Verifique o arquivo.");
       } finally {
         ev.target.value = "";
@@ -2280,7 +2294,6 @@ const DOM = {
       return deepMerge(merged, data);
     }
 
-    
     // ======================
     // Navegação (abas)
     // ======================
