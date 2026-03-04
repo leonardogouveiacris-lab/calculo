@@ -479,7 +479,7 @@ h3.sec-title{
 .danger-txt{color:var(--danger)}
 
 /* Second page spacing similar to the PDF */
-.page2 .content{ margin-top:12mm; }
+.page2 .content, .page3 .content{ margin-top:12mm; }
 
 /* Print */
 @page{
@@ -489,7 +489,7 @@ h3.sec-title{
 
 
 /* Ajuste: reduzir logo no relatório (páginas 1 e 2) */
-#rptPage1 .logo, #rptPage2 .logo{
+#rptPage1 .logo, #rptPage2 .logo, #rptPage3 .logo{
   max-height: 40px;
   height: 40px;
   width: auto;
@@ -524,7 +524,7 @@ h3.sec-title{
 
   .page .content{
     margin-top:7mm !important;
-    padding-bottom:18mm !important;
+    padding-bottom:24mm !important;
   }
 
   .page .footer{
@@ -1031,7 +1031,7 @@ details.dropdown,
 
   <div class="hintbar" id="hdrHintbar">
     <div class="hintbar-inner" id="hdrHintbarInner">
-      <div class="hint">Dica: ao imprimir, selecione “A4”. O relatório já está paginado em 2 páginas (como o PDF do modelo).</div>
+      <div class="hint">Dica: ao imprimir, selecione “A4”. O relatório está paginado em 3 páginas para evitar cortes de conteúdo.</div>
     </div>
   </div>
 </header>
@@ -1283,7 +1283,7 @@ details.dropdown,
 <section class="tabpane" data-scope="report" id="tab-report">
 <div class="card no-print" id="cardPreviewRelatorio" style="margin-bottom:14px;">
 <h2 style="margin-bottom:6px;">Prévia do relatório (impressão A4)</h2>
-<div class="card-sub">A área abaixo é exatamente o que será impresso — paginado em 2 páginas, como o PDF do modelo.</div>
+<div class="card-sub">A área abaixo é exatamente o que será impresso — paginado em 3 páginas, para melhor distribuição do conteúdo.</div>
 <div class="btn-row" style="margin-top:12px;">
 <button class="btn btn-primary" id="btnPrint2" type="button">Imprimir / Salvar em PDF</button>
 <button class="btn" id="btnBackToData" type="button">Voltar para dados</button>
@@ -1476,7 +1476,30 @@ details.dropdown,
 </tr>
 </tbody>
 </table>
-<h3 class="sec-title" style="margin-top:18mm;">Parcelas restantes corrigidas (<span id="rTabN"></span>)</h3>
+</div>
+<div class="footer" id="rptFooter2">
+<div>
+<div id="rFtrL1_2"></div>
+<div id="rFtrL2_2"></div>
+<div><a href="#" id="rFtrSite_2" rel="noreferrer" target="_blank"></a></div>
+</div>
+<div style="text-align:right;">
+<div id="rFtrEmp_2"></div>
+</div>
+</div>
+</section>
+<!-- PAGE 3 -->
+<section class="page page3" id="rptPage3">
+<div class="header" id="rptHeader3" style="max-height: 60px;">
+<img alt="Logo" class="logo" data-logo="1"/>
+<div class="contact" id="rptContact3">
+<div><b id="rHdrNome3"></b></div>
+<div>Tel.: <span id="rHdrTel3"></span></div>
+<div><a href="#" id="suporte@calculopro.com.br3"></a></div>
+</div>
+</div>
+<div class="content" id="rptContent3">
+<h3 class="sec-title">Parcelas restantes corrigidas (<span id="rTabN"></span>)</h3>
 <table class="report-table small">
 <thead>
 <tr>
@@ -1509,14 +1532,14 @@ details.dropdown,
 </tfoot>
 </table>
 </div>
-<div class="footer" id="rptFooter2">
+<div class="footer" id="rptFooter3">
 <div>
-<div id="rFtrL1_2"></div>
-<div id="rFtrL2_2"></div>
-<div><a href="#" id="rFtrSite_2" rel="noreferrer" target="_blank"></a></div>
+<div id="rFtrL1_3"></div>
+<div id="rFtrL2_3"></div>
+<div><a href="#" id="rFtrSite_3" rel="noreferrer" target="_blank"></a></div>
 </div>
 <div style="text-align:right;">
-<div id="rFtrEmp_2"></div>
+<div id="rFtrEmp_3"></div>
 </div>
 </div>
 </section>
@@ -1586,6 +1609,7 @@ const DOM = {
   reportRoot: '#reportRoot',
   rptPage1: '#rptPage1',
   rptPage2: '#rptPage2',
+  rptPage3: '#rptPage3',
 
   // Toast (se existir)
   toastHost: '#toastHost',
@@ -1840,6 +1864,10 @@ const DOM = {
       setTxt("rHdrTel2", state.header.tel);
       setLink("suporte@calculopro.com.br2", state.header.email);
 
+      setTxt("rHdrNome3", state.header.nome);
+      setTxt("rHdrTel3", state.header.tel);
+      setLink("suporte@calculopro.com.br3", state.header.email);
+
       setTxt("rFtrL1", state.footer.l1);
       setTxt("rFtrL2", state.footer.l2);
       setLink("rFtrSite", state.footer.site, true);
@@ -1849,6 +1877,11 @@ const DOM = {
       setTxt("rFtrL2_2", state.footer.l2);
       setLink("rFtrSite_2", state.footer.site, true);
       setTxt("rFtrEmp_2", state.footer.emp);
+
+      setTxt("rFtrL1_3", state.footer.l1);
+      setTxt("rFtrL2_3", state.footer.l2);
+      setLink("rFtrSite_3", state.footer.site, true);
+      setTxt("rFtrEmp_3", state.footer.emp);
 
       // Identificação
       setTxt("rAutor", state.autor || "");
