@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Sistema de Solicitações — CalculoPro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f7f8fb;--card:#fff;--border:#e6e8ef;--border-strong:#d7dbe6;--muted:#667085;--ink:#0b1220;--accent:#0b1220;--shadow-soft:0 10px 26px rgba(16,24,40,.06);--radius:18px;--radius-sm:12px;--focus:0 0 0 4px rgba(37,99,235,.18)}
+*{box-sizing:border-box} html,body{height:100%}
+body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;color:var(--ink);font-size:15px;line-height:1.5;background:radial-gradient(1200px 500px at 50% -200px, rgba(37,99,235,.08), transparent 60%),radial-gradient(900px 380px at 0% 0%, rgba(2,132,199,.06), transparent 55%),var(--bg)}
+.topbar{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.78);backdrop-filter:blur(14px);border-bottom:1px solid var(--border)}
+.topbar-inner{max-width:1120px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-logo{width:20px;height:20px;display:block}
+.brand-title{margin:0;font-size:14px;font-weight:700}
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+.hintbar{border-top:1px solid var(--border);background:rgba(255,255,255,.58)}
+.hintbar-inner{max-width:1120px;margin:0 auto;padding:3px 16px}
+.hint{font-size:12px;color:var(--muted)}
+.wrap{max-width:1120px;margin:0 auto;padding:18px 16px 64px}
+.tabs{display:flex;justify-content:center;gap:10px;margin:16px 0 18px}
+.tabs-head{text-align:center}
+.tabs-title{font-size:36px;font-weight:800;line-height:1;margin:0}
+.tabs-sub{font-size:12px;color:var(--muted);margin-top:6px}
+.btn,button{appearance:none;border:1px solid var(--border);background:#fff;border-radius:12px;padding:10px 12px;font-size:13px;cursor:pointer;color:var(--ink);transition:.15s}
+.btn:hover,button:hover{border-color:var(--border-strong)}
+.btn:focus-visible,button:focus-visible{outline:none;box-shadow:var(--focus)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.grid{display:grid;grid-template-columns:minmax(0,880px);justify-content:center;gap:14px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow-soft)}
+.card h2{margin:0 0 8px;font-size:28px;line-height:1}
+.card-sub{font-size:12px;color:var(--muted);margin:0 0 10px}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+label{display:block;font-size:12px;color:var(--muted);margin:10px 0 6px}
+input[type=text],select{width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px}
+.editor-table,.report-table{width:100%;border-collapse:collapse;font-size:12px}
+.editor-table th,.editor-table td,.report-table th,.report-table td{border:1px solid var(--border);padding:7px;text-align:left;vertical-align:top}
+#reclamadaPanel{display:none;position:absolute;left:0;right:0;top:100%;z-index:40;background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px;box-shadow:var(--shadow-soft)}
+.meta{font-size:12px;color:var(--muted)}
+.print-sheet{display:none;background:#fff;border:1px solid var(--border);border-radius:14px;padding:10mm;margin-top:14px}
+.print-header,.print-footer{display:flex;justify-content:space-between;align-items:flex-start}
+.print-title{text-align:center;font-size:22px;font-weight:800;margin:8px 0}
+
+#dbg{position:fixed;right:12px;bottom:12px;width:min(760px,92vw);height:38vh;background:#081225;color:#e5e7eb;display:none;border-radius:12px;border:1px solid #334155;z-index:99999}
+#dbg pre{height:calc(100% - 38px);overflow:auto;margin:0;padding:8px;font:12px/1.4 ui-monospace,Consolas,monospace}
+#dbgbar{display:flex;justify-content:space-between;padding:8px;border-bottom:1px solid #334155}
+#debugIdTooltip{position:fixed;background:#111;color:#fff;padding:4px 8px;font-size:12px;border-radius:4px;pointer-events:none;z-index:100001;display:none;font-family:ui-monospace,Consolas,monospace}
+.debug-highlight{outline:2px dashed #ff9800 !important;outline-offset:2px;cursor:crosshair}
+#debugIdToggleBtn{position:fixed;right:12px;bottom:12px;z-index:100002;padding:6px 10px;font-size:12px;border-radius:8px;border:1px solid rgba(0,0,0,.25);background:#fff;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.15)}
+#debugIdToggleBtn[data-on="1"]{background:#111;color:#fff}
+
+@media print{
+  @page{size:A4;margin:0}
+  body{background:#fff}
+  .no-print,.topbar,.hintbar,.tabs,#dbg,#debugIdTooltip,#debugIdToggleBtn{display:none !important}
+  .wrap{max-width:none;padding:0;margin:0}
+  #solicitacoesRoot{display:none !important}
+  .print-sheet{display:block !important;border:none;box-shadow:none;margin:0;padding:10mm}
+}
+</style>
+</head>
+<body>
+<header class="topbar no-print">
+  <div class="topbar-inner">
+    <div class="brand">
+      <svg class="brand-logo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="20" height="20" rx="4" fill="#22d3ee"/><path d="M7 8h4v4H7zM13 8h4v2h-4zM13 12h4v4h-4zM7 14h4v2H7z" fill="#0b1220"/></svg>
+      <p class="brand-title">calculopro</p>
+    </div>
+    <div class="actions"><button class="btn" id="btnBack">Voltar ao Art. 916</button></div>
+  </div>
+  <div class="hintbar"><div class="hintbar-inner"><div class="hint">Dica: ao imprimir, selecione “A4”. O relatório está paginado para melhor leitura.</div></div></div>
+</header>
+
+<main class="wrap">
+  <div class="tabs no-print">
+    <div class="tabs-head">
+      <div class="tabs-title">Sistema de Solicitações</div>
+      <div class="tabs-sub">Importação • filtros • relatório pronto para impressão</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <section class="card no-print" id="solicitacoesRoot">
+      <h2>Sistema de Solicitações</h2>
+      <p class="card-sub">Importe planilhas, filtre e exporte os dados visíveis.</p>
+
+      <div class="btn-row">
+        <label class="btn" for="solicitacoesFileInput" style="margin:0">Importar arquivo (.xlsx/.xls/.csv)</label>
+        <input id="solicitacoesFileInput" type="file" accept=".xlsx,.xls,.csv" style="display:none"/>
+        <span class="meta" id="solicitacoesFileName">Nenhum arquivo selecionado</span>
+      </div>
+
+      <div class="btn-row" style="margin-top:8px">
+        <div style="min-width:240px;flex:1"><label for="solicitacoesClienteSelect">Cliente</label><select id="solicitacoesClienteSelect"><option value="(Todos)">(Todos)</option></select></div>
+        <div style="position:relative;min-width:240px;flex:1">
+          <label>Reclamada</label>
+          <button class="btn" id="solicitacoesReclamadaBtn" type="button">Reclamada: (Todas)</button>
+          <div id="reclamadaPanel">
+            <input id="solicitacoesReclamadaSearch" type="text" placeholder="Buscar reclamada..."/>
+            <div class="btn-row" style="margin-top:8px"><button class="btn" id="solicitacoesReclamadaMarkAll" type="button">Marcar todas</button><button class="btn" id="solicitacoesReclamadaClear" type="button">Limpar</button></div>
+            <div id="solicitacoesReclamadaList" style="max-height:220px;overflow:auto;margin-top:8px"></div>
+          </div>
+        </div>
+        <button class="btn" id="solicitacoesLimparFiltroBtn" type="button">Limpar filtro</button>
+        <button class="btn" id="solicitacoesLimparDadosBtn" type="button">Limpar dados importados</button>
+        <button class="btn" id="solicitacoesExportBtn" type="button">Exportar XLSX</button>
+        <button class="btn btn-primary" id="solicitacoesPrintBtn" type="button">Imprimir / PDF</button>
+      </div>
+
+      <div class="btn-row" style="margin-top:10px">
+        <span class="meta" id="solicitacoesTotalCount">0 solicitações</span>
+        <span class="meta" id="solicitacoesSumTotal">R$ 0,00</span>
+        <span class="meta" id="solicitacoesCompetencia">Competência: —</span>
+      </div>
+
+      <div style="overflow:auto;margin-top:8px">
+        <table class="editor-table"><thead id="solicitacoesThead"></thead><tbody id="solicitacoesTbody"></tbody></table>
+      </div>
+    </section>
+
+    <section class="print-sheet" id="printReport">
+      <div class="print-header">
+        <div><strong>calculopro</strong></div>
+        <div class="meta" style="text-align:right">Leonardo G. Cristiano<br/>Tel.: (14) 99606-7654<br/>suporte@calculopro.com.br</div>
+      </div>
+      <div class="print-title">RELATÓRIO DE SOLICITAÇÕES</div>
+      <div class="meta" id="printMeta"></div>
+      <table class="report-table" style="margin-top:8px"><thead id="printThead"></thead><tbody id="printTbody"></tbody></table>
+      <div class="print-footer meta" style="margin-top:14px"><div>R. Mário Gonzaga Junqueira, 25-80 • Bauru/SP</div><div>CalculoPro Ltda</div></div>
+    </section>
+  </div>
+</main>
+
+<div id="dbg"><div id="dbgbar"><b>Debug Console</b><button class="btn" id="dbgClose">Fechar</button></div><pre id="dbgOut"></pre></div>
+
+<script>
+(() => {
+  const COLUMNS=['Entrega em','Contato: Primeiro nome','Numero do Processo','Reclamante','Reclamada','Serviços','Total (Total)'];
+  const ALIASES={'Entrega em':['Entrega em','Data','Data Entrega','Entrega'],'Contato: Primeiro nome':['Contato: Primeiro nome','Cliente','Contato'],'Numero do Processo':['Numero do Processo','Número do Processo','Processo'],'Reclamante':['Reclamante'],'Reclamada':['Reclamada'],'Serviços':['Serviços','Servico','Serviço'],'Total (Total)':['Total (Total)','Total','Valor']};
+  const E=id=>document.getElementById(id);
+  let allRows=[],currentRows=[],currentClient='(Todos)',selectedReclamadas=new Set(),competenciaAtual='—';
+  const dbg={enabled:false,log(...a){console.log('[Solicitações]',...a);if(!this.enabled)return;const o=E('dbgOut');o.textContent+=`[${new Date().toLocaleTimeString('pt-BR')}] ${a.map(x=>typeof x==='string'?x:JSON.stringify(x)).join(' ')}\n`;o.scrollTop=o.scrollHeight;}};
+  const canonical=s=>String(s||'').trim().toLowerCase();
+  const getCell=(row,names)=>{for(const n of names){const t=canonical(n);for(const k of Object.keys(row||{})){if(canonical(k)===t)return row[k];}}return '';};
+  const toBRL=n=>n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const parseCurrencyBRL=v=>{if(typeof v==='number')return Number.isFinite(v)?v:0;let t=String(v??'').trim();if(!t)return 0;t=t.replace(/[^\d,.-]/g,'');if(t.includes(','))t=t.replace(/\./g,'').replace(',','.');const n=Number(t);return Number.isFinite(n)?n:0;};
+  const parseDateAny=v=>{if(v==null||v==='')return null;if(v instanceof Date&&!isNaN(v.getTime()))return new Date(Date.UTC(v.getFullYear(),v.getMonth(),v.getDate()));if(typeof v==='number'&&Number.isFinite(v))return new Date(Date.UTC(1899,11,30)+Math.round(v*86400000));const t=String(v).trim();let m=t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);if(m)return new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));m=t.match(/^(\d{2})-(\d{2})-(\d{4})$/);if(m)return new Date(Date.UTC(+m[3],+m[2]-1,+m[1]));m=t.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})$/);if(m)return new Date(Date.UTC(+m[1],+m[2]-1,+m[3]));return null;};
+  const dateBR=d=>`${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}`;
+
+  function normalizeAndFormat(data){const out=(data||[]).map(r=>{const o={};for(const c of COLUMNS){const raw=getCell(r,ALIASES[c]);if(c==='Entrega em'){const d=parseDateAny(raw);o[c]=d?dateBR(d):(raw??'');}else if(c==='Total (Total)'){const n=parseCurrencyBRL(raw);o[c]=(String(raw??'').trim()&&n===0&&!/0/.test(String(raw)))?String(raw):toBRL(n);}else{o[c]=raw??'';}}return o;});out.sort((a,b)=>{const da=parseDateAny(a['Entrega em']),db=parseDateAny(b['Entrega em']);if(!da&&!db)return 0;if(!da)return 1;if(!db)return -1;return db-da;});return out;}
+  function updateCompetencia(rows){const map=new Map();rows.forEach(r=>{const d=parseDateAny(r['Entrega em']);if(!d)return;const k=`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`;map.set(k,(map.get(k)||0)+1);});let w=null,b=-1;map.forEach((c,k)=>{if(c>b||(c===b&&k>w)){b=c;w=k;}});if(!w){competenciaAtual='—';E('solicitacoesCompetencia').textContent='Competência: —';return;}const [y,m]=w.split('-').map(Number);const dt=new Date(Date.UTC(y,m-1,1));const mes=dt.toLocaleDateString('pt-BR',{month:'long'});competenciaAtual=`${mes.charAt(0).toUpperCase()}${mes.slice(1)} de ${y}`;E('solicitacoesCompetencia').textContent=`Competência: ${competenciaAtual}`;}
+  function updateMeta(rows){E('solicitacoesTotalCount').textContent=`${rows.length} solicitações`;E('solicitacoesSumTotal').textContent=toBRL(rows.reduce((a,r)=>a+parseCurrencyBRL(r['Total (Total)']),0));updateCompetencia(rows);}
+  function renderTable(rows){dbg.log('renderTable',{rows:rows.length});E('solicitacoesThead').innerHTML=`<tr>${COLUMNS.map(c=>`<th>${c}</th>`).join('')}</tr>`;E('solicitacoesTbody').innerHTML=rows.map(r=>`<tr>${COLUMNS.map(c=>`<td>${r[c]??''}</td>`).join('')}</tr>`).join('');updateMeta(rows);}
+  function updateReclamadaBtnLabel(){const a=[...selectedReclamadas];E('solicitacoesReclamadaBtn').textContent=!a.length?'Reclamada: (Todas)':a.length<=2?`Reclamada: ${a.join(', ')}`:`Reclamada: ${a.length} selecionadas`;}
+  function applyFilters(){currentClient=E('solicitacoesClienteSelect').value||'(Todos)';let rows=[...allRows];if(currentClient!=='(Todos)')rows=rows.filter(r=>String(r['Contato: Primeiro nome']||'').trim()===currentClient);if(selectedReclamadas.size)rows=rows.filter(r=>selectedReclamadas.has(String(r['Reclamada']||'').trim()));currentRows=rows;renderTable(rows);}  
+  function setReclamadaDropdown(vs){const host=E('solicitacoesReclamadaList');host.innerHTML=vs.map((v,i)=>`<label data-item="1" style="display:flex;gap:8px;padding:4px 0"><input type="checkbox" id="rec_${i}" data-reclamada="${String(v).replace(/"/g,'&quot;')}"><span>${v}</span></label>`).join('');host.querySelectorAll('input[type="checkbox"]').forEach(ch=>ch.addEventListener('change',()=>{const v=ch.dataset.reclamada||'';ch.checked?selectedReclamadas.add(v):selectedReclamadas.delete(v);updateReclamadaBtnLabel();applyFilters();}));}
+  function afterImport(data){dbg.log('afterImport',{rows:Array.isArray(data)?data.length:0});allRows=normalizeAndFormat(data);currentRows=[...allRows];const clients=[...new Set(allRows.map(r=>String(r['Contato: Primeiro nome']||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));E('solicitacoesClienteSelect').innerHTML=['(Todos)',...clients].map(c=>`<option value="${c.replace(/"/g,'&quot;')}">${c}</option>`).join('');const rs=[...new Set(allRows.map(r=>String(r['Reclamada']||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));selectedReclamadas.clear();setReclamadaDropdown(rs);updateReclamadaBtnLabel();renderTable(currentRows);}  
+  function parseCSV(text){const clean=String(text||'').replace(/^\uFEFF/,'');const lines=clean.split(/\r?\n/).filter(l=>l.trim()!=='');if(!lines.length)return[];const seps=[',',';','\t'],h=lines[0],sep=seps.map(s=>({s,n:h.split(s).length})).sort((a,b)=>b.n-a.n)[0].s,headers=h.split(sep).map(x=>x.trim());return lines.slice(1).map(line=>{const cols=line.split(sep),row={};headers.forEach((hh,i)=>row[hh]=(cols[i]||'').trim());return row;});}
+  async function handleFileImport(ev){const file=ev.target.files?.[0];if(!file)return;E('solicitacoesFileName').textContent=file.name;dbg.log('import',file.name);try{let data=[];if(/\.csv$/i.test(file.name)){data=parseCSV(await file.text());}else if(/\.(xlsx|xls)$/i.test(file.name)){if(!window.XLSX)throw new Error('SheetJS não carregado');const wb=XLSX.read(await file.arrayBuffer(),{type:'array'});data=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});}else{throw new Error('Formato não suportado');}afterImport(data);}catch(err){dbg.log('erro importação',String(err));alert(`Erro ao importar arquivo: ${err.message||err}`);}}
+  function clearFilters(){E('solicitacoesClienteSelect').value='(Todos)';selectedReclamadas.clear();E('solicitacoesReclamadaList').querySelectorAll('input[type="checkbox"]').forEach(ch=>ch.checked=false);updateReclamadaBtnLabel();applyFilters();}
+  function clearData(){allRows=[];currentRows=[];currentClient='(Todos)';selectedReclamadas.clear();E('solicitacoesClienteSelect').innerHTML='<option value="(Todos)">(Todos)</option>';E('solicitacoesReclamadaList').innerHTML='';E('solicitacoesFileName').textContent='Nenhum arquivo selecionado';E('solicitacoesFileInput').value='';E('solicitacoesCompetencia').textContent='Competência: —';renderTable([]);}  
+  function sanitizeFilename(n){return String(n||'').replace(/[\\/:*?"<>|]/g,' ').replace(/\s+/g,' ').trim();}
+  function buildPrintReport(){E('printMeta').textContent=`${E('solicitacoesTotalCount').textContent} • ${E('solicitacoesSumTotal').textContent} • ${E('solicitacoesCompetencia').textContent} • Cliente: ${currentClient}`;E('printThead').innerHTML=`<tr>${COLUMNS.map(c=>`<th>${c}</th>`).join('')}</tr>`;E('printTbody').innerHTML=currentRows.map(r=>`<tr>${COLUMNS.map(c=>`<td>${r[c]??''}</td>`).join('')}</tr>`).join('');}
+  function printReport(){buildPrintReport();const orig=document.title;document.title=sanitizeFilename(`${competenciaAtual==='—'?'Sem competência':competenciaAtual} - ${currentClient}`)||'solicitacoes';window.print();setTimeout(()=>{document.title=orig;},700);}  
+  function exportVisible(){if(!currentRows.length)return alert('Nenhum dado disponível para exportar.');if(!window.XLSX)return alert('SheetJS não carregado.');const rows=currentRows.map(r=>({'Entrega em':r['Entrega em'],'Cliente':r['Contato: Primeiro nome'],'Número do Processo':r['Numero do Processo'],'Reclamante':r['Reclamante'],'Reclamada':r['Reclamada'],'Serviço':r['Serviços'],'Total':r['Total (Total)']}));const ws=XLSX.utils.json_to_sheet(rows),wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Solicitacoes');const d=new Date(),stamp=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;XLSX.writeFile(wb,`solicitacoes_${stamp}.xlsx`);}  
+
+  E('btnBack').addEventListener('click',()=>location.href='modelo-art-916-cpc.html');
+  E('solicitacoesFileInput').addEventListener('change',handleFileImport);
+  E('solicitacoesClienteSelect').addEventListener('change',applyFilters);
+  E('solicitacoesLimparFiltroBtn').addEventListener('click',clearFilters);
+  E('solicitacoesLimparDadosBtn').addEventListener('click',clearData);
+  E('solicitacoesPrintBtn').addEventListener('click',printReport);
+  E('solicitacoesExportBtn').addEventListener('click',exportVisible);
+  E('solicitacoesReclamadaBtn').addEventListener('click',e=>{e.stopPropagation();const p=E('reclamadaPanel');p.style.display=p.style.display==='block'?'none':'block';});
+  E('reclamadaPanel').addEventListener('click',e=>e.stopPropagation());
+  document.addEventListener('click',()=>E('reclamadaPanel').style.display='none');
+  E('solicitacoesReclamadaSearch').addEventListener('input',()=>{const q=E('solicitacoesReclamadaSearch').value.toLowerCase();E('solicitacoesReclamadaList').querySelectorAll('[data-item="1"]').forEach(n=>n.style.display=n.textContent.toLowerCase().includes(q)?'flex':'none');});
+  E('solicitacoesReclamadaMarkAll').addEventListener('click',()=>{E('solicitacoesReclamadaList').querySelectorAll('input[type="checkbox"]').forEach(ch=>{ch.checked=true;selectedReclamadas.add(ch.dataset.reclamada||'');});updateReclamadaBtnLabel();applyFilters();});
+  E('solicitacoesReclamadaClear').addEventListener('click',()=>{E('solicitacoesReclamadaList').querySelectorAll('input[type="checkbox"]').forEach(ch=>ch.checked=false);selectedReclamadas.clear();updateReclamadaBtnLabel();applyFilters();});
+
+  document.addEventListener('keydown',(e)=>{if(e.ctrlKey&&e.shiftKey&&(e.key==='D'||e.key==='d')){e.preventDefault();dbg.enabled=!dbg.enabled;E('dbg').style.display=dbg.enabled?'block':'none';}},true);
+  E('dbgClose').addEventListener('click',()=>{dbg.enabled=false;E('dbg').style.display='none';});
+  renderTable([]); dbg.log('Sistema inicializado');
+})();
+</script>
+
+<script>
+(function(){
+  let debugEnabled=false;const tooltip=document.createElement('div');tooltip.id='debugIdTooltip';document.body.appendChild(tooltip);const btn=document.createElement('button');btn.id='debugIdToggleBtn';btn.type='button';btn.textContent='IDs';document.body.appendChild(btn);let current=null;
+  function setBtn(){btn.setAttribute('data-on',debugEnabled?'1':'0');}
+  function clear(){if(current)current.classList.remove('debug-highlight');current=null;tooltip.style.display='none';}
+  function toggle(){debugEnabled=!debugEnabled;setBtn();if(!debugEnabled)clear();}
+  function tip(x,y,t){tooltip.textContent=t;tooltip.style.display='block';tooltip.style.left=Math.min(window.innerWidth-280,x+12)+'px';tooltip.style.top=Math.min(window.innerHeight-40,y+16)+'px';}
+  async function copy(text){try{await navigator.clipboard.writeText(text);return true;}catch{return false;}}
+  document.addEventListener('mousemove',e=>{if(!debugEnabled)return;const el=e.target;if(current&&current!==el)current.classList.remove('debug-highlight');if(el&&el.id){current=el;el.classList.add('debug-highlight');tip(e.clientX,e.clientY,'ID: '+el.id);}else clear();},{passive:true});
+  document.addEventListener('keydown',e=>{const isD=e.code==='KeyD'||e.key==='d'||e.key==='D';if(e.ctrlKey&&!e.altKey&&!e.shiftKey&&isD){e.preventDefault();toggle();return;}if(e.ctrlKey&&e.altKey&&!e.shiftKey&&isD){e.preventDefault();toggle();return;}},true);
+  btn.addEventListener('click',toggle);
+  document.addEventListener('click',async e=>{if(!debugEnabled||!e.ctrlKey)return;const el=e.target;if(!el||!el.id)return;e.preventDefault();e.stopPropagation();const ok=await copy(el.id);tip(e.clientX,e.clientY,ok?`Copiado: ${el.id}`:`Falha: ${el.id}`);setTimeout(()=>{if(debugEnabled)tooltip.style.display='none';},900);},true);
+  setBtn();
+})();
+</script>
+</body>
+</html>
