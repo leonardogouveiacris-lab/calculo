@@ -566,19 +566,20 @@ small,.help,.muted,.hint{font-weight:400}
 
 /* Report — bloco de identificação do processo */
 .case-info{
-  border:1px solid var(--border);
+  border:none;
   border-radius:0;
-  padding:10px 12px;
-  background: #fff;
-  margin: 6px 0 14px;
+  padding:8px 0 10px;
+  background:#fff;
+  margin:4px 0 10px;
 }
 .case-row{
   display:grid;
-  grid-template-columns: 150px 1fr;
-  gap:12px;
-  padding:6px 0;
+  grid-template-columns: 120px 1fr;
+  gap:8px;
+  padding:5px 0;
 }
-.case-row + .case-row{border-top:1px solid rgba(207,212,222,.85)}
+.case-row{border-bottom:1px solid rgba(230,232,239,.45)}
+.case-row:last-child{border-bottom:1px solid rgba(230,232,239,.45)}
 .case-label{
   color:var(--ink);
   font-weight:600;
@@ -1073,16 +1074,16 @@ details.dropdown,
 <input id="inAutor" placeholder="Ex.: Fulano de Tal" type="text"/>
 <label for="inReu">Réu</label>
 <input id="inReu" placeholder="Ex.: Empresa XYZ" type="text"/>
-<label for="inProc">Nº do processo</label>
+<label for="inProc">Nº do processo:</label>
 <input id="inProc" placeholder="Ex.: 0000000-00.0000.0.00.0000" type="text"/>
 </div>
 <div aria-live="polite" class="card preview-card" id="cardResumoProcesso">
 <h2>Resumo do processo</h2>
 <div class="card-sub">Pré-visualização das informações que irão para o relatório.</div>
 <div class="report-kv" id="pvBoxResumoProcesso">
-<div class="kv-row"><div class="kv-k">Reclamante</div><div class="kv-v" id="pvAutor">—</div></div>
-<div class="kv-row"><div class="kv-k">Reclamada</div><div class="kv-v" id="pvReu">—</div></div>
-<div class="kv-row"><div class="kv-k">Nº do processo</div><div class="kv-v" id="pvProc">—</div></div>
+<div class="kv-row"><div class="kv-k">Reclamante:</div><div class="kv-v" id="pvAutor">—</div></div>
+<div class="kv-row"><div class="kv-k">Reclamada:</div><div class="kv-v" id="pvReu">—</div></div>
+<div class="kv-row"><div class="kv-k">Nº do processo:</div><div class="kv-v" id="pvProc">—</div></div>
 </div>
 </div>
 <div class="card" id="cardParcelamento">
@@ -1304,9 +1305,9 @@ details.dropdown,
 </div>
 <div class="content" id="rptContent1">
 <div class="case-info">
-<div class="case-row"><div class="case-label">Reclamante</div><div class="case-value"><span id="rAutor"></span></div></div>
-<div class="case-row"><div class="case-label">Reclamada</div><div class="case-value"><span id="rReu"></span></div></div>
-<div class="case-row"><div class="case-label">Nº do processo</div><div class="case-value"><span id="rProc"></span></div></div>
+<div class="case-row"><div class="case-label">Reclamante:</div><div class="case-value"><span id="rAutor"></span></div></div>
+<div class="case-row"><div class="case-label">Reclamada:</div><div class="case-value"><span id="rReu"></span></div></div>
+<div class="case-row"><div class="case-label">Nº do processo:</div><div class="case-value"><span id="rProc"></span></div></div>
 </div>
 <div class="title">PARCELAMENTO – ART. 916 DO CPC</div>
 
