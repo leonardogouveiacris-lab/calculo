@@ -1028,6 +1028,7 @@ details.dropdown,
     </div>
 
     <div class="actions" id="hdrActions">
+      <button class="btn" id="btnOpenSolicitacoes" type="button">Sistema de Solicitações</button>
       <button class="btn btn-primary" id="btnPrint" type="button">Imprimir / Salvar em PDF</button>
 </div>
   </div>
@@ -1585,6 +1586,7 @@ const DOM = {
 
   // Ações principais
   btnPrint: '#btnPrint',
+  btnOpenSolicitacoes: '#btnOpenSolicitacoes',
   btnPrint2: '#btnPrint2',
   btnReset: '#btnReset',
   btnExport: '#btnExport',
@@ -2116,6 +2118,14 @@ const DOM = {
       });
 
       // Toolbar buttons
+      const btnOpenSolicitacoes = el("btnOpenSolicitacoes");
+      if (btnOpenSolicitacoes) {
+        btnOpenSolicitacoes.addEventListener("click", ()=>{
+          setTab("report");
+          const target = document.getElementById("solicitacoesRoot") || document.getElementById("tab-report");
+          if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
       el("btnPrint").addEventListener("click", ()=>{ setTab("report"); setTimeout(()=>window.print(), 50); });
       const btnPrint2 = el("btnPrint2");
       if (btnPrint2) btnPrint2.addEventListener("click", ()=>{ setTab("report"); setTimeout(()=>window.print(), 50); });
@@ -2737,7 +2747,8 @@ const DOM = {
   }
 
   function parseCSV(text){
-    const lines = text.split(/?
+    const lines = text.split(/
+?
 /).filter((l) => l.trim() !== '');
     if (!lines.length) return [];
     const seps = [',', ';', '	'];
