@@ -479,7 +479,7 @@ h3.sec-title{
 .danger-txt{color:var(--danger)}
 
 /* Second page spacing similar to the PDF */
-.page2 .content{ margin-top:20mm; }
+.page2 .content{ margin-top:12mm; }
 
 /* Print */
 @page{
@@ -497,10 +497,12 @@ h3.sec-title{
 
 @media print{
 
-  body{background:#fff}
-.no-print{display:none !important}
+  html, body{background:#fff; height:auto}
+  .no-print{display:none !important}
+  .wrap{max-width:none !important; margin:0 !important; padding:0 !important}
   #tab-editor{display:none !important}
-  #tab-report{display:block !important}
+  #tab-report{display:block !important; margin:0 !important; padding:0 !important}
+  #reportRoot{margin:0 !important; padding:0 !important}
   .tabpane{display:block !important}
 
   .page{
@@ -508,33 +510,45 @@ h3.sec-title{
     margin:0;
     width:210mm !important;
     max-width:210mm !important;
+    height:297mm !important;
     min-height:297mm !important;
+    max-height:297mm !important;
     border-radius:0;
     page-break-after:always;
-
-    /* mais área útil */
-    padding:10mm 10mm 10mm 10mm !important;
+    break-after:page;
+    padding:10mm !important;
     overflow:hidden;
+    display:flex;
+    flex-direction:column;
   }
-  .page:last-child{page-break-after:auto}
+  .page:last-child{page-break-after:auto; break-after:auto}
 
   .page .content{
-    margin-top:14mm !important;
-    padding-bottom:10mm !important;
+    margin-top:10mm !important;
+    padding-bottom:0 !important;
+    flex:1 1 auto;
+    min-height:0;
   }
 
   .page .footer{
-    left:10mm !important;
-    right:10mm !important;
-    bottom:8mm !important;
+    position:relative !important;
+    left:auto !important;
+    right:auto !important;
+    bottom:auto !important;
+    margin-top:6mm;
+  }
+
+  .case-info, .legal-box, .sec-title, .kv{
+    break-inside:avoid-page;
+    page-break-inside:avoid;
   }
 
   .report-table, .kv{ font-size:10pt !important; }
   .report-table th, .report-table td,
   .kv td{ padding:5px 7px !important; }
 
-  .title{ margin:8mm 0 4mm !important; }
-  h3.sec-title[style*="margin-top:18mm"]{ margin-top:8mm !important; }
+  .title{ margin:6mm 0 4mm !important; }
+  h3.sec-title[style*="margin-top:18mm"]{ margin-top:6mm !important; }
 
 }
 
@@ -1296,8 +1310,7 @@ details.dropdown,
 <div class="title">PARCELAMENTO – ART. 916 DO CPC</div>
 
 <div class="legal-box" id="rptLegal916">
-  <div class="legal-title">Dispositivo</div>
-  <p class="legal-text">No prazo para embargos, reconhecendo o crédito do exequente e comprovando o depósito de trinta por cento do valor em execução, acrescido de custas e de honorários de advogado, o executado poderá requerer que lhe seja permitido pagar o restante em até 6 (seis) parcelas mensais, acrescidas de correção monetária e de juros de um por cento ao mês.</p>
+  <div class="legal-title">Art. 916 do CPC: No prazo para embargos, reconhecendo o crédito do exequente e comprovando o depósito de trinta por cento do valor em execução, acrescido de custas e de honorários de advogado, o executado poderá requerer que lhe seja permitido pagar o restante em até 6 (seis) parcelas mensais, acrescidas de correção monetária e de juros de um por cento ao mês.</div>
 </div>
 
 <h3 class="sec-title">Créditos Reclamante</h3>
