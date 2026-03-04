@@ -1018,25 +1018,6 @@ details.dropdown,
 /* Ocultar apenas o botão do cabeçalho */
 #btnPrint{ display:none !important; }
 
-/* Tela separada do Sistema de Solicitações */
-body.solicitacoes-mode #mainWrap,
-body.solicitacoes-mode #tabsNav,
-body.solicitacoes-mode #tab-editor,
-body.solicitacoes-mode #tab-report,
-body.solicitacoes-mode #hdrHintbar{display:none !important;}
-body.solicitacoes-mode #solicitacoesStandalone{display:block !important;}
-#solicitacoesStandalone{display:none;}
-#solicitacoesBackBtn{display:none;}
-body.solicitacoes-mode #solicitacoesBackBtn{display:inline-flex !important;}
-body.solicitacoes-mode #btnOpenSolicitacoes{display:none !important;}
-body.solicitacoes-mode #btnPrint{display:none !important;}
-body.solicitacoes-printing #mainWrap,
-body.solicitacoes-printing #tabsNav,
-body.solicitacoes-printing #hdrHintbar,
-body.solicitacoes-printing #btnOpenSolicitacoes,
-body.solicitacoes-printing #solicitacoesBackBtn,
-body.solicitacoes-printing #btnPrint{display:none !important;}
-body.solicitacoes-printing #solicitacoesStandalone{display:block !important;}
 
 
 </style>
@@ -1051,7 +1032,6 @@ body.solicitacoes-printing #solicitacoesStandalone{display:block !important;}
 
     <div class="actions" id="hdrActions">
       <button class="btn" id="btnOpenSolicitacoes" type="button">Sistema de Solicitações</button>
-      <button class="btn" id="solicitacoesBackBtn" type="button">Voltar ao Art. 916</button>
       <button class="btn btn-primary" id="btnPrint" type="button">Imprimir / Salvar em PDF</button>
 </div>
   </div>
@@ -1681,6 +1661,8 @@ body.solicitacoes-printing #solicitacoesStandalone{display:block !important;}
 </div>
 </main>
 
+
+
 <div aria-atomic="true" aria-live="polite" class="toast-host" id="toastHost"></div>
 
 <script>
@@ -2252,13 +2234,8 @@ const DOM = {
       const btnOpenSolicitacoes = el("btnOpenSolicitacoes");
       if (btnOpenSolicitacoes) {
         btnOpenSolicitacoes.addEventListener("click", ()=>{
-          window.AppDebug?.log?.('[UI]', 'Header -> abrir Solicitações');
-          openSolicitacoesScreen();
+          window.location.href = "sistema-solicitacoes.html";
         });
-      }
-      const solicitacoesBackBtn = document.getElementById("solicitacoesBackBtn");
-      if (solicitacoesBackBtn) {
-        solicitacoesBackBtn.addEventListener("click", ()=> { window.AppDebug?.log?.('[UI]', 'Header -> voltar ao Art. 916'); closeSolicitacoesScreen(); });
       }
       el("btnPrint").addEventListener("click", ()=>{ setTab("report"); setTimeout(()=>window.print(), 50); });
       const btnPrint2 = el("btnPrint2");
@@ -2423,21 +2400,6 @@ const DOM = {
       }
 
       return deepMerge(merged, data);
-    }
-
-    
-
-    function openSolicitacoesScreen() {
-      window.AppDebug?.log?.('[UI]', 'Abrindo tela separada de Solicitações');
-      document.body.classList.add("solicitacoes-mode");
-      const target = document.getElementById("solicitacoesRoot");
-      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-
-    function closeSolicitacoesScreen() {
-      window.AppDebug?.log?.('[UI]', 'Voltando para Art. 916');
-      document.body.classList.remove("solicitacoes-mode");
-      setTab("editor");
     }
 
     // ======================
