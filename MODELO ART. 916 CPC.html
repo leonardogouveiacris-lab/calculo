@@ -2423,6 +2423,489 @@ const DOM = {
 </script>
 
 <script>
+/* ===== Módulo: Relatório de Solicitações ===== */
+(function(){
+  const DEFAULT_IDS = {
+    fileInput: 'solicitacoesFileInput',
+    fileNameText: 'solicitacoesFileName',
+    tableHead: 'solicitacoesThead',
+    tableBody: 'solicitacoesTbody',
+    clientSelect: 'solicitacoesClienteSelect',
+    reclamadaBtn: 'solicitacoesReclamadaBtn',
+    reclamadaPanel: 'solicitacoesReclamadaPanel',
+    reclamadaList: 'solicitacoesReclamadaList',
+    reclamadaSearch: 'solicitacoesReclamadaSearch',
+    reclamadaMarkAll: 'solicitacoesReclamadaMarkAll',
+    reclamadaClear: 'solicitacoesReclamadaClear',
+    clearFiltersBtn: 'solicitacoesLimparFiltroBtn',
+    clearDataBtn: 'solicitacoesLimparDadosBtn',
+    printBtn: 'solicitacoesPrintBtn',
+    exportBtn: 'solicitacoesExportBtn',
+    totalCount: 'solicitacoesTotalCount',
+    sumTotal: 'solicitacoesSumTotal',
+    competencia: 'solicitacoesCompetencia'
+  };
+
+  const COLUMNS = [
+    'Entrega em',
+    'Contato: Primeiro nome',
+    'Numero do Processo',
+    'Reclamante',
+    'Reclamada',
+    'Serviços',
+    'Total (Total)'
+  ];
+
+  const HEADER_ALIASES = {
+    'Entrega em': ['Entrega em', 'Data', 'Data Entrega', 'Entrega'],
+    'Contato: Primeiro nome': ['Contato: Primeiro nome', 'Cliente', 'Contato'],
+    'Numero do Processo': ['Numero do Processo', 'Número do Processo', 'Processo'],
+    'Reclamante': ['Reclamante'],
+    'Reclamada': ['Reclamada'],
+    'Serviços': ['Serviços', 'Servico', 'Serviço'],
+    'Total (Total)': ['Total (Total)', 'Total', 'Valor']
+  };
+
+  let allRows = [];
+  let currentRows = [];
+  let currentClient = '(Todos)';
+  let selectedReclamadas = new Set();
+  let competenciaAtual = '—';
+  let ids = { ...DEFAULT_IDS };
+
+  const el = (key) => document.getElementById(ids[key]);
+  const canonical = (str) => String(str || '').trim().toLowerCase();
+
+  function getCell(row, names){
+    for (const n of names) {
+      const target = canonical(n);
+      for (const key of Object.keys(row || {})) {
+        if (canonical(key) === target) return row[key];
+      }
+    }
+    return '';
+  }
+
+  function dateToBR(date){
+    const dd = String(date.getUTCDate()).padStart(2, '0');
+    const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const yyyy = date.getUTCFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  function parseDateAny(value){
+    if (value == null || value === '') return null;
+    if (value instanceof Date && !isNaN(value.getTime())) {
+      return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()));
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      const ms = Date.UTC(1899, 11, 30) + Math.round(value * 86400000);
+      const d = new Date(ms);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    const txt = String(value).trim();
+
+    let m = txt.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (m) return new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])));
+
+    m = txt.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (m) return new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1])));
+
+    m = txt.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})$/);
+    if (m) return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+
+    return null;
+  }
+
+  function parseCurrencyBRL(value){
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+    if (value == null) return 0;
+    let txt = String(value).trim();
+    if (!txt) return 0;
+    txt = txt.replace(/[^\d,.-]/g, '');
+    if (txt.includes(',')) txt = txt.replace(/\./g, '').replace(',', '.');
+    const n = Number(txt);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function toBRL(value){
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  function normalizeAndFormat(data){
+    const out = (data || []).map((row) => {
+      const norm = {};
+      COLUMNS.forEach((col) => {
+        const raw = getCell(row, HEADER_ALIASES[col]);
+        if (col === 'Entrega em') {
+          const d = parseDateAny(raw);
+          norm[col] = d ? dateToBR(d) : (raw ?? '');
+        } else if (col === 'Total (Total)') {
+          const n = parseCurrencyBRL(raw);
+          norm[col] = (raw != null && String(raw).trim() !== '' && n === 0 && !/[0]/.test(String(raw)))
+            ? raw
+            : toBRL(n);
+        } else {
+          norm[col] = raw ?? '';
+        }
+      });
+      return norm;
+    });
+
+    out.sort((a, b) => {
+      const da = parseDateAny(a['Entrega em']);
+      const db = parseDateAny(b['Entrega em']);
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return db.getTime() - da.getTime();
+    });
+
+    return out;
+  }
+
+  function renderTable(rows){
+    const thead = el('tableHead');
+    const tbody = el('tableBody');
+    if (!thead || !tbody) return;
+
+    thead.innerHTML = `<tr>${COLUMNS.map((c) => `<th>${c}</th>`).join('')}</tr>`;
+    tbody.innerHTML = rows.map((r) => `<tr>${COLUMNS.map((c) => `<td>${r[c] ?? ''}</td>`).join('')}</tr>`).join('');
+
+    updateMeta(rows);
+  }
+
+  function updateCompetencia(rows){
+    const map = new Map();
+    rows.forEach((r) => {
+      const d = parseDateAny(r['Entrega em']);
+      if (!d) return;
+      const k = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+      map.set(k, (map.get(k) || 0) + 1);
+    });
+
+    let winner = null;
+    let bestCount = -1;
+    map.forEach((count, key) => {
+      if (count > bestCount || (count === bestCount && key > winner)) {
+        bestCount = count;
+        winner = key;
+      }
+    });
+
+    const badge = el('competencia');
+    if (!winner) {
+      competenciaAtual = '—';
+      if (badge) badge.textContent = 'Competência: —';
+      return;
+    }
+
+    const [y, m] = winner.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, 1));
+    const nomeMes = dt.toLocaleDateString('pt-BR', { month: 'long' });
+    const rotulo = `${nomeMes.charAt(0).toUpperCase()}${nomeMes.slice(1)} de ${y}`;
+    competenciaAtual = rotulo;
+    if (badge) badge.textContent = `Competência: ${rotulo}`;
+  }
+
+  function updateMeta(rows){
+    const countEl = el('totalCount');
+    const sumEl = el('sumTotal');
+
+    if (countEl) countEl.textContent = `${rows.length} solicitações`;
+    const sum = rows.reduce((acc, r) => acc + parseCurrencyBRL(r['Total (Total)']), 0);
+    if (sumEl) sumEl.textContent = toBRL(sum);
+    updateCompetencia(rows);
+  }
+
+  function updateReclamadaBtnLabel(){
+    const btn = el('reclamadaBtn');
+    if (!btn) return;
+    const arr = Array.from(selectedReclamadas);
+    if (!arr.length) {
+      btn.textContent = 'Reclamada: (Todas)';
+    } else if (arr.length <= 2) {
+      btn.textContent = `Reclamada: ${arr.join(', ')}`;
+    } else {
+      btn.textContent = `Reclamada: ${arr.length} selecionadas`;
+    }
+  }
+
+  function applyFilters(){
+    const client = el('clientSelect')?.value || '(Todos)';
+    currentClient = client;
+
+    let rows = [...allRows];
+    if (client !== '(Todos)') {
+      rows = rows.filter((r) => String(r['Contato: Primeiro nome'] || '').trim() === client);
+    }
+    if (selectedReclamadas.size > 0) {
+      rows = rows.filter((r) => selectedReclamadas.has(String(r['Reclamada'] || '').trim()));
+    }
+
+    currentRows = rows;
+    renderTable(currentRows);
+  }
+
+  function setReclamadaDropdown(reclamadas){
+    const list = el('reclamadaList');
+    if (!list) return;
+
+    list.innerHTML = reclamadas.map((nome, i) => `
+      <label data-item="1" style="display:flex;align-items:center;gap:8px;padding:4px 0;">
+        <input type="checkbox" data-reclamada="${String(nome).replace(/"/g, '&quot;')}" id="reclamadaOpt_${i}">
+        <span>${nome}</span>
+      </label>
+    `).join('');
+
+    list.querySelectorAll('input[type="checkbox"]').forEach((chk) => {
+      chk.addEventListener('change', () => {
+        const nome = chk.getAttribute('data-reclamada') || '';
+        if (chk.checked) selectedReclamadas.add(nome);
+        else selectedReclamadas.delete(nome);
+        updateReclamadaBtnLabel();
+        applyFilters();
+      });
+    });
+  }
+
+  function setupDropdownBehavior(){
+    const btn = el('reclamadaBtn');
+    const panel = el('reclamadaPanel');
+    const search = el('reclamadaSearch');
+    const list = el('reclamadaList');
+    const markAll = el('reclamadaMarkAll');
+    const clear = el('reclamadaClear');
+
+    if (btn && panel) {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        panel.classList.toggle('open');
+      });
+
+      panel.addEventListener('click', (ev) => ev.stopPropagation());
+      document.addEventListener('click', () => panel.classList.remove('open'));
+    }
+
+    if (search && list) {
+      search.addEventListener('input', () => {
+        const q = search.value.trim().toLowerCase();
+        list.querySelectorAll('[data-item="1"]').forEach((node) => {
+          const txt = node.textContent.toLowerCase();
+          node.style.display = txt.includes(q) ? 'flex' : 'none';
+        });
+      });
+    }
+
+    if (markAll && list) {
+      markAll.addEventListener('click', () => {
+        list.querySelectorAll('input[type="checkbox"]').forEach((chk) => {
+          chk.checked = true;
+          selectedReclamadas.add(chk.getAttribute('data-reclamada') || '');
+        });
+        updateReclamadaBtnLabel();
+        applyFilters();
+      });
+    }
+
+    if (clear && list) {
+      clear.addEventListener('click', () => {
+        list.querySelectorAll('input[type="checkbox"]').forEach((chk) => { chk.checked = false; });
+        selectedReclamadas.clear();
+        updateReclamadaBtnLabel();
+        applyFilters();
+      });
+    }
+  }
+
+  function afterImport(data){
+    allRows = normalizeAndFormat(data);
+    currentRows = [...allRows];
+    renderTable(currentRows);
+
+    const clientSelect = el('clientSelect');
+    if (clientSelect) {
+      const clients = [...new Set(allRows.map((r) => String(r['Contato: Primeiro nome'] || '').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+      clientSelect.innerHTML = ['(Todos)', ...clients].map((c) => `<option value="${c.replace(/"/g, '&quot;')}">${c}</option>`).join('');
+      clientSelect.value = '(Todos)';
+    }
+
+    const reclamadas = [...new Set(allRows.map((r) => String(r['Reclamada'] || '').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    setReclamadaDropdown(reclamadas);
+    selectedReclamadas.clear();
+    updateReclamadaBtnLabel();
+  }
+
+  function parseCSV(text){
+    const lines = text.split(/?
+/).filter((l) => l.trim() !== '');
+    if (!lines.length) return [];
+    const seps = [',', ';', '	'];
+    const header = lines[0];
+    const sep = seps.map((s) => ({ s, n: header.split(s).length })).sort((a,b)=>b.n-a.n)[0].s;
+    const headers = header.split(sep).map((h) => h.trim());
+    return lines.slice(1).map((line) => {
+      const cols = line.split(sep);
+      const row = {};
+      headers.forEach((h, i) => { row[h] = (cols[i] || '').trim(); });
+      return row;
+    });
+  }
+
+  async function handleFileImport(ev){
+    const file = ev.target.files?.[0];
+    const fileNameText = el('fileNameText');
+    if (!file) return;
+    if (fileNameText) fileNameText.textContent = file.name;
+
+    try {
+      const isCSV = /\.csv$/i.test(file.name);
+      let data = [];
+      if (isCSV) {
+        const txt = await file.text();
+        data = parseCSV(txt);
+      } else if (/\.(xlsx|xls)$/i.test(file.name)) {
+        if (!window.XLSX) throw new Error('SheetJS (XLSX) não está carregado.');
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: 'array' });
+        const first = wb.SheetNames[0];
+        data = XLSX.utils.sheet_to_json(wb.Sheets[first], { defval: '' });
+      } else {
+        throw new Error('Formato de arquivo não suportado. Use .xlsx, .xls ou .csv');
+      }
+      afterImport(data);
+    } catch (err) {
+      alert(`Erro ao importar arquivo: ${err.message || err}`);
+    }
+  }
+
+  function resetFilters(){
+    const clientSelect = el('clientSelect');
+    if (clientSelect) clientSelect.value = '(Todos)';
+    selectedReclamadas.clear();
+    const list = el('reclamadaList');
+    if (list) list.querySelectorAll('input[type="checkbox"]').forEach((chk) => chk.checked = false);
+    updateReclamadaBtnLabel();
+    applyFilters();
+  }
+
+  function clearImportedData(){
+    allRows = [];
+    currentRows = [];
+    currentClient = '(Todos)';
+    selectedReclamadas.clear();
+
+    const clientSelect = el('clientSelect');
+    if (clientSelect) clientSelect.innerHTML = '<option value="(Todos)">(Todos)</option>';
+
+    const list = el('reclamadaList');
+    if (list) list.innerHTML = '';
+
+    const fileNameText = el('fileNameText');
+    if (fileNameText) fileNameText.textContent = '';
+
+    const fileInput = el('fileInput');
+    if (fileInput) fileInput.value = '';
+
+    const comp = el('competencia');
+    if (comp) comp.textContent = 'Competência: —';
+
+    updateReclamadaBtnLabel();
+    renderTable(currentRows);
+  }
+
+  function sanitizeFilename(name){
+    return String(name || '')
+      .replace(/[\/:*?"<>|]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function printWithSuggestedName(){
+    const originalTitle = document.title;
+    const comp = competenciaAtual === '—' ? 'Sem competência' : competenciaAtual;
+    const fname = sanitizeFilename(`${comp} - ${currentClient || '(Todos)'}`);
+    document.title = fname || 'relatorio';
+    window.print();
+    setTimeout(() => { document.title = originalTitle; }, 500);
+  }
+
+  function exportVisibleToXLSX(){
+    if (!currentRows.length) {
+      alert('Nenhum dado disponível para exportar.');
+      return;
+    }
+    if (!window.XLSX) {
+      alert('SheetJS (XLSX) não está carregado.');
+      return;
+    }
+
+    const exported = currentRows.map((r) => ({
+      'Entrega em': getCell(r, ['Entrega em', 'Data', 'Data Entrega', 'Entrega']),
+      'Cliente': getCell(r, ['Contato: Primeiro nome', 'Cliente', 'Contato']),
+      'Número do Processo': getCell(r, ['Número do Processo', 'Numero do Processo', 'Processo']),
+      'Reclamante': getCell(r, ['Reclamante']),
+      'Reclamada': getCell(r, ['Reclamada']),
+      'Serviço': getCell(r, ['Serviços', 'Servico', 'Serviço']),
+      'Total': getCell(r, ['Total (Total)', 'Total', 'Valor'])
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exported);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Solicitacoes');
+    const hoje = new Date();
+    const stamp = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}-${String(hoje.getDate()).padStart(2,'0')}`;
+    XLSX.writeFile(wb, `solicitacoes_${stamp}.xlsx`);
+  }
+
+  function bindEvents(){
+    const fileInput = el('fileInput');
+    if (fileInput) fileInput.addEventListener('change', handleFileImport);
+
+    const clientSelect = el('clientSelect');
+    if (clientSelect) clientSelect.addEventListener('change', applyFilters);
+
+    const clearFiltersBtn = el('clearFiltersBtn');
+    if (clearFiltersBtn) clearFiltersBtn.addEventListener('click', resetFilters);
+
+    const clearDataBtn = el('clearDataBtn');
+    if (clearDataBtn) clearDataBtn.addEventListener('click', clearImportedData);
+
+    const printBtn = el('printBtn');
+    if (printBtn) printBtn.addEventListener('click', printWithSuggestedName);
+
+    const exportBtn = el('exportBtn');
+    if (exportBtn) exportBtn.addEventListener('click', exportVisibleToXLSX);
+  }
+
+  function init(customIds = {}){
+    ids = { ...DEFAULT_IDS, ...customIds };
+    bindEvents();
+    setupDropdownBehavior();
+    updateReclamadaBtnLabel();
+    renderTable([]);
+  }
+
+  window.SolicitacoesReportModule = {
+    init,
+    afterImport,
+    normalizeAndFormat,
+    parseCurrencyBRL,
+    applyFilters,
+    get state(){
+      return { allRows, currentRows, currentClient, selectedReclamadas };
+    }
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => init());
+  } else {
+    init();
+  }
+})();
+</script>
+
+<script>
 /*
 =====================================================
  MODO DEBUG: VISUALIZAÇÃO DE IDs + ATALHOS
