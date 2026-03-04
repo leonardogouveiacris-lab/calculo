@@ -341,7 +341,9 @@ details > summary{
 /* Report / print preview (mantém o layout do PDF) */
 .page{
   width:880px; max-width:880px;
-  min-height:297mm;
+  height:1122.52px;
+  min-height:1122.52px;
+  max-height:1122.52px;
   background:#fff;
   margin:0 auto 18px;
   padding:16mm 16mm 18mm 16mm;
@@ -377,8 +379,8 @@ details > summary{
 }
 .page .footer a{color:var(--link); text-decoration:underline}
 .page .content{
-  margin-top:18mm;
-  padding-bottom:26mm;
+  margin-top:14mm;
+  padding-bottom:12mm;
 }
 .case-info{
   margin:8mm 0 10mm;
@@ -402,7 +404,7 @@ details > summary{
   line-height:1.3;
 }
 .case-value{
-  font-weight:500;
+  font-weight:400;
   line-height:1.3;
 }
 .title{
@@ -465,43 +467,7 @@ h3.sec-title{
 .danger-txt{color:var(--danger)}
 
 /* Second page spacing similar to the PDF */
-.page2 .content{ margin-top:54mm; }
-
-/* Institutional report theme (somente relatório) */
-#tab-report #reportRoot.report--institutional{
-  --report-text:#1f2937;
-  --report-muted:#6b7280;
-  --report-border:#d9d9d9;
-}
-#tab-report #reportRoot.report--institutional .page{
-  background:#fff;
-  box-shadow:none;
-  border-radius:0;
-  border:1px solid var(--report-border);
-  color:var(--report-text);
-}
-#tab-report #reportRoot.report--institutional .contact,
-#tab-report #reportRoot.report--institutional .footer,
-#tab-report #reportRoot.report--institutional .case-label,
-#tab-report #reportRoot.report--institutional .small{
-  color:var(--report-muted);
-}
-#tab-report #reportRoot.report--institutional .contact a,
-#tab-report #reportRoot.report--institutional .footer a,
-#tab-report #reportRoot.report--institutional .danger-txt{
-  color:var(--report-text);
-}
-#tab-report #reportRoot.report--institutional .case-info,
-#tab-report #reportRoot.report--institutional .report-table th,
-#tab-report #reportRoot.report--institutional .report-table td,
-#tab-report #reportRoot.report--institutional .kv td{
-  border-color:var(--report-border);
-}
-#tab-report #reportRoot.report--institutional .report-table th,
-#tab-report #reportRoot.report--institutional .kv td.k{
-  background:#fff;
-  color:var(--report-muted);
-}
+.page2 .content, .page3 .content{ margin-top:12mm; }
 
 /* Print */
 @page{
@@ -511,7 +477,7 @@ h3.sec-title{
 
 
 /* Ajuste: reduzir logo no relatório (páginas 1 e 2) */
-#rptPage1 .logo, #rptPage2 .logo{
+#rptPage1 .logo, #rptPage2 .logo, #rptPage3 .logo{
   max-height: 40px;
   height: 40px;
   width: auto;
@@ -519,10 +485,12 @@ h3.sec-title{
 
 @media print{
 
-  body{background:#fff}
-.no-print{display:none !important}
+  html, body{background:#fff; height:auto}
+  .no-print{display:none !important}
+  .wrap{max-width:none !important; margin:0 !important; padding:0 !important}
   #tab-editor{display:none !important}
-  #tab-report{display:block !important}
+  #tab-report{display:block !important; margin:0 !important; padding:0 !important}
+  #reportRoot{margin:0 !important; padding:0 !important}
   .tabpane{display:block !important}
 
   .page{
@@ -530,40 +498,43 @@ h3.sec-title{
     margin:0;
     width:210mm !important;
     max-width:210mm !important;
+    height:297mm !important;
     min-height:297mm !important;
+    max-height:297mm !important;
     border-radius:0;
     page-break-after:always;
-
-    /* mais área útil */
-    padding:10mm 10mm 12mm 10mm !important;
+    break-after:page;
+    padding:9mm 10mm 10mm !important;
     overflow:hidden;
+    position:relative;
   }
-  .page:last-child{page-break-after:auto}
+  .page:last-child{page-break-after:auto; break-after:auto}
 
   .page .content{
-    margin-top:14mm !important;
-    padding-bottom:18mm !important;
+    margin-top:7mm !important;
+    padding-bottom:24mm !important;
   }
 
   .page .footer{
+    position:absolute !important;
     left:10mm !important;
     right:10mm !important;
     bottom:8mm !important;
+    margin-top:0 !important;
+  }
+
+  .case-info, .legal-box, .sec-title, .kv{
+    break-inside:avoid-page;
+    page-break-inside:avoid;
   }
 
   .report-table, .kv{ font-size:10pt !important; }
   .report-table th, .report-table td,
   .kv td{ padding:5px 6px !important; }
 
-  .title{ margin:10mm 0 4mm !important; }
-  h3.sec-title[style*="margin-top:18mm"]{ margin-top:12mm !important; }
+  .title{ margin:4mm 0 3mm !important; }
+  h3.sec-title[style*="margin-top:18mm"]{ margin-top:4mm !important; }
 
-  #tab-report #reportRoot.report--institutional .page{
-    background:#fff !important;
-    box-shadow:none !important;
-    border-radius:0 !important;
-    border:1px solid #d9d9d9 !important;
-  }
 }
 
 /* Typography refinements */
@@ -581,19 +552,20 @@ small,.help,.muted,.hint{font-weight:400}
 
 /* Report — bloco de identificação do processo */
 .case-info{
-  border:1px solid var(--border);
-  border-radius:14px;
-  padding:12px 14px;
-  background: #fff;
-  margin: 6px 0 14px;
+  border:none;
+  border-radius:0;
+  padding:8px 0 10px;
+  background:#fff;
+  margin:4px 0 10px;
 }
 .case-row{
   display:grid;
-  grid-template-columns: 150px 1fr;
-  gap:12px;
-  padding:6px 0;
+  grid-template-columns: 120px 1fr;
+  gap:8px;
+  padding:5px 0;
 }
-.case-row + .case-row{border-top:1px solid rgba(230,232,239,.75)}
+.case-row{border-bottom:1px solid rgba(230,232,239,.45)}
+.case-row:last-child{border-bottom:1px solid rgba(230,232,239,.45)}
 .case-label{
   color:var(--ink);
   font-weight:600;
@@ -602,7 +574,7 @@ small,.help,.muted,.hint{font-weight:400}
 }
 .case-value{
   color:var(--ink);
-  font-weight:500;
+  font-weight:400;
   line-height:1.3;
 }
 .title{
@@ -621,20 +593,26 @@ small,.help,.muted,.hint{font-weight:400}
   line-height:1.3;
 }
 
+.page .sec-title[style*="margin-top:18mm"]{
+  margin-top:10mm !important;
+}
+
 
 /* Report — bloco do dispositivo legal (Art. 916 CPC) */
 .legal-box{
-  margin: 10px 0 14px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: linear-gradient(180deg, #ffffff, #fbfcfe);
+  margin: 8px 0 12px;
+  padding: 0 0 8px;
+  border: none;
+  border-bottom: 1px solid #d5dbe6;
+  border-radius: 0;
+  background: transparent;
 }
 .legal-title{
-  font-size: 12px;
-  font-weight: 650;
+  font-size: 10.8pt;
+  font-weight: 400;
   color: var(--ink);
-  margin: 0 0 6px;
+  margin: 0;
+  line-height: 1.4;
 }
 .legal-text{
   font-size: 10.8pt;
@@ -1042,7 +1020,7 @@ details.dropdown,
 
   <div class="hintbar" id="hdrHintbar">
     <div class="hintbar-inner" id="hdrHintbarInner">
-      <div class="hint">Dica: ao imprimir, selecione “A4”. O relatório já está paginado em 2 páginas (como o PDF do modelo).</div>
+      <div class="hint">Dica: ao imprimir, selecione “A4”. O relatório está paginado em 3 páginas para evitar cortes de conteúdo.</div>
     </div>
   </div>
 </header>
@@ -1082,16 +1060,16 @@ details.dropdown,
 <input id="inAutor" placeholder="Ex.: Fulano de Tal" type="text"/>
 <label for="inReu">Réu</label>
 <input id="inReu" placeholder="Ex.: Empresa XYZ" type="text"/>
-<label for="inProc">Nº do processo</label>
+<label for="inProc">Nº do processo:</label>
 <input id="inProc" placeholder="Ex.: 0000000-00.0000.0.00.0000" type="text"/>
 </div>
 <div aria-live="polite" class="card preview-card" id="cardResumoProcesso">
 <h2>Resumo do processo</h2>
 <div class="card-sub">Pré-visualização das informações que irão para o relatório.</div>
 <div class="report-kv" id="pvBoxResumoProcesso">
-<div class="kv-row"><div class="kv-k">Reclamante</div><div class="kv-v" id="pvAutor">—</div></div>
-<div class="kv-row"><div class="kv-k">Reclamada</div><div class="kv-v" id="pvReu">—</div></div>
-<div class="kv-row"><div class="kv-k">Nº do processo</div><div class="kv-v" id="pvProc">—</div></div>
+<div class="kv-row"><div class="kv-k">Reclamante:</div><div class="kv-v" id="pvAutor">—</div></div>
+<div class="kv-row"><div class="kv-k">Reclamada:</div><div class="kv-v" id="pvReu">—</div></div>
+<div class="kv-row"><div class="kv-k">Nº do processo:</div><div class="kv-v" id="pvProc">—</div></div>
 </div>
 </div>
 <div class="card" id="cardParcelamento">
@@ -1294,13 +1272,13 @@ details.dropdown,
 <section class="tabpane" data-scope="report" id="tab-report">
 <div class="card no-print" id="cardPreviewRelatorio" style="margin-bottom:14px;">
 <h2 style="margin-bottom:6px;">Prévia do relatório (impressão A4)</h2>
-<div class="card-sub">A área abaixo é exatamente o que será impresso — paginado em 2 páginas, como o PDF do modelo.</div>
+<div class="card-sub">A área abaixo é exatamente o que será impresso — paginado em 3 páginas, para melhor distribuição do conteúdo.</div>
 <div class="btn-row" style="margin-top:12px;">
 <button class="btn btn-primary" id="btnPrint2" type="button">Imprimir / Salvar em PDF</button>
 <button class="btn" id="btnBackToData" type="button">Voltar para dados</button>
 </div>
 </div>
-<div class="report--institutional" id="reportRoot">
+<div id="reportRoot">
 <!-- PAGE 1 -->
 <section class="page page1" id="rptPage1">
 <div class="header" id="rptHeader1" style="max-height: 60px;">
@@ -1313,15 +1291,14 @@ details.dropdown,
 </div>
 <div class="content" id="rptContent1">
 <div class="case-info">
-<div class="case-row"><div class="case-label">Reclamante</div><div class="case-value"><span id="rAutor"></span></div></div>
-<div class="case-row"><div class="case-label">Reclamada</div><div class="case-value"><span id="rReu"></span></div></div>
-<div class="case-row"><div class="case-label">Nº do processo</div><div class="case-value"><span id="rProc"></span></div></div>
+<div class="case-row"><div class="case-label">Reclamante:</div><div class="case-value"><span id="rAutor"></span></div></div>
+<div class="case-row"><div class="case-label">Reclamada:</div><div class="case-value"><span id="rReu"></span></div></div>
+<div class="case-row"><div class="case-label">Nº do processo:</div><div class="case-value"><span id="rProc"></span></div></div>
 </div>
 <div class="title">PARCELAMENTO – ART. 916 DO CPC</div>
 
 <div class="legal-box" id="rptLegal916">
-  <div class="legal-title">Dispositivo</div>
-  <p class="legal-text">No prazo para embargos, reconhecendo o crédito do exequente e comprovando o depósito de trinta por cento do valor em execução, acrescido de custas e de honorários de advogado, o executado poderá requerer que lhe seja permitido pagar o restante em até 6 (seis) parcelas mensais, acrescidas de correção monetária e de juros de um por cento ao mês.</p>
+  <p class="legal-text"><strong>Art. 916 do CPC:</strong> No prazo para embargos, reconhecendo o crédito do exequente e comprovando o depósito de trinta por cento do valor em execução, acrescido de custas e de honorários de advogado, o executado poderá requerer que lhe seja permitido pagar o restante em até 6 (seis) parcelas mensais, acrescidas de correção monetária e de juros de um por cento ao mês.</p>
 </div>
 
 <h3 class="sec-title">Créditos Reclamante</h3>
@@ -1385,7 +1362,30 @@ details.dropdown,
 </tr>
 </tbody>
 </table>
-<h3 class="sec-title" style="margin-top:18mm;">Opções avançadas</h3>
+</div>
+<div class="footer" id="rptFooter1">
+<div>
+<div id="rFtrL1"></div>
+<div id="rFtrL2"></div>
+<div><a href="#" id="rFtrSite" rel="noreferrer" target="_blank"></a></div>
+</div>
+<div style="text-align:right;">
+<div id="rFtrEmp"></div>
+</div>
+</div>
+</section>
+<!-- PAGE 2 -->
+<section class="page page2" id="rptPage2">
+<div class="header" id="rptHeader2" style="max-height: 60px;">
+<img alt="Logo" class="logo" data-logo="1"/>
+<div class="contact" id="rptContact2">
+<div><b id="rHdrNome2"></b></div>
+<div>Tel.: <span id="rHdrTel2"></span></div>
+<div><a href="#" id="suporte@calculopro.com.br2"></a></div>
+</div>
+</div>
+<div class="content" id="rptContent2">
+<h3 class="sec-title">Opções avançadas</h3>
 <table class="kv">
 <tbody>
 <tr>
@@ -1427,29 +1427,7 @@ details.dropdown,
 </tr>
 </tbody>
 </table>
-</div>
-<div class="footer" id="rptFooter1">
-<div>
-<div id="rFtrL1"></div>
-<div id="rFtrL2"></div>
-<div><a href="#" id="rFtrSite" rel="noreferrer" target="_blank"></a></div>
-</div>
-<div style="text-align:right;">
-<div id="rFtrEmp"></div>
-</div>
-</div>
-</section>
-<!-- PAGE 2 -->
-<section class="page page2" id="rptPage2">
-<div class="header" id="rptHeader2" style="max-height: 60px;">
-<img alt="Logo" class="logo" data-logo="1"/>
-<div class="contact" id="rptContact2">
-<div><b id="rHdrNome2"></b></div>
-<div>Tel.: <span id="rHdrTel2"></span></div>
-<div><a href="#" id="suporte@calculopro.com.br2"></a></div>
-</div>
-</div>
-<div class="content" id="rptContent2">
+
 <h3 class="sec-title">Valor da Entrada</h3>
 <table class="kv">
 <tbody>
@@ -1488,7 +1466,30 @@ details.dropdown,
 </tr>
 </tbody>
 </table>
-<h3 class="sec-title" style="margin-top:18mm;">Parcelas restantes corrigidas (<span id="rTabN"></span>)</h3>
+</div>
+<div class="footer" id="rptFooter2">
+<div>
+<div id="rFtrL1_2"></div>
+<div id="rFtrL2_2"></div>
+<div><a href="#" id="rFtrSite_2" rel="noreferrer" target="_blank"></a></div>
+</div>
+<div style="text-align:right;">
+<div id="rFtrEmp_2"></div>
+</div>
+</div>
+</section>
+<!-- PAGE 3 -->
+<section class="page page3" id="rptPage3">
+<div class="header" id="rptHeader3" style="max-height: 60px;">
+<img alt="Logo" class="logo" data-logo="1"/>
+<div class="contact" id="rptContact3">
+<div><b id="rHdrNome3"></b></div>
+<div>Tel.: <span id="rHdrTel3"></span></div>
+<div><a href="#" id="suporte@calculopro.com.br3"></a></div>
+</div>
+</div>
+<div class="content" id="rptContent3">
+<h3 class="sec-title">Parcelas restantes corrigidas (<span id="rTabN"></span>)</h3>
 <table class="report-table small">
 <thead>
 <tr>
@@ -1521,14 +1522,14 @@ details.dropdown,
 </tfoot>
 </table>
 </div>
-<div class="footer" id="rptFooter2">
+<div class="footer" id="rptFooter3">
 <div>
-<div id="rFtrL1_2"></div>
-<div id="rFtrL2_2"></div>
-<div><a href="#" id="rFtrSite_2" rel="noreferrer" target="_blank"></a></div>
+<div id="rFtrL1_3"></div>
+<div id="rFtrL2_3"></div>
+<div><a href="#" id="rFtrSite_3" rel="noreferrer" target="_blank"></a></div>
 </div>
 <div style="text-align:right;">
-<div id="rFtrEmp_2"></div>
+<div id="rFtrEmp_3"></div>
 </div>
 </div>
 </section>
@@ -1598,6 +1599,7 @@ const DOM = {
   reportRoot: '#reportRoot',
   rptPage1: '#rptPage1',
   rptPage2: '#rptPage2',
+  rptPage3: '#rptPage3',
 
   // Toast (se existir)
   toastHost: '#toastHost',
@@ -1852,6 +1854,10 @@ const DOM = {
       setTxt("rHdrTel2", state.header.tel);
       setLink("suporte@calculopro.com.br2", state.header.email);
 
+      setTxt("rHdrNome3", state.header.nome);
+      setTxt("rHdrTel3", state.header.tel);
+      setLink("suporte@calculopro.com.br3", state.header.email);
+
       setTxt("rFtrL1", state.footer.l1);
       setTxt("rFtrL2", state.footer.l2);
       setLink("rFtrSite", state.footer.site, true);
@@ -1861,6 +1867,11 @@ const DOM = {
       setTxt("rFtrL2_2", state.footer.l2);
       setLink("rFtrSite_2", state.footer.site, true);
       setTxt("rFtrEmp_2", state.footer.emp);
+
+      setTxt("rFtrL1_3", state.footer.l1);
+      setTxt("rFtrL2_3", state.footer.l2);
+      setLink("rFtrSite_3", state.footer.site, true);
+      setTxt("rFtrEmp_3", state.footer.emp);
 
       // Identificação
       setTxt("rAutor", state.autor || "");
