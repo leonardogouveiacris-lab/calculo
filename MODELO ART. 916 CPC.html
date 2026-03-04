@@ -1638,7 +1638,7 @@ details.dropdown,
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
   header{display:none}
-  .wrap{max-width:940px;margin:0 auto;padding:12px 14px 24px}
+  .wrap{max-width:1120px;margin:0 auto;padding:12px 16px 24px}
   .title{display:block;margin:0 0 14px}
   h1{margin:0;font-size:20px;font-weight:700;letter-spacing:.1px}
   small{display:block;margin-top:6px;font-size:12px;color:var(--muted)}
@@ -1654,8 +1654,9 @@ details.dropdown,
   input,select{width:100%;padding:10px 11px;border:1px solid var(--line);border-radius:var(--radius-sm);background:#fff;color:var(--ink);outline:none}
   input:focus,select:focus{border-color:#98a2b3;box-shadow:0 0 0 3px rgba(15,23,42,.08)}
 
-  .btn{border:1px solid var(--line);border-radius:12px;padding:9px 13px;cursor:pointer;font-weight:600;background:#fff;color:var(--ink);box-shadow:none;transition:.15s}
+  .btn{border:1px solid var(--line);border-radius:999px;padding:9px 14px;cursor:pointer;font-weight:550;background:#fff;color:var(--ink);box-shadow:none;transition:border-color .15s ease, background .15s ease, transform .08s ease}
   .btn:hover{border-color:#d0d5dd;background:var(--soft)}
+  .btn:active{transform:translateY(1px)}
   .btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #0f172a;outline-offset:1px}
   .empty-state{padding:14px;text-align:center;color:var(--muted);font-size:12px}
   .toast-inline{position:fixed;right:14px;bottom:14px;background:#101828;color:#fff;padding:8px 11px;border-radius:10px;font-size:12px;z-index:99;opacity:.96}
@@ -1680,6 +1681,9 @@ details.dropdown,
   .rep-block-title{font-weight:650;margin:4px 0 6px;font-size:13px}
   .val-soft-strong{font-weight:600}
   .total-row{display:flex;justify-content:flex-end;gap:8px;font-weight:700;font-size:14px}
+  .report-brand{display:none;align-items:center;justify-content:space-between;gap:12px;padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:10px}
+  .report-brand .brand-title{font-size:17px;font-weight:700;letter-spacing:.2px}
+  .report-footer{display:none;margin-top:12px;padding-top:8px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);justify-content:space-between;gap:12px}
 
   @media (max-width:760px){
     .wrap{padding:10px 10px 20px}
@@ -1692,6 +1696,7 @@ details.dropdown,
     .wrap{max-width:100%;padding:0}
     .no-print,[class*="btn"]{display:none!important}
     .card,table{box-shadow:none}
+    .report-brand,.report-footer{display:flex !important}
   }
 </style>
 </head>
@@ -1825,6 +1830,10 @@ details.dropdown,
 
   <!-- RELATÓRIO -->
   <section id="report" class="card">
+    <div class="report-brand" id="s2ReportBrand">
+      <div class="brand-title" id="s2ReportBrandTitle">calculopro • Atualização Depósito Judicial</div>
+      <div id="s2ReportBrandDate"></div>
+    </div>
     <div class="report-header">
       <h3>Demonstrativo da Atualização Monetária do Depósito Recursal</h3>
       <div class="subtitle" id="repMeta"></div>
@@ -1840,6 +1849,10 @@ details.dropdown,
     <div class="total-row">
       TOTAL ATUALIZADO ATÉ <span id="repEnd"></span>:
       <span id="repTotal" class="val-soft-strong"></span>
+    </div>
+    <div class="report-footer" id="s2ReportFooter">
+      <div id="s2ReportFooterLeft">calculopro • suporte@calculopro.com.br</div>
+      <div id="s2ReportFooterRight">Relatório gerado automaticamente</div>
     </div>
   </section>
 </main>
@@ -2321,6 +2334,8 @@ btnPrint.onclick=async()=>{
 };
 
 renderDeposits(); renderIndices();
+const s2BrandDate = document.getElementById('s2ReportBrandDate');
+if (s2BrandDate) s2BrandDate.textContent = new Date().toLocaleString('pt-BR');
 assignMissingIds('s2');
 </script>
 </body>
@@ -2347,7 +2362,7 @@ assignMissingIds('s2');
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
-.wrap{max-width:980px;margin:0 auto;padding:12px 14px 30px}
+.wrap{max-width:1320px;margin:0 auto;padding:14px 20px 30px}
 
 .header{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-bottom:10px;padding:0;border:0;background:transparent;box-shadow:none;text-align:left}
 .brand img{display:none}
@@ -2355,14 +2370,25 @@ h1{margin:0;font-size:20px;font-weight:700;letter-spacing:.1px}
 .badges{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .badge{padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:#344054;font-weight:600;font-size:12px}
 
-.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-start;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:10px;box-shadow:none;margin:0 0 12px}
+.toolbar{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px;align-items:center;justify-content:flex-start;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px;box-shadow:none;margin:0 0 12px}
+.toolbar > *{min-width:0}
+#fileInput{grid-column:1/-1}
+#lblFileInput{grid-column:1/span 3}
+#clearDataBtn{grid-column:4/span 2}
+#clientFilter{grid-column:6/span 4}
+#reclamadaDropdown{grid-column:10/span 3}
+#btnClear{grid-column:1/span 2}
+#btnPrint{grid-column:3/span 2}
+#btnExportXlsx{grid-column:5/span 2}
+#fileName{grid-column:7/-1}
 input[type="file"]{display:none}
 .label-file,.btn,.select{
   appearance:none;border:1px solid var(--line);background:#fff;color:var(--ink);
-  padding:9px 12px;border-radius:12px;font-weight:600;font-size:13px;transition:.15s;box-shadow:none
+  padding:9px 13px;border-radius:999px;font-weight:550;font-size:13px;transition:border-color .15s ease, background .15s ease, transform .08s ease;box-shadow:none
 }
 .label-file,.btn{cursor:pointer}
 .label-file:hover,.btn:hover,.select:hover{border-color:#d0d5dd;background:var(--soft);transform:none;box-shadow:none}
+.btn:active{transform:translateY(1px)}
 .label-file:focus-visible,.btn:focus-visible,.select:focus-visible,input:focus-visible{outline:2px solid #0f172a;outline-offset:1px}
 .empty-state{padding:16px;text-align:center;color:var(--muted);font-size:12px}
 .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
@@ -2374,8 +2400,8 @@ input[type="file"]{display:none}
 .kpi{background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-weight:600;color:var(--ink);box-shadow:none}
 
 .table-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:none;overflow:hidden}
-.table-wrap{overflow:auto}
-.table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;min-width:860px}
+.table-wrap{overflow-x:auto; overflow-y:visible}
+.table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;min-width:1100px}
 .table thead th{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);color:#475467;font-weight:600;background:var(--soft);position:sticky;top:0;z-index:2;white-space:nowrap}
 .table tbody td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 .table tbody tr:nth-child(odd) td{background:#fff}
@@ -2392,18 +2418,28 @@ input[type="file"]{display:none}
 .dd-actions{display:flex;gap:6px;padding-top:8px;border-top:1px solid var(--line);margin-top:8px}
 
 .hint{font-size:12px;color:var(--muted)}
+#printHeaderS3,#printFooterS3{display:none;align-items:center;justify-content:space-between;gap:12px;color:#344054;font-size:11px}
+#printHeaderS3{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px}
+#printFooterS3{border-top:1px solid var(--line);padding-top:8px;margin-top:8px}
+#printHeaderS3 img{height:22px;width:auto;display:block}
 
 @media (max-width:760px){
   .wrap{padding:10px}
   .header{flex-direction:column;align-items:flex-start}
   .toolbar{justify-content:flex-start}
   .meta{flex-direction:column;align-items:flex-start}
+  .toolbar{grid-template-columns:1fr}
+  #lblFileInput,#clearDataBtn,#clientFilter,#reclamadaDropdown,#btnClear,#btnPrint,#btnExportXlsx,#fileName{grid-column:auto}
 }
 @media print{
+  @page{size:A4 landscape; margin:10mm;}
   body{background:#fff}
   .wrap{max-width:100%;padding:0}
   .toolbar,.no-print,.dropdown-panel{display:none!important}
   .table-card{border:1px solid #d0d5dd}
+  #printHeaderS3,#printFooterS3{display:flex !important}
+  .table{min-width:0 !important; table-layout:fixed !important; font-size:10.2px !important}
+  .table thead th,.table tbody td{padding:5px 4px !important; word-break:break-word !important}
 }
 </style>
 </head>
@@ -2421,9 +2457,9 @@ input[type="file"]{display:none}
     </div>
 
     <div class="toolbar">
-      <label class="label-file" for="fileInput">Importar Excel (.xlsx/.xls/.csv)</label>
+      <label id="lblFileInput" class="label-file" for="fileInput">Importar Excel (.xlsx/.xls/.csv)</label>
       <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" />
-      <button id="clearDataBtn" class="btn ghost" type="button">🧹 Limpar dados</button>
+      <button id="clearDataBtn" class="btn ghost" type="button">Limpar dados</button>
 
       <select id="clientFilter" class="select" title="Filtrar por cliente"></select>
 
@@ -2441,10 +2477,18 @@ input[type="file"]{display:none}
         </div>
       </div>
 
-      <button class="btn" class="btn ghost" id="btnClear">Limpar filtro</button>
-      <button class="btn" class="btn primary" id="btnPrint">Imprimir / PDF</button>
-      <button class="btn" id="btnExportXlsx" type="button">⬇️ Baixar .xlsx</button>
+      <button class="btn ghost" id="btnClear">Limpar filtro</button>
+      <button class="btn primary" id="btnPrint">Imprimir / PDF</button>
+      <button class="btn" id="btnExportXlsx" type="button">Baixar .xlsx</button>
       <span id="fileName" style="font-size:12px;color:var(--muted)"></span>
+    </div>
+
+    <div id="printHeaderS3">
+      <div style="display:flex;align-items:center;gap:10px">
+        <img id="s3PrintLogo" alt="Logo Calculopro" src="data:image/svg+xml;utf8,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 120 24%27%3E%3Ctext x=%270%27 y=%2717%27 font-family=%27Arial%27 font-size=%2718%27 fill=%27%231f2937%27%3Ecalculo%3Ctspan fill=%2700aeea%27%3Epro%3C/tspan%3E%3C/text%3E%3C/svg%3E">
+        <strong id="s3PrintHeaderTitle">Relatório de Solicitações</strong>
+      </div>
+      <div id="s3PrintHeaderMeta"></div>
     </div>
 
     <div class="meta">
@@ -2463,6 +2507,11 @@ input[type="file"]{display:none}
       </table>
     </div>
   </section>
+
+    <div id="printFooterS3">
+      <div id="s3PrintFooterLeft">calculopro • suporte@calculopro.com.br</div>
+      <div id="s3PrintFooterRight">Documento gerado automaticamente</div>
+    </div>
 
 <script>
 /* ====== DADOS INICIAIS (mantenha os seus aqui) ====== */
@@ -2653,6 +2702,8 @@ function updateMeta(rows) {
   document.getElementById("sumTotal").textContent =
     soma.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   updateCompetencia(rows);
+  const h = document.getElementById("s3PrintHeaderMeta");
+  if (h) h.textContent = `Gerado em ${new Date().toLocaleString("pt-BR")} • ${rows.length} solicitações`;
 }
 
 function renderTable(rows) {
@@ -3841,13 +3892,24 @@ html,body{margin:0;padding:0;}
     function createEmbeddedModule({ systemId, iframeId, statusId, tplId }) {
       let loaded = false;
 
+      function syncFrameHeight(frame){
+        try{
+          if(!frame || !frame.contentDocument) return;
+          const doc = frame.contentDocument;
+          const h = Math.max(900, doc.documentElement ? doc.documentElement.scrollHeight : 0, doc.body ? doc.body.scrollHeight : 0);
+          frame.style.height = `${h + 20}px`;
+          frame.style.minHeight = `${h + 20}px`;
+          frame.style.overflow = "hidden";
+        }catch(_e){}
+      }
+
       function ensureFrameVisible() {
         const frame = getEl(iframeId);
         if (!frame) {
           debugLog('Módulo sem iframe', { systemId, iframeId });
           return;
         }
-        const targetHeight = Math.max(1200, window.innerHeight - 170);
+        const targetHeight = Math.max(900, window.innerHeight - 170);
         frame.style.display = 'block';
         frame.style.visibility = 'visible';
         frame.style.opacity = '1';
@@ -3860,6 +3922,7 @@ html,body{margin:0;padding:0;}
         applyEmbeddedThemeToFrame(frame, systemId);
         ensureElementIdsInEmbeddedDoc(frame, systemId);
         sanitizeEmbeddedUi(frame);
+        syncFrameHeight(frame);
       }
 
       function ensureLoaded() {
@@ -3906,6 +3969,7 @@ html,body{margin:0;padding:0;}
             status.classList.remove('error');
             status.textContent = 'Módulo carregado com sucesso.';
             debugLog('Tema visual aplicado ao módulo', { systemId, iframeId, idsAdded });
+            setTimeout(() => syncFrameHeight(frame), 120);
           }, { once: true });
 
           try {
@@ -3941,6 +4005,7 @@ html,body{margin:0;padding:0;}
                 frameHeight: frame.clientHeight,
                 hasBody: !!(doc && doc.body)
               });
+              syncFrameHeight(frame);
               if (!bodyText.length) {
                 status.classList.add('error');
                 status.textContent = 'Módulo sem conteúdo visível. Consulte logs.';
