@@ -1031,6 +1031,7 @@ details.dropdown,
 
     <div class="actions" id="hdrActions">
       <button class="btn" id="btnOpenSolicitacoes" type="button">Sistema de Solicitações</button>
+      <button class="btn" id="btnOpenDepositoRecursal" type="button">Depósito Recursal</button>
       <button class="btn btn-primary" id="btnPrint" type="button">Imprimir / Salvar em PDF</button>
 </div>
   </div>
@@ -2127,6 +2128,12 @@ const DOM = {
       if (btnOpenSolicitacoes) {
         btnOpenSolicitacoes.addEventListener("click", ()=>{
           window.location.href = "sistema-solicitacoes.html";
+        });
+      }
+      const btnOpenDepositoRecursal = el("btnOpenDepositoRecursal");
+      if (btnOpenDepositoRecursal) {
+        btnOpenDepositoRecursal.addEventListener("click", ()=>{
+          window.location.href = "atualizacao-deposito-recursal.html";
         });
       }
       el("btnPrint").addEventListener("click", ()=>{ setTab("report"); setTimeout(()=>window.print(), 50); });
