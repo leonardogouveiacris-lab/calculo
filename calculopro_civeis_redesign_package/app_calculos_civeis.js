@@ -635,7 +635,10 @@
     }
     launchSelector.innerHTML = state.lancamentos.map(function(lancamento, index){
       const txt = (index + 1) + '. ' + lancamento.verba + ' — ' + formatDateBR(lancamento.dataInicial) + ' até ' + formatDateBR(lancamento.dataFinal);
-      return '<option value="' + esc(lancamento.id) + '">' + esc(txt) + '</option>';
+      const periodo = formatDateBR(lancamento.dataInicial) + ' até ' + formatDateBR(lancamento.dataFinal);
+      const competencias = String((lancamento.linhas || []).length) + ' competência(s)';
+      const total = formatCurrencyBR((lancamento.totais && lancamento.totais.valorDevido) || 0);
+      return '<option value="' + esc(lancamento.id) + '" data-title="' + esc(lancamento.verba || 'Verba') + '" data-periodo="' + esc(periodo) + '" data-competencias="' + esc(competencias) + '" data-total="' + esc(total) + '" data-status="' + esc(((lancamento.linhas || []).length ? 'Pronta para revisão' : 'Sem competências')) + '">' + esc(txt) + '</option>';
     }).join('');
     launchSelector.value = state.lancamentoSelecionadoId;
     $('btnRenomearLancamento').disabled = false;
@@ -842,13 +845,13 @@
     state.lancamentos = state.lancamentos.map(normalizeLaunch).map(recalculateLaunch);
     renderLaunchSelector();
     if (!state.lancamentos.length){
-      launchesHost.innerHTML = '<div class="empty-state">Nenhum lançamento cadastrado ainda. Informe a verba e o período para gerar a tabela mensal do cálculo.</div>';
+      launchesHost.innerHTML = '<div class="empty-state">Crie a primeira verba para abrir o editor técnico mensal.</div>';
       return;
     }
     const index = getSelectedLaunchIndex();
     const lancamento = state.lancamentos[index];
     if (!lancamento){
-      launchesHost.innerHTML = '<div class="empty-state">Selecione um lançamento para visualizar a respectiva tabela.</div>';
+      launchesHost.innerHTML = '<div class="empty-state">Selecione uma verba para editar seus valores, índices e colunas avançadas.</div>';
       return;
     }
     const headCols = ['<th class="col-data">Data</th>'].concat(lancamento.colunas.map(function(coluna, idx){
@@ -888,17 +891,19 @@
           '</div>' +
         '</div>' +
         '<div class="index-config">' +
+          '<div class="index-config-head"><div class="index-config-title">Configurações essenciais da verba</div><div class="index-config-sub">Escolha as fontes de correção e juros antes de revisar a tabela mensal.</div></div>' +
           '<div class="cfg-col"><label>Fonte da correção monetária</label><select class="select launchIndexSource" data-launch-index="' + index + '" data-kind="correcao">' + correcaoOptions + '</select></div>' +
           '<div class="cfg-col"><label>Fonte dos juros</label><select class="select launchIndexSource" data-launch-index="' + index + '" data-kind="juros">' + jurosOptions + '</select></div>' +
           '<div class="cfg-col action"><button type="button" class="btn btnFetchIndices" data-launch-index="' + index + '"' + (indexLoadingState[index] ? ' disabled aria-busy="true"' : '') + '>' + (indexLoadingState[index] ? 'Buscando índices...' : 'Atualizar índices') + '</button><span class="index-loading" data-launch-index="' + index + '"' + (indexLoadingState[index] ? '' : ' hidden') + '>Busca de índice em andamento</span></div>' +
         '</div>' +
         '<div class="inline-tools">' +
+          '<div class="inline-tools-title">Ferramentas avançadas</div>' +
           '<button type="button" class="btn btnAddManualCol" data-launch-index="' + index + '">Adicionar coluna manual</button>' +
           '<button type="button" class="btn btnAddFormulaCol" data-launch-index="' + index + '">Adicionar coluna fórmula</button>' +
         '</div>' +
         '<div>' + badges + '</div>' +
-        '<div class="formula-note">Nas fórmulas, use as letras das colunas. Ex.: (B+C), (BxD), (B+C-D) ou ((B+C)*D). As colunas padrão iniciam com estas fórmulas: Valor da Correção = ' + esc(defaultValorCorrecaoFormula(lancamento)) + '; Valor dos Juros = ' + esc(defaultValorJurosFormula(lancamento)) + '; Valor Devido = ' + esc(defaultValorDevidoFormula(lancamento)) + '.</div>' +
-        '<div class="readonly-note">Correção Monetária e Juros usam séries do BACEN/SGS e são acumulados da competência até a data de atualização do cálculo. Estão disponíveis fontes adicionais como IPCA-E, TR, Taxa Legal e EC 113/2021. Se usar EC 113/2021 na correção, o recomendado é deixar os juros como Sem juros para evitar dupla contagem após 12/2021. As colunas Valor da Correção, Valor dos Juros e Valor Devido permanecem obrigatórias no final da tabela, mas agora podem ter nome e fórmula alterados.</div>' +
+        '<div class="formula-note">Use as letras das colunas para fórmulas personalizadas. Exemplos: (B+C), (BxD) ou ((B+C)*D). Fórmulas iniciais: Valor da Correção = ' + esc(defaultValorCorrecaoFormula(lancamento)) + '; Valor dos Juros = ' + esc(defaultValorJurosFormula(lancamento)) + '; Valor Devido = ' + esc(defaultValorDevidoFormula(lancamento)) + '.</div>' +
+        '<div class="readonly-note">Correção e juros são obtidos das séries do BACEN/SGS até a data de atualização. Em cenários com EC 113/2021, prefira revisar a incidência dos juros para evitar dupla contagem. As colunas finais permanecem obrigatórias, mas podem ter nome e fórmula ajustados.</div>' +
         '<div class="table-wrap"><table class="editor-table"><thead><tr>' + headCols + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
       '</div>';
   }
@@ -1083,7 +1088,7 @@
 
     if (honorariosResumo) {
       if (!state.honorarios.enabled) {
-        honorariosResumo.innerHTML = '<div class="summary-muted-copy">Honorários desativados.</div>';
+        honorariosResumo.innerHTML = '<div class="summary-muted-copy">Honorários não configurados. Abra este bloco somente se eles integrarem o cálculo.</div>';
       } else {
         honorariosResumo.innerHTML = '' +
           '<div class="summary-stats">' +
@@ -1214,7 +1219,7 @@
   function renderCustasEditor(){
     if (!custasHost) return;
     if (!state.custas.length) {
-      custasHost.innerHTML = '<div class="summary-empty">Nenhuma custa cadastrada.</div>';
+      custasHost.innerHTML = '<div class="summary-empty">Nenhuma custa cadastrada. Adicione apenas se houver despesa a compor o total.</div>';
       return;
     }
 

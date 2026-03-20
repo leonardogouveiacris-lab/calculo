@@ -89,9 +89,9 @@ textarea{min-height:92px;resize:vertical}
 @media print{@page{size:A4;margin:0}.no-print{display:none !important}.page{width:210mm !important;max-width:210mm !important;min-height:297mm !important;height:297mm !important;margin:0 !important;border-radius:0 !important;box-shadow:none !important;overflow:hidden !important;page-break-after:always;break-after:page;padding:9mm 16mm 10mm !important}.page:last-child{page-break-after:auto;break-after:auto}.page .header{display:flex !important;align-items:flex-start !important;justify-content:space-between !important;gap:16px !important;min-height:11mm !important}.page .content{margin-top:0 !important;padding-top:5mm !important;padding-bottom:26mm !important;overflow:hidden !important}.page .footer{display:flex !important;justify-content:space-between !important;align-items:flex-end !important;gap:12px !important;position:absolute !important;left:16mm !important;right:16mm !important;bottom:10mm !important}}
 .print-only{display:none}
 </style><script src="js/core/cp-common.js"></script><script src="js/core/print-layout.js"></script><link rel="stylesheet" href="css/civeis-redesign.css"></head><body>
-<header class="topbar no-print" id="hdrTopbar"><div class="topbar-inner" id="hdrTopbarInner"><div class="brand" id="hdrBrand"><img class="brand-logo" data-logo="1" src="https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png" alt="CalculoPro"/></div><div class="actions" id="hdrActions"><button class="btn" id="btnBack" type="button">Voltar ao menu</button></div></div><div class="hintbar" id="hdrHintbar"><div class="hintbar-inner" id="hdrHintbarInner"><div class="hint">Módulo inicial do cálculo cível com separação entre dados e relatório, além da lógica inicial de lançamentos por verba.</div></div></div></header>
+<header class="topbar no-print" id="hdrTopbar"><div class="topbar-inner" id="hdrTopbarInner"><div class="brand" id="hdrBrand"><img class="brand-logo" data-logo="1" src="https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png" alt="CalculoPro"/></div><div class="actions" id="hdrActions"><button class="btn" id="btnBack" type="button">Voltar ao menu</button></div></div><div class="hintbar" id="hdrHintbar"><div class="hintbar-inner" id="hdrHintbarInner"><div class="hint">Fluxo guiado para preencher o processo, compor o cálculo, revisar verbas e gerar o relatório final.</div></div></div></header>
 <main class="wrap">
-  <div class="tabs-head no-print"><div class="tabs-title">Cálculos Cíveis</div><div class="tabs-sub">Protótipo de redesign com dashboard lateral, resumo sticky e navegação por verbas.</div></div>
+  <div class="tabs-head no-print"><div class="tabs-title">Cálculos Cíveis</div><div class="tabs-sub">Preencha os dados do processo, defina a composição do cálculo, edite as verbas ativas e revise o resumo antes do relatório.</div></div>
   <div class="tabs no-print" role="tablist" aria-label="Seções do módulo cível">
     <button class="tab active" id="tabBtnDados" data-tab="dados" type="button" aria-selected="true">Dados</button>
     <button class="tab" id="tabBtnReport" data-tab="report" type="button" aria-selected="false">Relatório</button>
@@ -99,30 +99,36 @@ textarea{min-height:92px;resize:vertical}
 
   <section class="tabpane active" id="tab-dados">
     <section class="grid">
-      <section class="card">
-        <h2>Dados do cálculo</h2>
-        <div class="card-sub">Retângulo padrão com largura 880 para receber as informações iniciais do cálculo cível.</div>
+      <section class="card" id="cardDadosProcesso">
+        <h2>1. Dados do processo</h2>
+        <div class="card-sub">Preencha os dados do processo para contextualizar o cálculo.</div>
         <div class="row">
-          <div class="col-6"><label for="requerente">Requerente</label><input id="requerente" type="text" placeholder="Informe o nome do requerente"></div>
-          <div class="col-6"><label for="requerido">Requerido</label><input id="requerido" type="text" placeholder="Informe o nome do requerido"></div>
+          <div class="col-6"><label for="requerente">Requerente</label><input id="requerente" type="text" placeholder="Nome da parte autora ou requerente"></div>
+          <div class="col-6"><label for="requerido">Requerido</label><input id="requerido" type="text" placeholder="Nome da parte ré ou requerida"></div>
           <div class="col-6"><label for="processo">Número do processo</label><input id="processo" type="text" placeholder="0000000-00.0000.0.00.0000"></div>
-          <div class="col-4"><label for="ajuizamento">Data do ajuizamento</label><input id="ajuizamento" type="date"></div>
-          <div class="col-4"><label for="dataAtualizacao">Data de atualização do cálculo</label><input id="dataAtualizacao" type="date"></div>
-          <div class="col-12"><label for="observacoes">Observações iniciais</label><textarea id="observacoes" placeholder="Campo inicial para registrar o objeto do cálculo, critérios e observações gerais."></textarea></div>
+          <div class="col-3"><label for="ajuizamento">Data do ajuizamento</label><input id="ajuizamento" type="date"></div>
+          <div class="col-3"><label for="dataAtualizacao">Data de atualização</label><input id="dataAtualizacao" type="date"></div>
         </div>
+        <details class="card-secondary-details" id="observacoesIniciaisDetalhes">
+          <summary>Observações iniciais</summary>
+          <div class="card-secondary-body">
+            <label for="observacoes">Anotações gerais</label>
+            <textarea id="observacoes" placeholder="Registre objeto do cálculo, critérios adotados e observações gerais apenas se necessário."></textarea>
+          </div>
+        </details>
       </section>
     </section>
 
     <section class="grid">
       <section class="card" id="cardResumoCalculoCivil">
-        <h2>Resumo do cálculo</h2>
-        <div class="card-sub">Quadro sintético por verba, com honorários e custas atualizados automaticamente.</div>
+        <h2>2. Composição do cálculo</h2>
+        <div class="card-sub">Defina honorários e custas quando necessário. Os indicadores principais aparecem primeiro; os detalhes ficam sob demanda.</div>
         <div class="summary-panels">
           <section class="summary-panel summary-panel-full">
             <div class="summary-panel-headrow">
               <div>
                 <h3 class="summary-panel-title">Honorários</h3>
-                <div class="summary-help">Configuração, base de cálculo e resultado em blocos mais compactos.</div>
+                <div class="summary-help">Configure honorários apenas se eles fizerem parte do cálculo.</div>
               </div>
             </div>
             <div class="summary-block-stack">
@@ -130,7 +136,7 @@ textarea{min-height:92px;resize:vertical}
                 <div class="summary-block-head">
                   <div>
                     <h4 class="summary-block-title">Configuração dos honorários</h4>
-                    <div class="summary-help">Defina a descrição e o percentual aplicados sobre a base selecionada.</div>
+                    <div class="summary-help">Informe a descrição, o percentual e a base de incidência.</div>
                   </div>
                 </div>
                 <div class="row summary-config-row">
@@ -144,10 +150,10 @@ textarea{min-height:92px;resize:vertical}
               <section class="summary-block">
                 <div class="summary-block-head">
                   <div>
-                    <h4 class="summary-block-title">Verbas que compõem a base</h4>
-                    <div class="summary-help">Seleção recolhível com filtro para localizar verbas rapidamente.</div>
+                    <h4 class="summary-block-title">Base de incidência</h4>
+                    <div class="summary-help">Escolha quais verbas compõem a base dos honorários.</div>
                   </div>
-                  <button class="btn" id="btnToggleHonorariosSelector" type="button">Selecionar verbas</button>
+                  <button class="btn" id="btnToggleHonorariosSelector" type="button">Definir base</button>
                 </div>
                 <div id="honorariosSelectedHost" class="summary-chiplist"></div>
                 <div id="honorariosSelectorPanel" class="summary-picker-panel is-collapsed">
@@ -176,9 +182,9 @@ textarea{min-height:92px;resize:vertical}
             <div class="summary-panel-headrow">
               <div>
                 <h3 class="summary-panel-title">Custas</h3>
-                <div class="summary-help">Lançamento em blocos compactos, com atualização imediata do total.</div>
+                <div class="summary-help">Cadastre custas somente quando elas integrarem o valor final.</div>
               </div>
-              <button class="btn" id="btnAddCusta" type="button">Adicionar custa</button>
+              <button class="btn" id="btnAddCusta" type="button">Nova custa</button>
             </div>
             <div class="summary-block-stack">
               <section class="summary-block">
@@ -187,7 +193,7 @@ textarea{min-height:92px;resize:vertical}
               <section class="summary-block">
                 <div class="summary-block-head">
                   <div>
-                    <h4 class="summary-block-title">Resumo das custas</h4>
+                    <h4 class="summary-block-title">Total de custas</h4>
                   </div>
                 </div>
                 <div id="custasResumo" class="summary-meta">Total de custas: 0,00</div>
@@ -195,7 +201,7 @@ textarea{min-height:92px;resize:vertical}
             </div>
           </section>
         </div>
-        <div class="table-wrap summary-table-wrap">
+        <details class="summary-table-disclosure"><summary>Tabela sintética consolidada</summary><div class="table-wrap summary-table-wrap">
           <table class="editor-table summary-table">
             <thead>
               <tr>
@@ -210,33 +216,33 @@ textarea{min-height:92px;resize:vertical}
             </tbody>
             <tfoot id="summaryTableFoot"></tfoot>
           </table>
-        </div>
+        </div></details>
       </section>
     </section>
 
     <section class="grid">
       <section class="card">
-        <h2>Lançamentos do cálculo</h2>
-        <div class="card-sub">Cada verba gera sua própria tabela, separada mês a mês, com coluna de período e coluna de valor. Correção monetária e juros são acumulados da competência até a data de atualização do cálculo. Também é possível incluir colunas adicionais personalizadas, inclusive com fórmulas como (B+C) ou (BxD).</div>
+        <h2>3. Lançamentos por verba</h2>
+        <div class="card-sub">Crie ou selecione uma verba para editar. O editor técnico mensal aparece apenas quando houver uma verba ativa.</div>
         <div class="row">
-          <div class="col-6"><label for="novaVerba">Nome da verba</label><input id="novaVerba" type="text" placeholder="Ex.: Danos materiais, aluguel, juros, correção"></div>
-          <div class="col-3"><label for="periodoInicial">Data inicial</label><input id="periodoInicial" type="date"></div>
-          <div class="col-3"><label for="periodoFinal">Data final</label><input id="periodoFinal" type="date"></div>
+          <div class="col-6"><label for="novaVerba">Nova verba</label><input id="novaVerba" type="text" placeholder="Ex.: Danos materiais, alugueres, multa contratual"></div>
+          <div class="col-3"><label for="periodoInicial">Período inicial</label><input id="periodoInicial" type="date"></div>
+          <div class="col-3"><label for="periodoFinal">Período final</label><input id="periodoFinal" type="date"></div>
         </div>
         <div class="btn-row">
-          <button class="btn-primary" id="btnCriarLancamento" type="button">Lançar cálculo</button>
+          <button class="btn-primary" id="btnCriarLancamento" type="button">Criar verba</button>
           <button class="btn-ghost" id="btnAtualizar" type="button">Atualizar relatório</button>
           <button class="btn-ghost" id="btnLimpar" type="button">Limpar tudo</button>
         </div>
         <div class="launch-selector">
           <div>
-            <label for="launchSelector">Selecionar lançamento</label>
+            <label for="launchSelector">Verba selecionada</label>
             <select id="launchSelector" class="select">
               <option value="">Nenhum lançamento cadastrado</option>
             </select>
           </div>
-          <button class="btn" id="btnRenomearLancamento" type="button">Editar verba</button>
-          <button class="btn-danger" id="btnExcluirLancamentoSelecionado" type="button">Remover verba</button>
+          <button class="btn" id="btnRenomearLancamento" type="button">Editar dados</button>
+          <button class="btn-danger" id="btnExcluirLancamentoSelecionado" type="button">Remover</button>
         </div>
         <div id="launchesHost" style="margin-top:14px"></div>
       </section>
@@ -246,8 +252,8 @@ textarea{min-height:92px;resize:vertical}
   <section class="tabpane" id="tab-report">
     <section class="grid">
       <section class="card no-print" id="cardPreviewRelatorio" style="margin-bottom:14px;">
-        <h2 style="margin-bottom:6px;">Pré-visualização do relatório</h2>
-        <div class="card-sub">A área abaixo é exatamente o que será impresso — com paginação dinâmica conforme os lançamentos cadastrados.</div>
+        <h2 style="margin-bottom:6px;">4. Relatório</h2>
+        <div class="card-sub">Revise o resumo consolidado antes de imprimir ou exportar o relatório.</div>
         <div class="btn-row" style="margin-top:12px;">
           <button class="btn-primary" id="btnImprimir" type="button">Imprimir relatório</button>
         </div>
@@ -332,11 +338,11 @@ textarea{min-height:92px;resize:vertical}
     </div>
     <div class="modal-body">
       <input type="hidden" id="editLaunchIndex">
-      <label for="editLaunchVerba">Nome da verba</label>
+      <label for="editLaunchVerba">Nova verba</label>
       <input id="editLaunchVerba" type="text" placeholder="Ex.: Danos materiais">
       <div class="row">
-        <div class="col-6"><label for="editLaunchDataInicial">Data inicial</label><input id="editLaunchDataInicial" type="date"></div>
-        <div class="col-6"><label for="editLaunchDataFinal">Data final</label><input id="editLaunchDataFinal" type="date"></div>
+        <div class="col-6"><label for="editLaunchDataInicial">Período inicial</label><input id="editLaunchDataInicial" type="date"></div>
+        <div class="col-6"><label for="editLaunchDataFinal">Período final</label><input id="editLaunchDataFinal" type="date"></div>
       </div>
     </div>
     <div class="modal-actions">
@@ -1491,8 +1497,8 @@ textarea{min-height:92px;resize:vertical}
     if (btnToggleHonorariosSelector) {
       btnToggleHonorariosSelector.disabled = !canSelect;
       btnToggleHonorariosSelector.textContent = canSelect
-        ? ((honorariosSelectorOpen ? 'Ocultar verbas' : 'Selecionar verbas') + ' (' + String(selectedLaunches.length) + ')')
-        : 'Selecionar verbas';
+        ? ((honorariosSelectorOpen ? 'Ocultar verbas' : 'Definir base') + ' (' + String(selectedLaunches.length) + ')')
+        : 'Definir base';
     }
 
     if (honorariosSearch) {
