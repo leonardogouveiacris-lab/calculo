@@ -789,6 +789,69 @@
     $(DOM.rTotGeral).textContent = fmtNum(c.totGeralParcelas);
   }
 
+
+  function buildPrintLayout(){
+    const reportRoot = document.getElementById('reportRoot');
+    const c = compute();
+    const branding = {
+      header: state.header,
+      footer: state.footer,
+      logo: (state.logoDataUrl && String(state.logoDataUrl).trim()) ? state.logoDataUrl : LOGO_DATA
+    };
+    const layout = CPPrintLayout.createLayout({
+      root: reportRoot,
+      title: 'RELATÓRIO — PARCELAMENTO ART. 916',
+      meta: 'Processo: ' + (state.processo || '—') + ' • Parcelas: ' + String(c.meses),
+      branding: branding,
+      contextName: 'parcelamento-art916-print',
+      documentTitle: 'Relatorio - Parcelamento Art. 916'
+    });
+
+    CPPrintLayout.appendSection(layout, {
+      title: 'Identificação',
+      html: '<table class="report-table"><tbody>' +
+        '<tr><td class="bold">Autor</td><td>' + escapeHtml(state.autor || '—') + '</td></tr>' +
+        '<tr><td class="bold">Réu</td><td>' + escapeHtml(state.reu || '—') + '</td></tr>' +
+        '<tr><td class="bold">Processo</td><td>' + escapeHtml(state.processo || '—') + '</td></tr>' +
+      '</tbody></table>'
+    });
+
+    const creditRows = state.creditos.map(function(it, i){ return '<tr><td class="center">' + (i + 1) + '</td><td>' + escapeHtml(it.desc) + '</td><td class="right">' + fmtNum(it.valor) + '</td></tr>'; });
+    const debitRows = state.debitos.map(function(it, i){ return '<tr><td class="center">' + (i + 1) + '</td><td>' + escapeHtml(it.desc) + '</td><td class="right">' + fmtNum(it.valor) + '</td></tr>'; });
+
+    CPPrintLayout.appendTable(layout, {
+      title: 'Créditos',
+      columns: ['#', 'Descrição', 'Valor'],
+      rows: creditRows,
+      tableClass: 'report-table',
+      tfootHtml: '<tr><td colspan="2" class="bold right">Total</td><td class="bold right">' + fmtNum(c.totalCred) + '</td></tr>',
+      continuationLabel: 'Créditos (continuação)'
+    });
+
+    CPPrintLayout.appendTable(layout, {
+      title: 'Débitos',
+      columns: ['#', 'Descrição', 'Valor'],
+      rows: debitRows,
+      tableClass: 'report-table',
+      tfootHtml: '<tr><td colspan="2" class="bold right">Total</td><td class="bold right">' + fmtNum(c.totalDeb) + '</td></tr>',
+      continuationLabel: 'Débitos (continuação)'
+    });
+
+    const scheduleRows = c.schedule.map(function(row){
+      return '<tr><td class="center">' + row.n + '</td><td class="center">' + fmtDate(row.due) + '</td><td class="right">' + fmtNum(row.parcela) + '</td><td class="right">' + fmtNum(row.fator) + '</td><td class="right">' + fmtNum(row.corr) + '</td><td class="right">' + fmtNum(row.jurosPct * 100) + '</td><td class="right">' + fmtNum(row.jurosValor) + '</td><td class="right">' + fmtNum(row.total) + '</td></tr>';
+    });
+    CPPrintLayout.appendTable(layout, {
+      title: 'Cronograma de parcelas',
+      columns: ['Nº', 'Vencimento', 'Parcela', 'Fator', 'Correção', 'Juros %', 'Juros', 'Total'],
+      rows: scheduleRows,
+      tableClass: 'report-table',
+      tfootHtml: '<tr><td colspan="4" class="bold right">Totais</td><td class="bold right">' + fmtNum(c.totCorr) + '</td><td></td><td class="bold right">' + fmtNum(c.totJuros) + '</td><td class="bold right">' + fmtNum(c.totGeralParcelas) + '</td></tr>',
+      continuationLabel: 'Cronograma de parcelas (continuação)'
+    });
+
+    return layout;
+  }
+
   /* =====================
      TAB / PRINT
   ====================== */
@@ -822,12 +885,16 @@
     const doPrint = () => {
       setTab("report");
       const reportRoot = document.getElementById("reportRoot");
-      if (!reportRoot || !window.CPPrintLayout || !CPPrintLayout.printRootInHost) {
+      if (!reportRoot || !window.CPPrintLayout || !CPPrintLayout.finalizeAndPrint) {
         setTimeout(() => window.print(), 120);
         return;
       }
       setTimeout(() => {
-        CPPrintLayout.printRootInHost(reportRoot, "parcelamento-art916-print", "Relatorio - Parcelamento Art. 916");
+        const layout = buildPrintLayout();
+        CPPrintLayout.finalizeAndPrint(layout, {
+          contextName: "parcelamento-art916-print",
+          title: "Relatorio - Parcelamento Art. 916"
+        });
       }, 120);
     };
     $(DOM.btnPrint)?.addEventListener("click", doPrint);
