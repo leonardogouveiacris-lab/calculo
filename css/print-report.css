@@ -58,6 +58,16 @@
   min-height:11mm;
 }
 
+
+#reportRoot.cp-report-root img[data-logo="1"],
+body[data-report-context] #cpPrintHost img[data-logo="1"]{
+  width:var(--cp-print-logo-w) !important;
+  height:var(--cp-print-logo-h) !important;
+  max-width:var(--cp-print-logo-w) !important;
+  max-height:var(--cp-print-logo-h) !important;
+  object-fit:contain !important;
+}
+
 #reportRoot.cp-report-root .page .logo,
 #reportRoot.cp-report-root .print-header .logo,
 body[data-report-context] #cpPrintHost .page .logo,
@@ -205,6 +215,7 @@ body[data-report-context] #cpPrintHost .print-header .logo{
   body[data-report-context] #cpPrintHost .cp-report-root{ display:block !important; margin:0 !important; padding:0 !important; }
 
   body[data-report-context] #cpPrintHost .page{
+    padding:var(--cp-print-pad-top) var(--cp-print-pad-x) var(--cp-print-pad-bottom) !important;
     box-shadow:none !important;
     border-radius:0 !important;
     margin:0 !important;

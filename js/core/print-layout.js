@@ -52,7 +52,7 @@
     const data = resolveBranding(branding);
     root.classList.add('cp-report-root');
 
-    root.querySelectorAll('img[data-logo="1"]').forEach(function(img){ img.src = data.logo; });
+    root.querySelectorAll('.page img[data-logo="1"]').forEach(function(img){ img.src = data.logo; });
     root.querySelectorAll('.page .contact').forEach(function(contact){
       const b = contact.querySelector('b');
       const spans = contact.querySelectorAll('span');
