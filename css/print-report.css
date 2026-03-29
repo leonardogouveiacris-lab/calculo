@@ -67,6 +67,7 @@ body[data-report-context] #cpPrintHost img[data-logo="1"]{
   max-height:var(--cp-print-logo-h) !important;
   object-fit:contain !important;
 }
+
 #reportRoot.cp-report-root .page .logo,
 #reportRoot.cp-report-root .print-header .logo,
 body[data-report-context] #cpPrintHost .page .logo,
