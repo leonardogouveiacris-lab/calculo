@@ -804,7 +804,10 @@
     $(DOM.tabBtnEditor).setAttribute("aria-selected", isEditor ? "true" : "false");
     $(DOM.tabBtnReport).setAttribute("aria-selected", !isEditor ? "true" : "false");
 
-    if (!isEditor) renderReport();
+    if (!isEditor) {
+      renderReport();
+      renderPrintPreview();
+    }
   }
 
   /* =====================
@@ -823,12 +826,16 @@
     const doPrint = () => {
       setTab("report");
       const reportRoot = document.getElementById("reportRoot");
-      if (!reportRoot || !window.CPPrintLayout || !CPPrintLayout.printRootInHost) {
+      if (!reportRoot || !window.CPPrintLayout || !CPPrintLayout.finalizeAndPrint) {
         setTimeout(() => window.print(), 120);
         return;
       }
       setTimeout(() => {
-        CPPrintLayout.printRootInHost(reportRoot, "parcelamento-art916-print", "Relatorio - Parcelamento Art. 916");
+        const layout = renderPrintPreview() || buildPrintLayout();
+        CPPrintLayout.finalizeAndPrint(layout, {
+          contextName: "parcelamento-art916-print",
+          title: "Relatorio - Parcelamento Art. 916"
+        });
       }, 120);
     };
     $(DOM.btnPrint)?.addEventListener("click", doPrint);
