@@ -102,16 +102,17 @@
 
     rows.forEach(function(row){
       var tr = document.createElement('tr');
-      var key = root.rowKey(row);
+      var key = root.getRowId(row);
       var tdCheck = document.createElement('td');
       tdCheck.className = 'center';
       var input = document.createElement('input');
       input.type = 'checkbox';
-      input.dataset.key = key;
-      input.checked = root.store.selectedRowKeys.has(key);
+      input.dataset.rowId = key;
+      input.checked = !!key && root.store.selectedRowIds.has(key);
       input.addEventListener('change', function(){
-        if (input.checked) root.store.selectedRowKeys.add(key);
-        else root.store.selectedRowKeys.delete(key);
+        if (!key) return;
+        if (input.checked) root.store.selectedRowIds.add(key);
+        else root.store.selectedRowIds.delete(key);
       });
       tdCheck.appendChild(input);
       tr.appendChild(tdCheck);

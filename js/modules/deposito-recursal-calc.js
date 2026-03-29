@@ -4,19 +4,37 @@
   const ns = global.CPDepositoRecursal = global.CPDepositoRecursal || {};
 
   ns.attachCalc = function(ctx){
-    const { state, el, toBR, parseBCBNumber, compareMonth, monthKeyFromDate, minDepositDate, monthsBetweenInclusive } = ctx;
+    const { state, el, toBR, parseBCBNumber, compareMonth, monthKeyFromDate, minDepositDate, monthsBetweenInclusive, parseISODateUTC, formatISODateUTC } = ctx;
+
+    function addDaysUTC(parts, days){
+      const dt = new Date(Date.UTC(parts.y, parts.m - 1, parts.d + Number(days || 0)));
+      return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
+    }
+
+    function addYearsUTC(parts, years){
+      const dt = new Date(Date.UTC(parts.y + Number(years || 0), parts.m - 1, parts.d));
+      return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
+    }
+
+    function compareISODate(a, b){
+      return formatISODateUTC(a).localeCompare(formatISODateUTC(b));
+    }
 
     async function fetchSeries(code, startDateISO, endDateISO) {
       const all = [];
-      let curStart = new Date(startDateISO + 'T00:00:00');
-      const endDate = new Date(endDateISO + 'T00:00:00');
-      while (curStart <= endDate) {
-        const curEnd = new Date(curStart); curEnd.setFullYear(curEnd.getFullYear() + 9); if (curEnd > endDate) curEnd.setTime(endDate.getTime());
-        const url = 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.' + code + '/dados?formato=json&dataInicial=' + encodeURIComponent(toBR(curStart.toISOString().slice(0,10))) + '&dataFinal=' + encodeURIComponent(toBR(curEnd.toISOString().slice(0,10)));
+      let curStart = parseISODateUTC(startDateISO);
+      const endDate = parseISODateUTC(endDateISO);
+      if (!curStart || !endDate) return all;
+      while (compareISODate(curStart, endDate) <= 0) {
+        let curEnd = addYearsUTC(curStart, 9);
+        if (compareISODate(curEnd, endDate) > 0) curEnd = endDate;
+        const curStartIso = formatISODateUTC(curStart);
+        const curEndIso = formatISODateUTC(curEnd);
+        const url = 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.' + code + '/dados?formato=json&dataInicial=' + encodeURIComponent(toBR(curStartIso)) + '&dataFinal=' + encodeURIComponent(toBR(curEndIso));
         let part;
         try { part = await CPCommon.fetchJson(url, { timeoutMs: 15000 }); } catch (error) { throw new Error('Falha ao buscar série ' + code + ' no BCB: ' + error.message); }
         if (Array.isArray(part)) all.push.apply(all, part);
-        curStart = new Date(curEnd); curStart.setDate(curStart.getDate() + 1);
+        curStart = addDaysUTC(curEnd, 1);
       }
       return all;
     }

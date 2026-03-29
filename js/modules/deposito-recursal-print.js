@@ -10,13 +10,6 @@
     const DETAIL_LINES_NEXT_PAGES = 24;
     const MIN_LINES_LAST_PAGE = 3;
 
-    function reportBranding(){
-      return {
-        header: state.header || {},
-        footer: state.footer || {},
-        logo: (state.logoDataUrl && String(state.logoDataUrl).trim()) ? state.logoDataUrl : global.CPPrintLayout.defaults.logo
-      };
-    }
 
     function el(tag, className, text){
       const node = document.createElement(tag);
@@ -31,9 +24,9 @@
         includeTitle: includeTitle,
         title: 'ATUALIZAÇÃO BANCÁRIA — DEPÓSITO RECURSAL',
         meta: 'Índice bancário: ' + (result.indexLabel || '-') + ' • Data final: ' + (result.end ? toDateBR(result.end) : '-') + ' • Total atualizado: ' + fmtBRL(result.totalUpdated || 0),
-        logo: reportBranding().logo,
-        header: reportBranding().header,
-        footer: reportBranding().footer,
+        logo: ctx.getReportBranding().logo,
+        header: ctx.getReportBranding().header,
+        footer: ctx.getReportBranding().footer,
         contentHtml: ''
       });
     }
@@ -259,7 +252,7 @@
       appendSources(reportRoot, result, nextPageIndex);
       cleanupPages(reportRoot);
 
-      global.CPPrintLayout.applyReportBranding(reportRoot, reportBranding());
+      global.CPPrintLayout.applyReportBranding(reportRoot, ctx.getReportBranding());
       await waitForLayout(reportRoot);
       reportRoot.scrollIntoView({ behavior:'smooth', block:'start' });
     }

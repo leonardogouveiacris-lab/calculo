@@ -4,7 +4,7 @@
   const ns = global.CPDepositoRecursal = global.CPDepositoRecursal || {};
 
   ns.attachRender = function(ctx){
-    const { state, el, fmtBRL, toDateBR, monthLabel, esc, compareMonth, DEFAULT_HEADER, DEFAULT_FOOTER } = ctx;
+    const { state, el, fmtBRL, toDateBR, monthLabel, esc, compareMonth } = ctx;
 
     function toast(title, message, kind){
       const wrap = document.getElementById('toastWrap');
@@ -114,10 +114,17 @@
       if (el.tabBtnReport){ el.tabBtnReport.classList.toggle('active', !isEditor); el.tabBtnReport.setAttribute('aria-selected', String(!isEditor)); }
     }
 
+    function getReportBranding(){
+      return {
+        header: state.header || {},
+        footer: state.footer || {},
+        logo: (state.logoDataUrl && String(state.logoDataUrl).trim()) ? state.logoDataUrl : global.CPPrintLayout.defaults.logo
+      };
+    }
+
     function renderReportHeaderFooter(){
-      const data = { header: DEFAULT_HEADER, footer: DEFAULT_FOOTER, logo: 'https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png' };
       if (global.CPPrintLayout) {
-        global.CPPrintLayout.applyReportBranding(document.getElementById('reportRoot'), data);
+        global.CPPrintLayout.applyReportBranding(document.getElementById('reportRoot'), getReportBranding());
       }
     }
 
@@ -139,7 +146,7 @@
       return '<p>Índices inseridos manualmente com base na tabela do Juízo/Tribunal.</p>';
     }
 
-    Object.assign(ctx, { toast, setAutoStatus, updateIndexTypeUI, closeConfirm, openConfirm, renderDeposits, renderIndices, switchTab, renderReportHeaderFooter, renderReportInfo, fontesHTML });
+    Object.assign(ctx, { toast, setAutoStatus, updateIndexTypeUI, closeConfirm, openConfirm, renderDeposits, renderIndices, switchTab, getReportBranding, renderReportHeaderFooter, renderReportInfo, fontesHTML });
   };
 
   global.CPDepositoRecursalRenderLoaded = true;

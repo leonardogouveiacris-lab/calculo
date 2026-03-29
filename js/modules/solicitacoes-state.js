@@ -32,7 +32,7 @@
       currentClient: '(Todos)',
       selectedReclamadas: new Set(),
       competenciaAtual: '—',
-      selectedRowKeys: new Set(),
+      selectedRowIds: new Set(),
       sortMode: 'date_desc',
       header: Object.assign({}, DEFAULT_HEADER),
       footer: Object.assign({}, DEFAULT_FOOTER),
@@ -45,7 +45,7 @@
     store.currentRows = [];
     store.currentClient = '(Todos)';
     store.selectedReclamadas.clear();
-    store.selectedRowKeys.clear();
+    store.selectedRowIds.clear();
     store.competenciaAtual = '—';
   }
 

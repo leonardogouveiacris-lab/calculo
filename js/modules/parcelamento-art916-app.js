@@ -375,8 +375,33 @@
     return merged;
   }
 
+  const IMPORT_MAX_BYTES = 2 * 1024 * 1024;
+  const EXPORT_SCHEMA_VERSION = 1;
+
+  function wrapExportPayload(data) {
+    return {
+      schemaVersion: EXPORT_SCHEMA_VERSION,
+      generatedAt: new Date().toISOString(),
+      data,
+    };
+  }
+
+  function unwrapImportPayload(payload) {
+    if (!payload || typeof payload !== "object") return payload;
+    const hasEnvelope = Object.prototype.hasOwnProperty.call(payload, "schemaVersion");
+    if (!hasEnvelope) return payload;
+    if (!Object.prototype.hasOwnProperty.call(payload, "data") || typeof payload.data !== "object") {
+      throw new Error("Arquivo inválido: envelope sem campo data.");
+    }
+    if (Number(payload.schemaVersion) > EXPORT_SCHEMA_VERSION) {
+      throw new Error("Versão de arquivo mais nova que o app atual.");
+    }
+    return payload.data;
+  }
+
   function exportJSON() {
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    const payload = wrapExportPayload(state);
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "parcelamento_art916_dados.json";
@@ -389,13 +414,23 @@
   async function importJSON(ev) {
     const file = ev?.target?.files?.[0];
     if (!file) return;
-    const text = await file.text();
-    const parsed = JSON.parse(text);
-    state = normalizeImportedState(parsed);
-    saveState();
-    persistAndRender(true);
-    toast("Importado com sucesso", file.name);
-    try { ev.target.value = ""; } catch (error) { console.warn("Falha ao limpar campo de arquivo.", error); }
+    if (file.size > IMPORT_MAX_BYTES) {
+      alert("Arquivo JSON muito grande (limite: 2MB).\n\nDica: exporte novamente pelo sistema e reimporte.");
+      try { ev.target.value = ""; } catch (error) { console.warn("Falha ao limpar campo de arquivo.", error); }
+      return;
+    }
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      state = normalizeImportedState(unwrapImportPayload(parsed));
+      saveState();
+      persistAndRender(true);
+      toast("Importado com sucesso", file.name);
+    } catch (error) {
+      alert("Falha ao importar JSON: " + (error?.message || String(error)));
+    } finally {
+      try { ev.target.value = ""; } catch (error) { console.warn("Falha ao limpar campo de arquivo.", error); }
+    }
   }
 
   /* =====================
@@ -956,10 +991,26 @@
     window.addEventListener("beforeprint", () => setTab("report"));
   }
 
+  const debouncedPersistAndRenderReport = (() => {
+    let timer = null;
+    return () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        saveState();
+        renderReport();
+      }, 160);
+    };
+  })();
+
   function persistAndRender(rerenderEditors = true) {
-    saveState();
-    if (rerenderEditors) renderEditors();
-    renderReport();
+    if (rerenderEditors) {
+      saveState();
+      renderEditors();
+      renderReport();
+      return;
+    }
+    debouncedPersistAndRenderReport();
   }
 
   /* =====================
@@ -972,173 +1023,10 @@
     setTab("editor");
   }
 
-  // Expor algumas funções para patches (compat)
-  window.state = state;
-  window.DEFAULT_STATE = DEFAULT_STATE;
-  window.persistAndRender = persistAndRender;
-  window.normalizeImportedState = normalizeImportedState;
-  window.exportJSON = exportJSON;
-  window.importJSON = importJSON;
-  window.setTab = setTab;
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init, { once: true });
   } else {
     init();
   }
-})();
-
-/*
-  PATCH CIRÚRGICO (2026-03-05)
-  1) Reset: limpar corretamente o campo de processo (inProc)
-  2) Links de e-mail: manter ID legado (compatibilidade) e expor IDs válidos (rHdrEmailLink*)
-  3) Import/Export JSON: adicionar envelope com schemaVersion e aceitar formatos antigos
-  4) Performance: debouncer para persistAndRender(false) (digitação em tabelas)
-  5) Formatação automática de valores monetários (pt-BR: 0.000,00)
-*/
-(function(){
-  const $ = (id)=>document.getElementById(id);
-
-  function onReady(fn){
-    if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", fn, {once:true});
-    else fn();
-  }
-
-  // 1) Reset: garantir limpeza do Nº do processo
-  onReady(()=>{
-    document.addEventListener("click", (ev)=>{
-      const t = ev.target;
-      if(!(t instanceof HTMLElement)) return;
-      if(t.id !== "btnReset" && t.closest("#btnReset") == null) return;
-      const proc = $("inProc");
-      if(proc) proc.value = "";
-    }, true);
-  });
-
-  // 2) Sincroniza links de e-mail: legado -> novo
-  function syncEmailLinks(){
-    const map = [
-      ["suporte@calculopro.com.br",  "rHdrEmailLink"],
-      ["suporte@calculopro.com.br2", "rHdrEmailLink2"],
-      ["suporte@calculopro.com.br3", "rHdrEmailLink3"],
-    ];
-    for(const [legacyId, newId] of map){
-      const legacy = $(legacyId);
-      const modern = $(newId);
-      if(!legacy || !modern) continue;
-      modern.textContent = legacy.textContent || "";
-      const href = legacy.getAttribute("href");
-      if(href) modern.setAttribute("href", href);
-      else modern.removeAttribute("href");
-      modern.setAttribute("rel","noreferrer");
-    }
-  }
-
-  // 3) Envelope de versão no JSON (retrocompatível)
-  function wrapExportPayload(data){
-    return { schemaVersion: 1, generatedAt: new Date().toISOString(), data };
-  }
-  function unwrapImportPayload(obj){
-    if(obj && typeof obj === "object" && "schemaVersion" in obj && obj.data && typeof obj.data === "object"){
-      return obj.data;
-    }
-    return obj;
-  }
-
-  onReady(()=>{
-    // Override exportJSON se existir
-    if(typeof window.exportJSON === "function"){
-      const original = window.exportJSON;
-      window.exportJSON = function(){
-        try{
-          const payload = wrapExportPayload(window.state);
-          const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(blob);
-          a.download = "parcelamento_art916_dados.json";
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          URL.revokeObjectURL(a.href);
-        }catch(e){
-          return original.apply(this, arguments);
-        }
-      };
-    }
-
-    // Override normalizeImportedState para aceitar envelope
-    if(typeof window.normalizeImportedState === "function"){
-      const originalNormalize = window.normalizeImportedState;
-      window.normalizeImportedState = function(data){
-        return originalNormalize.call(this, unwrapImportPayload(data));
-      };
-    }
-
-    // Override importJSON para validar tamanho
-    if(typeof window.importJSON === "function"){
-      const originalImport = window.importJSON;
-      window.importJSON = async function(ev){
-        const file = ev && ev.target && ev.target.files && ev.target.files[0];
-        if(file && file.size > 2 * 1024 * 1024){
-          alert("Arquivo JSON muito grande (limite: 2MB).\n\nDica: exporte novamente pelo sistema e reimporte.");
-          try{ ev.target.value = ""; }catch(_){}
-          return;
-        }
-        return originalImport.apply(this, arguments);
-      };
-    }
-
-    // 4) Debounce de persistAndRender(false)
-    if(typeof window.persistAndRender === "function"){
-      const original = window.persistAndRender;
-      let timer = null;
-      window.persistAndRender = function(rerenderEditors=true){
-        if(rerenderEditors === false){
-          if(timer) clearTimeout(timer);
-          timer = setTimeout(()=>{ timer = null; original(false); try{ syncEmailLinks(); }catch(_){} }, 160);
-          return;
-        }
-        const res = original.apply(this, arguments);
-        try{ syncEmailLinks(); }catch(_){}
-        return res;
-      };
-    }
-
-    try{ syncEmailLinks(); }catch(_){}
-  });
-
-  // 5) Formatação automática de valores monetários (pt-BR: 0.000,00)
-  function formatCurrencyBR(n){
-    const num = Number(n);
-    if(!isFinite(num)) return "";
-    return num.toLocaleString("pt-BR",{minimumFractionDigits:2, maximumFractionDigits:2});
-  }
-  function parseCurrencyBR(v){
-    if(v === null || v === undefined) return 0;
-    if(typeof v !== "string") return Number(v)||0;
-    const s = v.trim();
-    if(!s) return 0;
-    return Number(s.replace(/\./g,"").replace(",", ".")) || 0;
-  }
-  function applyCurrencyMask(input){
-    input.addEventListener("blur",()=>{
-      const num = parseCurrencyBR(input.value);
-      input.value = formatCurrencyBR(num);
-    });
-  }
-  function scanCurrencyInputs(){
-    const nodes = document.querySelectorAll(".editor-table input[data-key='valor'], .editor-table input[data-key='value'], input.currency");
-    nodes.forEach(el=>{
-      if(el.dataset.currencyBound) return;
-      el.dataset.currencyBound="1";
-      applyCurrencyMask(el);
-      const n = parseCurrencyBR(el.value);
-      if(el.value) el.value = formatCurrencyBR(n);
-    });
-  }
-  onReady(()=>{
-    const observer = new MutationObserver(()=>scanCurrencyInputs());
-    observer.observe(document.body,{childList:true,subtree:true});
-    scanCurrencyInputs();
-  });
 })();

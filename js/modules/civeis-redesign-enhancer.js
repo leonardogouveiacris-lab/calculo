@@ -4,6 +4,15 @@
     else fn();
   }
 
+  function debounce(fn, wait){
+    var timer = null;
+    return function(){
+      var args = arguments;
+      clearTimeout(timer);
+      timer = setTimeout(function(){ fn.apply(null, args); }, wait);
+    };
+  }
+
   ready(function(){
     document.body.classList.add('redesign-ui');
     buildDashboardLayout();
@@ -144,19 +153,40 @@
       });
 
       if (!filtered.length) {
-        list.innerHTML = '<div class="redesign-launch-empty">Nenhuma verba encontrada com esse filtro.</div>';
+        CPCommon.clear(list);
+        var empty = document.createElement('div');
+        empty.className = 'redesign-launch-empty';
+        empty.textContent = 'Nenhuma verba encontrada com esse filtro.';
+        list.appendChild(empty);
         return;
       }
 
-      list.innerHTML = filtered.map(function(opt){
+      var existing = new Map();
+      Array.prototype.slice.call(list.querySelectorAll('button.redesign-launch-item')).forEach(function(btn){
+        existing.set(btn.getAttribute('data-value') || '', btn);
+      });
+      var fragment = document.createDocumentFragment();
+      filtered.forEach(function(opt){
+        var key = String(opt.value || '');
         var parsed = parseOptionText(opt.textContent);
-        var active = String(opt.value) === String(selector.value);
-        return '' +
-          '<button type="button" class="redesign-launch-item' + (active ? ' is-active' : '') + '" data-value="' + escapeHtml(opt.value) + '">' +
-            '<span class="redesign-launch-item-title">' + escapeHtml(parsed.title) + '</span>' +
-            '<span class="redesign-launch-item-meta">' + escapeHtml(parsed.meta || 'Clique para abrir o editor da verba.') + '</span>' +
-          '</button>';
-      }).join('');
+        var active = key === String(selector.value);
+        var btn = existing.get(key) || document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'redesign-launch-item' + (active ? ' is-active' : '');
+        btn.setAttribute('data-value', key);
+
+        var title = btn.querySelector('.redesign-launch-item-title');
+        if (!title) { title = document.createElement('span'); title.className = 'redesign-launch-item-title'; btn.appendChild(title); }
+        title.textContent = parsed.title;
+
+        var metaText = btn.querySelector('.redesign-launch-item-meta');
+        if (!metaText) { metaText = document.createElement('span'); metaText.className = 'redesign-launch-item-meta'; btn.appendChild(metaText); }
+        metaText.textContent = parsed.meta || 'Clique para abrir o editor da verba.';
+
+        fragment.appendChild(btn);
+      });
+      CPCommon.clear(list);
+      list.appendChild(fragment);
     }
 
     if (!selector.dataset.redesignNavBound) {
@@ -170,7 +200,11 @@
         selector.dispatchEvent(new Event('change', { bubbles:true }));
       });
 
-      new MutationObserver(render).observe(selector, { childList:true, subtree:true, characterData:true, attributes:true });
+      var rerender = debounce(render, 80);
+      if (!selector._redesignNavObserver) {
+        selector._redesignNavObserver = new MutationObserver(rerender);
+        selector._redesignNavObserver.observe(selector, { childList:true, subtree:true, characterData:true, attributes:true });
+      }
     }
 
     render();
@@ -224,9 +258,12 @@
 
     if (!summaryCard.dataset.redesignKpiBound) {
       summaryCard.dataset.redesignKpiBound = '1';
+      var debouncedUpdate = debounce(update, 100);
       ['summaryTableFoot','summaryTableBody','honorariosResumo','custasResumo','launchSelector'].forEach(function(id){
         var node = document.getElementById(id);
-        if (node) new MutationObserver(update).observe(node, { childList:true, subtree:true, characterData:true });
+        if (!node || node._redesignKpiObserver) return;
+        node._redesignKpiObserver = new MutationObserver(debouncedUpdate);
+        node._redesignKpiObserver.observe(node, { childList:true, subtree:true, characterData:true });
       });
       var honorariosEnabled = document.getElementById('honorariosEnabled');
       if (honorariosEnabled) honorariosEnabled.addEventListener('change', update);
@@ -239,7 +276,9 @@
     var launchesHost = document.getElementById('launchesHost');
     if (!launchesHost || launchesHost.dataset.redesignObserverBound) return;
     launchesHost.dataset.redesignObserverBound = '1';
-    new MutationObserver(enhanceLaunchCards).observe(launchesHost, { childList:true, subtree:true });
+    var debouncedEnhance = debounce(enhanceLaunchCards, 100);
+    launchesHost._redesignObserver = new MutationObserver(debouncedEnhance);
+    launchesHost._redesignObserver.observe(launchesHost, { childList:true, subtree:true });
   }
 
   function enhanceLaunchCards(){
