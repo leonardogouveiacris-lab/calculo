@@ -35,10 +35,10 @@
 }
 
 #reportRoot.cp-report-root .page{
-  width:880px;
-  max-width:880px;
-  min-height:1122.52px;
-  height:1122.52px;
+  width:var(--cp-print-page-w);
+  max-width:var(--cp-print-page-w);
+  min-height:var(--cp-print-page-h);
+  height:var(--cp-print-page-h);
   background:#fff;
   margin:0 auto 18px;
   padding:var(--cp-print-pad-top) var(--cp-print-pad-x) var(--cp-print-pad-bottom);
@@ -82,7 +82,7 @@ body[data-report-context] #cpPrintHost .print-header .logo{
   min-height:0;
   overflow:hidden;
   padding-top:var(--cp-print-content-top);
-  padding-bottom:var(--cp-print-safe-bottom);
+  padding-bottom:calc(var(--cp-print-safe-bottom) + 18mm);
 }
 
 #reportRoot.cp-report-root .page .title{
@@ -158,12 +158,16 @@ body[data-report-context] #cpPrintHost .print-header .logo{
 }
 
 #reportRoot.cp-report-root .page .footer{
+  position:absolute;
+  left:var(--cp-print-pad-x);
+  right:var(--cp-print-pad-x);
+  bottom:var(--cp-print-pad-bottom);
   display:flex;
   justify-content:space-between;
   align-items:flex-end;
   gap:12px;
   font-size:var(--cp-print-fs-footer);
-  padding-top:4mm;
+  min-height:12mm;
 }
 
 #reportRoot.cp-report-root .right{ text-align:right; }
@@ -216,5 +220,14 @@ body[data-report-context] #cpPrintHost .print-header .logo{
   body[data-report-context] #cpPrintHost .page:last-child{
     page-break-after:auto !important;
     break-after:auto !important;
+  }
+}
+
+
+@media print{
+  body:not([data-report-context]) #reportRoot.cp-report-root .page{
+    box-shadow:none !important;
+    border-radius:0 !important;
+    margin:0 !important;
   }
 }

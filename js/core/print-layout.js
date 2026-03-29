@@ -410,6 +410,34 @@
       .then(function(){ return result; });
   }
 
+
+  function prepareManualPrintContext(){
+    if (document.body.getAttribute('data-report-context')) return;
+    const reportRoot = document.getElementById('reportRoot');
+    if (!reportRoot || !reportRoot.querySelector('.page')) return;
+    const host = ensurePrintHost();
+    host.innerHTML = '';
+    const cloned = reportRoot.cloneNode(true);
+    cloned.classList.add('cp-report-root');
+    host.appendChild(cloned);
+    document.body.setAttribute('data-report-context', 'manual-report-print');
+    document.body.setAttribute('data-report-context-auto', '1');
+  }
+
+  function cleanupManualPrintContext(){
+    if (document.body.getAttribute('data-report-context-auto') !== '1') return;
+    const host = ensurePrintHost();
+    host.innerHTML = '';
+    document.body.removeAttribute('data-report-context-auto');
+    document.body.removeAttribute('data-report-context');
+  }
+
+  if (!global.__CP_PRINT_LAYOUT_BINDINGS__) {
+    global.__CP_PRINT_LAYOUT_BINDINGS__ = true;
+    global.addEventListener('beforeprint', prepareManualPrintContext);
+    global.addEventListener('afterprint', cleanupManualPrintContext);
+  }
+
   global.CPPrintLayout = {
     defaults: DEFAULTS,
     resolveBranding: resolveBranding,

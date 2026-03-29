@@ -6,6 +6,7 @@
 
   ns.attachPrint = function(ctx){
     const { state, fmtBRL, toDateBR, monthLabel } = ctx;
+    let lastRenderedResult = null;
 
     function rowHtml(cells){
       return '<tr>' + cells.map(function(cell){
@@ -95,6 +96,7 @@
       const reportRoot = document.getElementById('reportRoot');
       if (!reportRoot) return ctx.toast('Erro', 'Área de relatório não encontrada.', 'err');
       ctx.switchTab('report');
+      lastRenderedResult = result;
       const layout = createLayout(result);
       appendIntro(layout, result);
       appendDepositTables(layout, result);
@@ -112,12 +114,12 @@
       if (!global.CPPrintLayout || !global.CPPrintLayout.finalizeAndPrint) {
         return ctx.toast('Erro', 'Engine de impressão indisponível.', 'err');
       }
-      const fakeResult = ctx.calc && ctx.calc();
-      if (!fakeResult) return ctx.toast('Erro', 'Não foi possível preparar impressão.', 'err');
-      const layout = createLayout(fakeResult);
-      appendIntro(layout, fakeResult);
-      appendDepositTables(layout, fakeResult);
-      appendSources(layout, fakeResult);
+      const result = lastRenderedResult || (ctx.calc && ctx.calc());
+      if (!result) return ctx.toast('Erro', 'Não foi possível preparar impressão.', 'err');
+      const layout = createLayout(result);
+      appendIntro(layout, result);
+      appendDepositTables(layout, result);
+      appendSources(layout, result);
       return CPPrintLayout.finalizeAndPrint(layout, {
         contextName: 'deposito-recursal-print',
         title: 'Atualização Bancária - Depósito Recursal'

@@ -790,6 +790,17 @@
   }
 
 
+  function renderPrintPreview(){
+    if (!window.CPPrintLayout) return;
+    const layout = buildPrintLayout();
+    CPPrintLayout.applyReportBranding(document.getElementById('reportRoot'), {
+      header: state.header,
+      footer: state.footer,
+      logo: (state.logoDataUrl && String(state.logoDataUrl).trim()) ? state.logoDataUrl : LOGO_DATA
+    });
+    return layout;
+  }
+
   function buildPrintLayout(){
     const reportRoot = document.getElementById('reportRoot');
     const c = compute();
@@ -866,7 +877,10 @@
     $(DOM.tabBtnEditor).setAttribute("aria-selected", isEditor ? "true" : "false");
     $(DOM.tabBtnReport).setAttribute("aria-selected", !isEditor ? "true" : "false");
 
-    if (!isEditor) renderReport();
+    if (!isEditor) {
+      renderReport();
+      renderPrintPreview();
+    }
   }
 
   /* =====================
@@ -890,7 +904,7 @@
         return;
       }
       setTimeout(() => {
-        const layout = buildPrintLayout();
+        const layout = renderPrintPreview() || buildPrintLayout();
         CPPrintLayout.finalizeAndPrint(layout, {
           contextName: "parcelamento-art916-print",
           title: "Relatorio - Parcelamento Art. 916"
