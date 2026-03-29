@@ -49,6 +49,17 @@
     return String(date.getUTCDate()).padStart(2, '0') + '/' + String(date.getUTCMonth() + 1).padStart(2, '0') + '/' + date.getUTCFullYear();
   }
 
+  function nextRowId(){
+    root._rowSeq = (root._rowSeq || 0) + 1;
+    return 'row_' + root._rowSeq;
+  }
+
+  function withRowId(row){
+    var copy = Object.assign({}, row || {});
+    copy._rowId = copy._rowId ? String(copy._rowId) : nextRowId();
+    return copy;
+  }
+
   function normalizeAndFormat(data){
     var rows = (data || []).map(function(row){
       var normalized = {};
@@ -66,7 +77,7 @@
         }
         normalized[column] = raw == null ? '' : raw;
       });
-      return normalized;
+      return withRowId(normalized);
     });
 
     rows.sort(function(a, b){
@@ -81,28 +92,93 @@
     return rows;
   }
 
+  function detectSeparator(headerLine){
+    var candidates = [',', ';', '\t'];
+    var best = ',';
+    var bestScore = -1;
+    candidates.forEach(function(sep){
+      var score = 0;
+      var inQuotes = false;
+      for (var i = 0; i < headerLine.length; i += 1) {
+        var ch = headerLine[i];
+        if (ch === '"') {
+          if (inQuotes && headerLine[i + 1] === '"') i += 1;
+          else inQuotes = !inQuotes;
+          continue;
+        }
+        if (!inQuotes && ch === sep) score += 1;
+      }
+      if (score > bestScore) {
+        best = sep;
+        bestScore = score;
+      }
+    });
+    return best;
+  }
+
   function parseCSV(text){
-    var clean = String(text || '').replace(/^\uFEFF/, '');
-    var lines = clean.split(/\r?\n/).filter(function(line){ return line.trim() !== ''; });
-    if (!lines.length) return [];
-    var separators = [',',';','\t'];
-    var headerLine = lines[0];
-    var separator = separators.map(function(item){ return { sep: item, count: headerLine.split(item).length }; }).sort(function(a, b){ return b.count - a.count; })[0].sep;
-    var headers = headerLine.split(separator).map(function(cell){ return cell.trim(); });
-    return lines.slice(1).map(function(line){
-      var cols = line.split(separator);
-      var row = {};
-      headers.forEach(function(header, index){ row[header] = (cols[index] || '').trim(); });
-      return row;
+    var source = String(text || '').replace(/^\uFEFF/, '');
+    if (!source.trim()) return [];
+
+    var firstLineEnd = source.search(/\r?\n/);
+    var headerLine = firstLineEnd >= 0 ? source.slice(0, firstLineEnd) : source;
+    var separator = detectSeparator(headerLine);
+
+    var rows = [];
+    var row = [];
+    var cell = '';
+    var inQuotes = false;
+
+    for (var i = 0; i < source.length; i += 1) {
+      var ch = source[i];
+      var next = source[i + 1];
+
+      if (ch === '"') {
+        if (inQuotes && next === '"') {
+          cell += '"';
+          i += 1;
+        } else {
+          inQuotes = !inQuotes;
+        }
+        continue;
+      }
+
+      if (!inQuotes && ch === separator) {
+        row.push(cell);
+        cell = '';
+        continue;
+      }
+
+      if (!inQuotes && (ch === '\n' || ch === '\r')) {
+        if (ch === '\r' && next === '\n') i += 1;
+        row.push(cell);
+        rows.push(row);
+        row = [];
+        cell = '';
+        continue;
+      }
+
+      cell += ch;
+    }
+
+    row.push(cell);
+    rows.push(row);
+
+    var meaningful = rows.filter(function(r){
+      return r.some(function(c){ return String(c || '').trim() !== ''; });
+    });
+    if (!meaningful.length) return [];
+
+    var headers = meaningful[0].map(function(value){ return String(value || '').trim(); });
+    return meaningful.slice(1).map(function(values){
+      var out = {};
+      headers.forEach(function(header, index){ out[header] = String(values[index] == null ? '' : values[index]).trim(); });
+      return out;
     });
   }
 
-  function rowKey(row){
-    var data = String((row && row['Entrega em']) || '').trim();
-    var proc = String((row && row['Numero do Processo']) || '').trim();
-    var recl = String((row && row['Reclamante']) || '').trim();
-    var total = String((row && row['Total (Total)']) || '').trim();
-    return data + '||' + proc + '||' + recl + '||' + total;
+  function getRowId(row){
+    return row && row._rowId ? String(row._rowId) : '';
   }
 
   root.canonical = canonical;
@@ -111,8 +187,9 @@
   root.toBRL = toBRL;
   root.parseDateAny = parseDateAny;
   root.dateBR = dateBR;
+  root.withRowId = withRowId;
+  root.getRowId = getRowId;
   root.normalizeAndFormat = normalizeAndFormat;
   root.parseCSV = parseCSV;
-  root.rowKey = rowKey;
   root.importModuleLoaded = true;
 })();

@@ -53,7 +53,7 @@
   function afterImport(data){
     store.allRows = root.normalizeAndFormat(data);
     store.currentRows = store.allRows.slice();
-    store.selectedRowKeys.clear();
+    store.selectedRowIds.clear();
 
     var clients = Array.from(new Set(store.allRows.map(function(row){ return String(row['Contato: Primeiro nome'] || '').trim(); }).filter(Boolean)))
       .sort(function(a, b){ return a.localeCompare(b); });
@@ -104,12 +104,12 @@
 
   function selectAllFiltered(){
     if (!store.currentRows.length) return;
-    store.currentRows.forEach(function(row){ store.selectedRowKeys.add(root.rowKey(row)); });
+    store.currentRows.forEach(function(row){ var rowId = root.getRowId(row); if (rowId) store.selectedRowIds.add(rowId); });
     root.renderTable(store.currentRows);
   }
 
   function clearSelection(){
-    store.selectedRowKeys.clear();
+    store.selectedRowIds.clear();
     root.renderTable(store.currentRows);
   }
 
