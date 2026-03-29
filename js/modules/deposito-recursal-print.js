@@ -114,16 +114,12 @@
       if (!global.CPPrintLayout || !global.CPPrintLayout.finalizeAndPrint) {
         return ctx.toast('Erro', 'Engine de impressão indisponível.', 'err');
       }
-      const result = lastRenderedResult || (ctx.calc && ctx.calc());
-      if (!result) return ctx.toast('Erro', 'Não foi possível preparar impressão.', 'err');
-      const layout = createLayout(result);
-      appendIntro(layout, result);
-      appendDepositTables(layout, result);
-      appendSources(layout, result);
-      return CPPrintLayout.finalizeAndPrint(layout, {
-        contextName: 'deposito-recursal-print',
-        title: 'Atualização Bancária - Depósito Recursal'
-      });
+      await CPPrintLayout.waitForLayout(reportRoot);
+      return CPPrintLayout.printRootInHost(
+        reportRoot,
+        'deposito-recursal-print',
+        'Atualização Bancária - Depósito Recursal'
+      );
     }
 
     Object.assign(ctx, { renderReport, openPrintWindow });
