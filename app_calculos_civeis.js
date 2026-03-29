@@ -1799,8 +1799,11 @@
   renderSummaryPanel();
   buildReport(collect());
   if ($('tab-report') && $('tab-report').classList.contains('active')) renderReportDeferred();
-  state.lancamentos.forEach(function(lancamento, index){
-    if (launchNeedsIndexRefresh(lancamento) || !(lancamento.indexConfig && lancamento.indexConfig.lastAutoRefresh)) updateIndicesForLaunch(index);
-  });
+  setTimeout(function(){
+    state.lancamentos.forEach(function(lancamento, index){
+      if (!(launchNeedsIndexRefresh(lancamento) || !(lancamento.indexConfig && lancamento.indexConfig.lastAutoRefresh))) return;
+      Promise.resolve().then(function(){ return updateIndicesForLaunch(index); }).catch(function(){ });
+    });
+  }, 0);
 })();
 

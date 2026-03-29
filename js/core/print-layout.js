@@ -26,6 +26,27 @@
     }
   };
 
+
+  function ensurePrintCssVars(root){
+    const doc = root && root.ownerDocument ? root.ownerDocument : document;
+    const el = doc.documentElement;
+    if (!el || !el.style) return;
+    const map = {
+      '--cp-print-logo-w': '164.41px',
+      '--cp-print-logo-h': '45.34px',
+      '--cp-print-page-w': '210mm',
+      '--cp-print-page-h': '297mm',
+      '--cp-print-pad-top': '9mm',
+      '--cp-print-pad-x': '16mm',
+      '--cp-print-pad-bottom': '10mm',
+      '--cp-print-content-top': '6mm',
+      '--cp-print-safe-bottom': '8mm'
+    };
+    Object.keys(map).forEach(function(key){
+      if (!el.style.getPropertyValue(key)) el.style.setProperty(key, map[key]);
+    });
+  }
+
   function safeHref(url){
     const value = String(url || '').trim();
     if (!value) return '#';
@@ -50,6 +71,7 @@
     const root = reportRoot || document.getElementById('reportRoot');
     if (!root) return;
     const data = resolveBranding(branding);
+    ensurePrintCssVars(root);
     root.classList.add('cp-report-root');
 
     root.querySelectorAll('.page img[data-logo="1"]').forEach(function(img){ img.src = data.logo; });
@@ -159,6 +181,7 @@
       includeTitleOnFirstPage: config.includeTitleOnFirstPage !== false
     };
     root.innerHTML = '';
+    ensurePrintCssVars(root);
     root.classList.add('cp-report-root');
     return layout;
   }
@@ -414,7 +437,7 @@
   function prepareManualPrintContext(){
     if (document.body.getAttribute('data-report-context')) return;
     const reportRoot = document.getElementById('reportRoot');
-    if (!reportRoot || !reportRoot.querySelector('.page')) return;
+    if (!reportRoot || !reportRoot.querySelector('.page') || !reportRoot.textContent.trim()) return;
     const host = ensurePrintHost();
     host.innerHTML = '';
     const cloned = reportRoot.cloneNode(true);
@@ -437,6 +460,8 @@
     global.addEventListener('beforeprint', prepareManualPrintContext);
     global.addEventListener('afterprint', cleanupManualPrintContext);
   }
+
+  ensurePrintCssVars(document.body || document.documentElement);
 
   global.CPPrintLayout = {
     defaults: DEFAULTS,

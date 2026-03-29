@@ -104,6 +104,43 @@
     }).join('') + '</tr>';
   }
 
+  function createLegacyPage(rootEl, pageIndex, metaText, includeTitle){
+    return CPPrintLayout.createPage(rootEl, {
+      pageIndex: pageIndex,
+      includeTitle: includeTitle,
+      title: 'RELATÓRIO DE SOLICITAÇÕES',
+      meta: metaText,
+      logo: getReportLogo(),
+      header: root.store.header,
+      footer: root.store.footer,
+      contentHtml: '<table class="report-table"><thead><tr>' + root.COLUMNS.map(function(column){ return '<th>' + column + '</th>'; }).join('') + '</tr></thead><tbody></tbody></table>'
+    });
+  }
+
+  function legacyPaginate(rootEl, rows, meta){
+    rootEl.innerHTML = '';
+    var pageIndex = 1;
+    var page = createLegacyPage(rootEl, pageIndex, meta, true);
+    var tbody = page.querySelector('tbody');
+
+    rows.forEach(function(rowHtml){
+      var wrap = document.createElement('tbody');
+      wrap.innerHTML = rowHtml;
+      var tr = wrap.firstElementChild;
+      if (!tr) return;
+      tbody.appendChild(tr);
+      if (!CPPrintLayout.pageHasRoom(page, '.footer', 8)) {
+        tr.remove();
+        pageIndex += 1;
+        page = createLegacyPage(rootEl, pageIndex, meta, false);
+        tbody = page.querySelector('tbody');
+        tbody.appendChild(tr);
+      }
+    });
+
+    if (!rootEl.querySelector('.page')) createLegacyPage(rootEl, 1, meta, true);
+  }
+
   function fillLayout(layout){
     var rows = root.store.currentRows.map(createSolicRowHtml);
     CPPrintLayout.appendTable(layout, {
@@ -112,6 +149,12 @@
       tableClass: 'report-table',
       continuationLabel: 'RELATÓRIO DE SOLICITAÇÕES (continuação)'
     });
+
+    var renderedRows = layout.root.querySelectorAll('tbody tr').length;
+    if (rows.length && renderedRows !== rows.length) {
+      legacyPaginate(layout.root, rows, buildMetaText());
+    }
+
     if (!rows.length) {
       CPPrintLayout.appendSection(layout, {
         html: '<table class="report-table"><tbody><tr><td>Nenhum dado disponível.</td></tr></tbody></table>'
