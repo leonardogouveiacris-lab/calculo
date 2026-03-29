@@ -789,6 +789,7 @@
     $(DOM.rTotGeral).textContent = fmtNum(c.totGeralParcelas);
   }
 
+
   /* =====================
      TAB / PRINT
   ====================== */

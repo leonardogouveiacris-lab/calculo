@@ -76,8 +76,8 @@
   function gerarDescricaoNF(){
     var itens = [];
     root.store.currentRows.forEach(function(row){
-      var rowId = root.getRowId(row);
-      if (!rowId || !root.store.selectedRowIds.has(rowId)) return;
+      var key = root.rowKey(row);
+      if (!root.store.selectedRowKeys.has(key)) return;
       var data = String(row['Entrega em'] || '').trim();
       var proc = compactProc(row['Numero do Processo']);
       var nome = compactName(row['Reclamante']);
