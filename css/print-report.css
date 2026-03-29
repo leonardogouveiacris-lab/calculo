@@ -4,144 +4,190 @@
   --cp-print-line:#cfd6e2;
   --cp-print-link:#1d4ed8;
   --cp-print-shadow:0 14px 34px rgba(15,23,42,.08);
+
   --cp-print-logo-w:164.41px;
   --cp-print-logo-h:45.34px;
-  --cp-print-header-h:11mm;
-  --cp-print-footer-gap:8mm;
-  --cp-print-content-bottom:20mm;
+
+  --cp-print-fs-title:12.6pt;
+  --cp-print-fs-meta:10pt;
+  --cp-print-fs-table:10.5pt;
+  --cp-print-fs-footer:9.5pt;
+  --cp-print-line-height:1.4;
+
+  --cp-print-page-w:210mm;
+  --cp-print-page-h:297mm;
+  --cp-print-pad-top:9mm;
+  --cp-print-pad-x:16mm;
+  --cp-print-pad-bottom:10mm;
+
+  --cp-print-content-top:6mm;
+  --cp-print-safe-top:3mm;
+  --cp-print-safe-bottom:8mm;
 }
+
 #reportRoot,
-#reportRoot *{box-sizing:border-box}
+#reportRoot *{ box-sizing:border-box; }
+
 #reportRoot.cp-report-root,
-#reportRoot.cp-report-root *{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif !important;color:var(--cp-print-ink)}
+#reportRoot.cp-report-root *{
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif !important;
+  color:var(--cp-print-ink);
+}
+
 #reportRoot.cp-report-root .page{
-  width:880px;
-  max-width:880px;
-  min-height:1122.52px;
-  height:1122.52px;
+  width:var(--cp-print-page-w);
+  max-width:var(--cp-print-page-w);
+  min-height:var(--cp-print-page-h);
+  height:var(--cp-print-page-h);
   background:#fff;
   margin:0 auto 18px;
-  padding:9mm 16mm 10mm;
+  padding:var(--cp-print-pad-top) var(--cp-print-pad-x) var(--cp-print-pad-bottom);
   border-radius:10px;
   box-shadow:var(--cp-print-shadow);
   display:grid;
   grid-template-rows:auto 1fr auto;
-  gap:0;
   overflow:hidden;
   position:relative;
 }
+
 #reportRoot.cp-report-root .page .header{
   display:flex;
   align-items:flex-start;
   justify-content:space-between;
   gap:16px;
-  min-height:var(--cp-print-header-h);
+  min-height:11mm;
 }
+
 #reportRoot.cp-report-root .page .logo,
 #reportRoot.cp-report-root .print-header .logo,
 body[data-report-context] #cpPrintHost .page .logo,
 body[data-report-context] #cpPrintHost .print-header .logo{
   width:var(--cp-print-logo-w);
   height:var(--cp-print-logo-h);
-  max-width:var(--cp-print-logo-w);
-  max-height:var(--cp-print-logo-h);
   object-fit:contain;
   display:block;
 }
+
 #reportRoot.cp-report-root .page .contact{
   text-align:right;
-  font-size:10.5pt;
+  font-size:var(--cp-print-fs-table);
   line-height:1.24;
-  color:var(--cp-print-ink);
 }
-#reportRoot.cp-report-root .page .contact b{font-size:11pt;font-weight:700}
+
+#reportRoot.cp-report-root .page .contact b{ font-size:11pt; font-weight:700; }
 #reportRoot.cp-report-root .page .contact a,
-#reportRoot.cp-report-root .page .footer a{color:var(--cp-print-link) !important;text-decoration:underline}
+#reportRoot.cp-report-root .page .footer a{ color:var(--cp-print-link) !important; text-decoration:underline; }
+
 #reportRoot.cp-report-root .page .content{
   min-height:0;
   overflow:hidden;
-  padding-top:5mm;
-  padding-bottom:var(--cp-print-content-bottom);
+  padding-top:var(--cp-print-content-top);
+  padding-bottom:calc(var(--cp-print-safe-bottom) + 18mm);
 }
+
 #reportRoot.cp-report-root .page .title{
   margin:12mm 0 9mm;
   text-align:center;
-  font-size:12.6pt;
+  font-size:var(--cp-print-fs-title);
   font-weight:700;
   line-height:1.3;
-  letter-spacing:0;
 }
+
 #reportRoot.cp-report-root .page .meta{
   text-align:center;
-  font-size:10pt;
+  font-size:var(--cp-print-fs-meta);
   color:var(--cp-print-muted) !important;
   margin:0 0 8mm;
 }
+
 #reportRoot.cp-report-root .page .sec-title{
   margin:14px 0 8px;
-  font-size:12pt;
+  font-size:11.6pt;
   font-weight:700;
-  line-height:1.3;
 }
+
 #reportRoot.cp-report-root .page .sec-title-small{
-  font-size:10.75pt;
   margin:10px 0 8px;
+  font-size:10.7pt;
+  font-weight:700;
 }
+
 #reportRoot.cp-report-root .page p,
 #reportRoot.cp-report-root .page li,
 #reportRoot.cp-report-root .page div,
 #reportRoot.cp-report-root .page span,
 #reportRoot.cp-report-root .page td,
-#reportRoot.cp-report-root .page th{font-size:10.5pt;line-height:1.4}
-#reportRoot.cp-report-root .page .report-table,
-#reportRoot.cp-report-root .page .kv{
+#reportRoot.cp-report-root .page th{
+  font-size:var(--cp-print-fs-table);
+  line-height:var(--cp-print-line-height);
+}
+
+#reportRoot.cp-report-root .page .report-table{
   width:100%;
   border-collapse:collapse;
   border-top:1px solid var(--cp-print-line);
   border-bottom:1px solid var(--cp-print-line);
 }
+
 #reportRoot.cp-report-root .page .report-table th,
-#reportRoot.cp-report-root .page .report-table td,
-#reportRoot.cp-report-root .page .kv th,
-#reportRoot.cp-report-root .page .kv td{
+#reportRoot.cp-report-root .page .report-table td{
   border-bottom:1px solid var(--cp-print-line);
   border-right:1px solid #e7ebf2;
-  padding:5px 7px;
+  padding:6px 8px;
   vertical-align:top;
   background:#fff;
 }
-#reportRoot.cp-report-root .page .report-table thead th{background:#f8fafc;border-bottom:1px solid #c7d0df;text-align:center;font-weight:700}
+
+#reportRoot.cp-report-root .page .report-table thead th{
+  background:#fafbfc;
+  border-bottom:1px solid #d7dde8;
+  text-align:center;
+  font-weight:600;
+  color:#334155;
+}
+
 #reportRoot.cp-report-root .page .report-table th:last-child,
-#reportRoot.cp-report-root .page .report-table td:last-child,
-#reportRoot.cp-report-root .page .kv th:last-child,
-#reportRoot.cp-report-root .page .kv td:last-child{border-right:none}
-#reportRoot.cp-report-root .page .report-table tbody tr:last-child td,
-#reportRoot.cp-report-root .page .kv tbody tr:last-child td{border-bottom:none}
+#reportRoot.cp-report-root .page .report-table td:last-child{ border-right:none; }
+#reportRoot.cp-report-root .page .report-table tbody tr:last-child td{ border-bottom:none; }
+
+#reportRoot.cp-report-root .page .summary-row-note{
+  display:block;
+  font-size:9pt;
+  color:var(--cp-print-muted) !important;
+  margin-top:3px;
+}
+
 #reportRoot.cp-report-root .page .footer{
+  position:absolute;
+  left:var(--cp-print-pad-x);
+  right:var(--cp-print-pad-x);
+  bottom:var(--cp-print-pad-bottom);
   display:flex;
   justify-content:space-between;
   align-items:flex-end;
   gap:12px;
-  font-size:9.5pt;
-  padding-top:4mm;
+  font-size:var(--cp-print-fs-footer);
+  min-height:12mm;
 }
-#reportRoot.cp-report-root .page .case-row{display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--cp-print-line)}
-#reportRoot.cp-report-root .page .case-row:first-child{border-top:1px solid var(--cp-print-line)}
-#reportRoot.cp-report-root .page .case-label{font-weight:700;min-width:110px}
-#reportRoot.cp-report-root .dep-subtotal{margin:8px 0 0;font-weight:700}
-#reportRoot.cp-report-root .page .summary-row-note{display:block;font-size:9pt;line-height:1.35;color:var(--cp-print-muted) !important;font-weight:400;margin-top:3px}
-#reportRoot.cp-report-root .right{text-align:right}
-#reportRoot.cp-report-root .center{text-align:center}
-#reportRoot.cp-report-root .bold{font-weight:700}
-#reportRoot.cp-report-root .print-only{display:none !important}
-@page{size:A4;margin:0}
-#cpPrintHost{position:fixed;left:-100000px;top:0;width:0;height:0;overflow:hidden}
+
+#reportRoot.cp-report-root .right{ text-align:right; }
+#reportRoot.cp-report-root .center{ text-align:center; }
+#reportRoot.cp-report-root .bold{ font-weight:700; }
+#reportRoot.cp-report-root .note,
+#reportRoot.cp-report-root .subtitle,
+#reportRoot.cp-report-root .sub-title{ color:var(--cp-print-muted) !important; }
+
+#cpPrintHost{ position:fixed; left:-100000px; top:0; width:0; height:0; overflow:hidden; }
+@page{ size:A4; margin:0; }
+
 @media print{
-  html,body{background:#fff !important;height:auto !important}
-  body[data-report-context]{margin:0 !important;padding:0 !important;background:#fff !important}
-  body[data-report-context] > *:not(#cpPrintHost){display:none !important}
+  html,body{ background:#fff !important; height:auto !important; }
+  body[data-report-context]{ margin:0 !important; padding:0 !important; background:#fff !important; }
+  body[data-report-context] > *:not(#cpPrintHost){ display:none !important; }
+
   body[data-report-context] #cpPrintHost,
-  body[data-report-context] #cpPrintHost *{visibility:visible !important}
+  body[data-report-context] #cpPrintHost *{ visibility:visible !important; }
+
   body[data-report-context] #cpPrintHost{
     display:block !important;
     position:absolute !important;
@@ -154,717 +200,34 @@ body[data-report-context] #cpPrintHost .print-header .logo{
     padding:0 !important;
     background:#fff !important;
   }
+
   body[data-report-context] #cpPrintHost #reportRoot,
-  body[data-report-context] #cpPrintHost .cp-report-root{
-    display:block !important;
-    margin:0 !important;
-    padding:0 !important;
-  }
+  body[data-report-context] #cpPrintHost .cp-report-root{ display:block !important; margin:0 !important; padding:0 !important; }
+
   body[data-report-context] #cpPrintHost .page{
     box-shadow:none !important;
-    margin:0 !important;
-    width:210mm !important;
-    max-width:210mm !important;
-    min-height:297mm !important;
-    height:297mm !important;
     border-radius:0 !important;
+    margin:0 !important;
+    width:var(--cp-print-page-w) !important;
+    max-width:var(--cp-print-page-w) !important;
+    min-height:var(--cp-print-page-h) !important;
+    height:var(--cp-print-page-h) !important;
     page-break-after:always !important;
     break-after:page !important;
     overflow:hidden !important;
   }
-  body[data-report-context] #cpPrintHost .page:last-child{page-break-after:auto !important;break-after:auto !important}
-  body[data-report-context] #cpPrintHost .page:empty{display:none !important}
-}
-
-
-/* Deposito Recursal: garantir branding em todas as páginas impressas */
-@media print{
-  body[data-report-context="deposito-recursal-print"] #cpPrintHost .page .header{display:flex !important;align-items:flex-start !important;justify-content:space-between !important;gap:16px !important;min-height:11mm !important;}
-  body[data-report-context="deposito-recursal-print"] #cpPrintHost .page .logo{display:block !important;width:var(--cp-print-logo-w) !important;height:var(--cp-print-logo-h) !important;max-width:var(--cp-print-logo-w) !important;max-height:var(--cp-print-logo-h) !important;}
-  body[data-report-context="deposito-recursal-print"] #cpPrintHost .page .contact{display:block !important;text-align:right !important;font-size:10.5pt !important;line-height:1.24 !important;}
-  body[data-report-context="deposito-recursal-print"] #cpPrintHost .page .footer{display:flex !important;justify-content:space-between !important;align-items:flex-end !important;gap:12px !important;position:absolute !important;left:16mm !important;right:16mm !important;bottom:10mm !important;font-size:9.5pt !important;}
-  body[data-report-context="deposito-recursal-print"] #cpPrintHost .page .content{padding-bottom:26mm !important;}
-}
-
-
-/* === TYPOGRAPHY REFINEMENT === */
-
-body {
-  font-size: 14px !important;
-  line-height: 1.45 !important;
-}
-
-/* titles */
-h1, h2, h3 {
-  letter-spacing: -0.01em !important;
-  font-weight: 600 !important;
-}
-
-/* labels */
-label, .label, .field-label {
-  font-size: 12px !important;
-  color: #6b7280 !important;
-  font-weight: 500 !important;
-}
-
-/* values */
-.value, td:last-child {
-  font-weight: 600 !important;
-  color: #111827 !important;
-}
-
-/* table alignment */
-td {
-  vertical-align: middle !important;
-}
-td:last-child, th:last-child {
-  text-align: right !important;
-}
-
-/* subtle spacing for readability */
-p, .text, .note {
-  margin-bottom: 8px !important;
-}
-
-/* tighter headings spacing */
-h2, h3 {
-  margin-bottom: 10px !important;
-}
-
-
-
-/* === MICROAJUSTE DOS QUADROS DE RESULTADO / RELATÓRIOS === */
-
-/* títulos de seção mais firmes, sem pesar */
-#reportRoot.cp-report-root .page .sec-title{
-  font-size:11.6pt !important;
-  font-weight:700 !important;
-  letter-spacing:-0.01em !important;
-  margin:13px 0 7px !important;
-}
-#reportRoot.cp-report-root .page .sec-title-small{
-  font-size:10.7pt !important;
-  font-weight:700 !important;
-  letter-spacing:-0.005em !important;
-  margin:10px 0 7px !important;
-}
-
-/* texto secundário mais suave */
-#reportRoot.cp-report-root .page .meta,
-#reportRoot.cp-report-root .page .note,
-#reportRoot.cp-report-root .page .k,
-#reportRoot.cp-report-root .page .kv-k,
-#reportRoot.cp-report-root .page .kv-label{
-  color:var(--cp-print-muted) !important;
-}
-
-/* quadros com leitura mais técnica */
-#reportRoot.cp-report-root .page .report-table,
-#reportRoot.cp-report-root .page .kv{
-  border-top:1px solid #d7dde8 !important;
-  border-bottom:1px solid #d7dde8 !important;
-}
-
-#reportRoot.cp-report-root .page .report-table th,
-#reportRoot.cp-report-root .page .report-table td,
-#reportRoot.cp-report-root .page .kv th,
-#reportRoot.cp-report-root .page .kv td{
-  padding:6px 8px !important;
-  vertical-align:middle !important;
-}
-
-/* cabeçalhos mais neutros */
-#reportRoot.cp-report-root .page .report-table thead th{
-  background:#fafbfc !important;
-  border-bottom:1px solid #d7dde8 !important;
-  font-size:10.15pt !important;
-  font-weight:600 !important;
-  color:#334155 !important;
-}
-
-/* rótulos mais leves e valores mais fortes */
-#reportRoot.cp-report-root .page .kv td:first-child,
-#reportRoot.cp-report-root .page .report-table td:first-child{
-  color:#334155 !important;
-  font-weight:500 !important;
-}
-
-#reportRoot.cp-report-root .page .kv td:last-child,
-#reportRoot.cp-report-root .page .report-table td:last-child,
-#reportRoot.cp-report-root .page .v,
-#reportRoot.cp-report-root .page .value{
-  color:#0f172a !important;
-  font-weight:700 !important;
-  letter-spacing:-0.01em !important;
-}
-
-/* totalizadores discretamente destacados, sem mudar layout */
-#reportRoot.cp-report-root .page .report-table tbody tr:last-child td,
-#reportRoot.cp-report-root .page .kv tbody tr:last-child td{
-  font-weight:700 !important;
-  background:#fcfcfd !important;
-}
-
-/* linhas internas mais suaves */
-#reportRoot.cp-report-root .page .report-table th,
-#reportRoot.cp-report-root .page .report-table td,
-#reportRoot.cp-report-root .page .kv th,
-#reportRoot.cp-report-root .page .kv td{
-  border-right:1px solid #eef2f6 !important;
-}
-#reportRoot.cp-report-root .page .report-table tbody tr td,
-#reportRoot.cp-report-root .page .kv tbody tr td{
-  border-bottom:1px solid #dfe5ee !important;
-}
-
-/* assinatura / rodapé com equilíbrio melhor */
-#reportRoot.cp-report-root .page .footer,
-#reportRoot.cp-report-root .page .footer *{
-  line-height:1.35 !important;
-}
-
-
-/* === RELATÓRIOS: AJUSTE DE CONTENÇÃO E PAGINAÇÃO === */
-
-/* garantir que o relatório fique contido */
-#reportRoot.cp-report-root {
-  max-width: 100% !important;
-  overflow: hidden !important;
-}
-
-/* páginas bem centralizadas */
-#reportRoot.cp-report-root .page {
-  margin: 0 auto 24px auto !important;
-  box-sizing: border-box !important;
-}
-
-/* evitar quebra estranha de blocos */
-#reportRoot.cp-report-root .page table,
-#reportRoot.cp-report-root .page .kv,
-#reportRoot.cp-report-root .page .report-table {
-  page-break-inside: avoid !important;
-}
-
-/* evitar títulos soltos */
-#reportRoot.cp-report-root .page .sec-title,
-#reportRoot.cp-report-root .page .sec-title-small {
-  page-break-after: avoid !important;
-}
-
-/* melhor distribuição vertical */
-#reportRoot.cp-report-root .page {
-  line-height: 1.4 !important;
-}
-
-/* evitar estouro horizontal */
-#reportRoot.cp-report-root .page table {
-  width: 100% !important;
-  table-layout: fixed !important;
-  word-wrap: break-word !important;
-}
-
-/* células mais equilibradas */
-#reportRoot.cp-report-root .page td,
-#reportRoot.cp-report-root .page th {
-  overflow-wrap: break-word !important;
-}
-
-/* padding mais consistente no relatório */
-#reportRoot.cp-report-root .page {
-  padding: 24px 28px !important;
-}
-
-
-
-/* === REDUÇÃO DE LINHAS INTERNAS (SISTEMA) === */
-
-/* remove excesso de grid */
-table td, table th {
-  border: none !important;
-}
-
-/* mantém apenas separação leve entre linhas */
-table tr + tr td {
-  border-top: 1px solid #eef2f6 !important;
-}
-
-/* remove linhas verticais completamente */
-table td + td,
-table th + th {
-  border-left: none !important;
-}
-
-/* cabeçalho mais limpo */
-table thead th {
-  border-bottom: 1px solid #e5e7eb !important;
-}
-
-
-
-/* === REMOVER LINHA CINZA EM TABELAS COM INPUTS === */
-
-/* remove linhas internas em tabelas com campos */
-table td:has(input),
-table td:has(select),
-table td:has(textarea) {
-  border-top: none !important;
-}
-
-/* remove linha entre células com inputs */
-table tr td input,
-table tr td select {
-  box-shadow: none !important;
-}
-
-/* remove separação entre linhas quando há campos */
-table tr:has(input) + tr td {
-  border-top: none !important;
-}
-
-
-
-/* === TABELAS EDITÁVEIS: ACABAMENTO CLEAN === */
-
-/* remover qualquer sensação de grade em linhas editáveis */
-table tr:has(input),
-table tr:has(select),
-table tr:has(textarea){
-  background: transparent !important;
-}
-
-table tr:has(input) td,
-table tr:has(select) td,
-table tr:has(textarea) td{
-  border-top: none !important;
-  border-bottom: none !important;
-  background: transparent !important;
-}
-
-/* cabeçalho continua separado, mas corpo editável fica limpo */
-table thead th{
-  border-bottom: 1px solid #e5e7eb !important;
-}
-
-/* campos dentro da grade com aparência mais integrada */
-table td input,
-table td select,
-table td textarea{
-  background: #fbfcfe !important;
-  border: 1px solid #d9e0ea !important;
-  border-radius: 10px !important;
-  min-height: 38px !important;
-  padding: 0 12px !important;
-}
-
-/* foco discreto e profissional */
-table td input:focus,
-table td select:focus,
-table td textarea:focus{
-  outline: none !important;
-  border-color: #c7d2e0 !important;
-  box-shadow: 0 0 0 2px rgba(148,163,184,.10) !important;
-}
-
-/* melhor respiro entre linhas editáveis sem mudar layout geral */
-table tr:has(input) td,
-table tr:has(select) td{
-  padding-top: 5px !important;
-  padding-bottom: 5px !important;
-}
-
-/* primeira coluna de competência/data mais limpa */
-table tr:has(input) td:first-child,
-table tr:has(select) td:first-child{
-  color: #334155 !important;
-  font-weight: 500 !important;
-}
-
-/* impedir linha cinza imediatamente após cabeçalho em grades editáveis */
-table thead + tbody tr:first-child td{
-  border-top: none !important;
-}
-
-
-
-/* === REMOVER BORDA EXTERNA DAS TABELAS (CONTAINER) === */
-
-/* remove qualquer "caixa" ao redor de tabelas */
-table {
-  border: none !important;
-  outline: none !important;
-}
-
-/* remove borda de containers que envolvem tabelas */
-.table-container,
-.table-wrap,
-.table-box,
-.card table,
-.panel table {
-  border: none !important;
-  box-shadow: none !important;
-}
-
-/* remove efeito de moldura geral */
-.card,
-.panel,
-.section {
-  border: none !important;
-  box-shadow: none !important;
-}
-
-
-
-/* === SUAVIZAR ARREDONDAMENTO E AUMENTAR RESPIRO ACIMA DAS TABELAS === */
-
-/* arredondamento mais contido em elementos de tabela */
-table td input,
-table td select,
-table td textarea,
-table input,
-table select,
-table textarea{
-  border-radius: 8px !important;
-}
-
-/* cabeçalhos/chips relacionados à tabela com arredondamento mais suave */
-table,
-.table-container,
-.table-wrap,
-.table-box{
-  border-radius: 8px !important;
-}
 
-/* mais distância entre textos/blocos acima e a tabela */
-table{
-  margin-top: 16px !important;
+  body[data-report-context] #cpPrintHost .page:last-child{
+    page-break-after:auto !important;
+    break-after:auto !important;
+  }
 }
 
-.table-container,
-.table-wrap,
-.table-box{
-  margin-top: 16px !important;
-}
-
-/* quando houver textos explicativos antes da tabela, garantir respiro */
-p + table,
-.note + table,
-.text + table,
-small + table,
-div + table{
-  margin-top: 16px !important;
-}
-
-/* respiro adicional em blocos de fórmula/instrução antes das tabelas */
-.formula-help,
-.formula-note,
-.readonly-note,
-.page-note,
-.note,
-.text{
-  margin-bottom: 12px !important;
-}
-
-
-
-/* === CIVIL REPORT: preview separation + safer pagination === */
-#reportRoot.cp-report-root,
-#reportRoot.report-preview-host{
-  width: 100%;
-}
-#reportRoot.cp-report-root .page{
-  margin-bottom: 22px;
-}
-#reportRoot.cp-report-root .page .content{
-  overflow: hidden;
-}
-#reportRoot.cp-report-root .page .report-launch{
-  margin-top: 8px;
-}
-#reportRoot.cp-report-root .page .report-launch-table{
-  table-layout: fixed;
-}
-#reportRoot.cp-report-root .page .report-launch-table th,
-#reportRoot.cp-report-root .page .report-launch-table td{
-  font-size: 9.7pt;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-#reportRoot.cp-report-root .page .report-launch-table thead th:first-child,
-#reportRoot.cp-report-root .page .report-launch-table tbody td:first-child,
-#reportRoot.cp-report-root .page .report-launch-table tfoot td:first-child{
-  width: 12%;
-}
-#reportRoot.cp-report-root .page .report-table-kv td:first-child{
-  width: 34%;
-}
-#reportRoot.cp-report-root .page .footer{
-  position: absolute;
-  left: 16mm;
-  right: 16mm;
-  bottom: 10mm;
-}
-#reportRoot.cp-report-root .page .content{
-  padding-bottom: 24mm;
-}
 
 @media print{
-  body[data-report-context="calculos-civeis-print"] #cpPrintHost .page{
-    box-sizing: border-box !important;
-    width: 190mm !important;
-    max-width: 190mm !important;
-    min-height: 277mm !important;
-    height: 277mm !important;
-    margin: 0 auto !important;
-    padding: 9mm 12mm 10mm !important;
-    overflow: hidden !important;
-  }
-  body[data-report-context="calculos-civeis-print"] #cpPrintHost #reportRoot,
-  body[data-report-context="calculos-civeis-print"] #cpPrintHost .cp-report-root{
-    width: 100% !important;
-  }
-  body[data-report-context="calculos-civeis-print"] #cpPrintHost .page .footer{
-    position: absolute !important;
-    left: 12mm !important;
-    right: 12mm !important;
-    bottom: 10mm !important;
-  }
-  body[data-report-context="calculos-civeis-print"] #cpPrintHost .page .content{
-    padding-bottom: 24mm !important;
-    overflow: hidden !important;
-  }
-  body[data-report-context="calculos-civeis-print"] #cpPrintHost .page .report-launch-table{
-    table-layout: fixed !important;
-  }
-  body[data-report-context="calculos-civeis-print"] #cpPrintHost .page .report-launch-table th,
-  body[data-report-context="calculos-civeis-print"] #cpPrintHost .page .report-launch-table td{
-    font-size: 9.4pt !important;
-    overflow-wrap: anywhere !important;
-    word-break: break-word !important;
-  }
-}
-
-
-/* === CIVIL REPORT PAGINATION SAFETY === */
-#reportRoot.cp-report-root .page{
-  grid-template-rows:auto minmax(0,1fr) auto !important;
-}
-#reportRoot.cp-report-root .page .content{
-  padding-top: 6mm !important;
-  padding-bottom: 22mm !important;
-}
-#reportRoot.cp-report-root .page .footer{
-  min-height: 16mm !important;
-  padding-top: 5mm !important;
-  margin-top: auto !important;
-}
-@media print{
-  body[data-report-context] #cpPrintHost .page .content{
-    padding-top: 6mm !important;
-    padding-bottom: 24mm !important;
-  }
-  body[data-report-context] #cpPrintHost .page .footer{
-    min-height: 16mm !important;
-    padding-top: 5mm !important;
-    margin-top: auto !important;
-  }
-}
-
-
-/* === CIVIL REPORT FIX: intro blocks and footer flow === */
-#reportRoot.cp-report-root .page .kv-grid{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:10px;
-  margin-bottom:10px;
-}
-#reportRoot.cp-report-root .page .kv-item{
-  border:1px solid var(--cp-print-line);
-  border-radius:10px;
-  padding:10px 12px;
-  background:#fff;
-}
-#reportRoot.cp-report-root .page .kv-item.full{
-  grid-column:1 / -1;
-}
-#reportRoot.cp-report-root .page .kv-value{
-  margin-top:6px;
-  font-weight:600;
-}
-#reportRoot.cp-report-root .page .content{
-  overflow:visible !important;
-}
-#reportRoot.cp-report-root .page .footer{
-  position:static !important;
-  left:auto !important;
-  right:auto !important;
-  bottom:auto !important;
-  min-height:14mm !important;
-  padding-top:4mm !important;
-  margin-top:auto !important;
-}
-@media print{
-  body[data-report-context] #cpPrintHost .page .content{
-    overflow:visible !important;
-  }
-  body[data-report-context] #cpPrintHost .page .footer{
-    position:static !important;
-    left:auto !important;
-    right:auto !important;
-    bottom:auto !important;
-    min-height:14mm !important;
-    padding-top:4mm !important;
-    margin-top:auto !important;
-  }
-}
-
-
-
-/* Civil preview: footer fixed at page bottom with reserved room */
-#reportRoot.cp-report-root .page .footer{
-  position:absolute !important;
-  left:16mm !important;
-  right:16mm !important;
-  bottom:10mm !important;
-  display:flex !important;
-  justify-content:space-between !important;
-  align-items:flex-end !important;
-  gap:12px !important;
-}
-#reportRoot.cp-report-root .page .content{
-  padding-bottom:26mm !important;
-}
-
-
-
-/* Civil report: explicit branding visibility for preview and print */
-#reportRoot.cp-report-root .page .header{
-  display:flex !important;
-  align-items:flex-start !important;
-  justify-content:space-between !important;
-  gap:16px !important;
-  min-height:11mm !important;
-}
-#reportRoot.cp-report-root .page .logo{
-  display:block !important;
-  width:var(--cp-print-logo-w) !important;
-  height:var(--cp-print-logo-h) !important;
-  max-width:var(--cp-print-logo-w) !important;
-  max-height:var(--cp-print-logo-h) !important;
-  object-fit:contain !important;
-}
-#reportRoot.cp-report-root .page .contact{
-  display:block !important;
-  text-align:right !important;
-  font-size:10.5pt !important;
-  line-height:1.24 !important;
-}
-#reportRoot.cp-report-root .page .footer{
-  position:absolute !important;
-  left:16mm !important;
-  right:16mm !important;
-  bottom:10mm !important;
-  display:flex !important;
-  justify-content:space-between !important;
-  align-items:flex-end !important;
-  gap:12px !important;
-}
-#reportRoot.cp-report-root .page .content{
-  overflow:hidden !important;
-  padding-bottom:26mm !important;
-}
-
-@media print{
-  body[data-report-context="calculos-civeis-print"] #cpPrintHost .page .header{
-    display:flex !important;
-    align-items:flex-start !important;
-    justify-content:space-between !important;
-    gap:16px !important;
-    min-height:11mm !important;
-  }
-  body[data-report-context="calculos-civeis-print"] #cpPrintHost .page .logo{
-    display:block !important;
-    width:var(--cp-print-logo-w) !important;
-    height:var(--cp-print-logo-h) !important;
-    max-width:var(--cp-print-logo-w) !important;
-    max-height:var(--cp-print-logo-h) !important;
-    object-fit:contain !important;
-  }
-  body[data-report-context="calculos-civeis-print"] #cpPrintHost .page .contact{
-    display:block !important;
-    text-align:right !important;
-    font-size:10.5pt !important;
-    line-height:1.24 !important;
-  }
-  body[data-report-context="calculos-civeis-print"] #cpPrintHost .page .footer{
-    position:absolute !important;
-    left:16mm !important;
-    right:16mm !important;
-    bottom:10mm !important;
-    display:flex !important;
-    justify-content:space-between !important;
-    align-items:flex-end !important;
-    gap:12px !important;
-    font-size:9.5pt !important;
-  }
-  body[data-report-context="calculos-civeis-print"] #cpPrintHost .page .content{
-    overflow:hidden !important;
-    padding-bottom:26mm !important;
-  }
-}
-
-
-/* === CIVIL STANDARDIZED PAGINATION AND MARGINS === */
-#reportRoot.cp-report-root .page{
-  margin:0 auto 18px !important;
-  padding:9mm 16mm 10mm !important;
-}
-#reportRoot.cp-report-root .page .content{
-  padding-top:5mm !important;
-  padding-bottom:26mm !important;
-  overflow:hidden !important;
-}
-#reportRoot.cp-report-root .page .footer{
-  position:absolute !important;
-  left:16mm !important;
-  right:16mm !important;
-  bottom:10mm !important;
-  display:flex !important;
-  justify-content:space-between !important;
-  align-items:flex-end !important;
-  gap:12px !important;
-}
-
-@media print{
-  body[data-report-context="calculos-civeis-print"] #cpPrintHost .page{
-    width:210mm !important;
-    max-width:210mm !important;
-    min-height:297mm !important;
-    height:297mm !important;
+  body:not([data-report-context]) #reportRoot.cp-report-root .page{
+    box-shadow:none !important;
+    border-radius:0 !important;
     margin:0 !important;
-    padding:9mm 16mm 10mm !important;
-    overflow:hidden !important;
-  }
-  body[data-report-context="calculos-civeis-print"] #cpPrintHost .page .header{
-    display:flex !important;
-    align-items:flex-start !important;
-    justify-content:space-between !important;
-    gap:16px !important;
-    min-height:11mm !important;
-  }
-  body[data-report-context="calculos-civeis-print"] #cpPrintHost .page .content{
-    padding-top:5mm !important;
-    padding-bottom:26mm !important;
-    overflow:hidden !important;
-  }
-  body[data-report-context="calculos-civeis-print"] #cpPrintHost .page .footer{
-    position:absolute !important;
-    left:16mm !important;
-    right:16mm !important;
-    bottom:10mm !important;
-    display:flex !important;
-    justify-content:space-between !important;
-    align-items:flex-end !important;
-    gap:12px !important;
-    font-size:9.5pt !important;
   }
 }

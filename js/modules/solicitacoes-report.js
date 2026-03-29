@@ -7,11 +7,7 @@
   }
 
   function getReportBranding(){
-    return {
-      header: root.store.header,
-      footer: root.store.footer,
-      logo: getReportLogo()
-    };
+    return { header: root.store.header, footer: root.store.footer, logo: getReportLogo() };
   }
 
   function renderReportHeaderFooter(){
@@ -95,68 +91,47 @@
     if (!itens.length) alert('Selecione pelo menos uma linha (checkbox) para gerar a descrição.');
   }
 
-
   function buildMetaText(){
     return root.E('solicitacoesTotalCount').textContent + ' • ' +
       root.E('solicitacoesSumTotal').textContent + ' • ' +
       root.E('solicitacoesCompetencia').textContent + ' • Cliente: ' + root.store.currentClient;
   }
 
-  function createSolicPage(rootEl, pageIndex, metaText, includeTitle){
-    return CPPrintLayout.createPage(rootEl, {
-      pageIndex: pageIndex,
-      includeTitle: includeTitle,
-      title: 'RELATÓRIO DE SOLICITAÇÕES',
-      meta: metaText,
-      logo: getReportLogo(),
-      header: root.store.header,
-      footer: root.store.footer,
-      contentHtml: '<table class="report-table"><thead><tr>' + root.COLUMNS.map(function(column){ return '<th>' + column + '</th>'; }).join('') + '</tr></thead><tbody></tbody></table>'
+  function createSolicRowHtml(row){
+    return '<tr>' + root.COLUMNS.map(function(column){
+      var value = row[column] == null ? '' : String(row[column]);
+      return '<td>' + value + '</td>';
+    }).join('') + '</tr>';
+  }
+
+  function fillLayout(layout){
+    var rows = root.store.currentRows.map(createSolicRowHtml);
+    CPPrintLayout.appendTable(layout, {
+      columns: root.COLUMNS,
+      rows: rows,
+      tableClass: 'report-table',
+      continuationLabel: 'RELATÓRIO DE SOLICITAÇÕES (continuação)'
     });
-  }
-
-  function createSolicRow(row){
-    var tr = document.createElement('tr');
-    root.COLUMNS.forEach(function(column){ tr.appendChild(CPCommon.cell('td', row[column] == null ? '' : row[column])); });
-    return tr;
-  }
-
-  function rowFitsInPage(page){
-    return CPPrintLayout.pageHasRoom(page, '.footer', 8);
+    if (!rows.length) {
+      CPPrintLayout.appendSection(layout, {
+        html: '<table class="report-table"><tbody><tr><td>Nenhum dado disponível.</td></tr></tbody></table>'
+      });
+    }
   }
 
   function buildReport(){
-    renderReportHeaderFooter();
     var rootEl = root.E('reportRoot');
     rootEl.classList.add('solic-paged');
-    rootEl.classList.add('cp-report-root');
-    var meta = buildMetaText();
-    rootEl.innerHTML = '';
-
-    var pageIndex = 1;
-    var page = createSolicPage(rootEl, pageIndex, meta, true);
-    var tbody = page.querySelector('tbody');
-
-    if (!root.store.currentRows.length) return;
-
-    root.store.currentRows.forEach(function(row){
-      var tr = createSolicRow(row);
-      tbody.appendChild(tr);
-      if (!rowFitsInPage(page)) {
-        tr.remove();
-        pageIndex += 1;
-        page = createSolicPage(rootEl, pageIndex, meta, false);
-        tbody = page.querySelector('tbody');
-        tbody.appendChild(tr);
-      }
+    var layout = CPPrintLayout.createLayout({
+      root: rootEl,
+      title: 'RELATÓRIO DE SOLICITAÇÕES',
+      meta: buildMetaText(),
+      branding: getReportBranding(),
+      contextName: 'solicitacoes-print',
+      documentTitle: 'Solicitações'
     });
-
-    Array.from(rootEl.querySelectorAll('.page')).forEach(function(pg){
-      if (!pg.querySelectorAll('tbody tr').length) pg.remove();
-    });
-
-    if (!rootEl.querySelector('.page')) createSolicPage(rootEl, 1, meta, true);
-    renderReportHeaderFooter();
+    fillLayout(layout);
+    CPPrintLayout.applyReportBranding(rootEl, getReportBranding());
   }
 
   function goReport(){
@@ -170,12 +145,20 @@
     if (!root.store.currentRows.length) return alert('Nenhum dado disponível para imprimir.');
     var fileTitle = sanitizeFilename((root.store.competenciaAtual === '—' ? 'Sem competência' : root.store.competenciaAtual) + ' - ' + root.store.currentClient) || 'solicitacoes';
     root.switchTab('report');
-    buildReport();
     var reportRoot = root.E('reportRoot');
-    if (!reportRoot || !window.CPPrintLayout || !CPPrintLayout.printRootInHost) {
+    if (!reportRoot || !window.CPPrintLayout || !CPPrintLayout.finalizeAndPrint) {
       return window.print();
     }
-    CPPrintLayout.printRootInHost(reportRoot, 'solicitacoes-print', fileTitle);
+    var layout = CPPrintLayout.createLayout({
+      root: reportRoot,
+      title: 'RELATÓRIO DE SOLICITAÇÕES',
+      meta: buildMetaText(),
+      branding: getReportBranding(),
+      contextName: 'solicitacoes-print',
+      documentTitle: fileTitle
+    });
+    fillLayout(layout);
+    CPPrintLayout.finalizeAndPrint(layout, { contextName: 'solicitacoes-print', title: fileTitle });
   }
 
   root.renderReportHeaderFooter = renderReportHeaderFooter;
