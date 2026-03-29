@@ -1253,19 +1253,29 @@
       footer: { l1:'R. Mário Gonzaga Junqueira, 25-80', l2:'Jardim Viaduto, Bauru - SP, 17055-210', site:'www.calculopro.com.br', emp:'CalculoPro Ltda. 51.540.075/0001-04' }
     };
 
-    const resumoIdentificacao = '' +
-      '<div class="sec-title">Identificação do cálculo</div>' +
-      '<div class="kv-grid">' +
+    const layout = CPPrintLayout.createLayout({
+      root: reportRoot,
+      title: 'RELATÓRIO INICIAL — CÁLCULOS CÍVEIS',
+      meta: 'Estrutura inicial do módulo cível no sistema CalculoPro',
+      branding: branding,
+      contextName: 'calculos-civeis-print',
+      documentTitle: 'Relatório - Cálculos Cíveis'
+    });
+
+    CPPrintLayout.appendSection(layout, {
+      title: 'Identificação do cálculo',
+      html: '<div class="kv-grid">' +
         '<div class="kv-item"><div class="kv-label">Requerente</div><div class="kv-value">' + esc(data.requerente || '—') + '</div></div>' +
         '<div class="kv-item"><div class="kv-label">Requerido</div><div class="kv-value">' + esc(data.requerido || '—') + '</div></div>' +
         '<div class="kv-item"><div class="kv-label">Número do processo</div><div class="kv-value">' + esc(data.processo || '—') + '</div></div>' +
         '<div class="kv-item"><div class="kv-label">Data do ajuizamento</div><div class="kv-value">' + esc(formatDateBR(data.ajuizamento)) + '</div></div>' +
         '<div class="kv-item full"><div class="kv-label">Observações iniciais</div><div class="kv-value">' + esc(data.observacoes || 'Sem observações iniciais registradas.') + '</div></div>' +
-      '</div>';
+      '</div>'
+    });
 
-    const resumoControle = '' +
-      '<div class="sec-title">Controle do módulo</div>' +
-      '<table class="report-table"><tbody>' +
+    CPPrintLayout.appendSection(layout, {
+      title: 'Controle do módulo',
+      html: '<table class="report-table"><tbody>' +
         '<tr><td class="bold" style="width:34%">Ferramenta</td><td>Cálculos Cíveis</td></tr>' +
         '<tr><td class="bold">Finalidade</td><td>Lançamentos mensais por verba, quadro de resumo, honorários e custas.</td></tr>' +
         '<tr><td class="bold">Quantidade de verbas</td><td>' + String(data.lancamentos.length) + '</td></tr>' +
@@ -1273,257 +1283,59 @@
         '<tr><td class="bold">Custas lançadas</td><td>' + String(summary.custas.items.length) + ' item(ns) — total de ' + esc(formatCurrencyBR(summary.custas.total)) + '</td></tr>' +
         '<tr><td class="bold">Data-base de atualização</td><td>' + esc(formatDateBR(data.dataAtualizacao)) + '</td></tr>' +
         '<tr><td class="bold">Última atualização do relatório</td><td>' + esc(data.atualizadoEm || '—') + '</td></tr>' +
-      '</tbody></table>';
+      '</tbody></table>'
+    });
 
-    function createCivilPage(pageIndex, includeTitle){
-      return CPPrintLayout.createPage(reportRoot, {
-        pageIndex: pageIndex,
-        title: 'RELATÓRIO INICIAL — CÁLCULOS CÍVEIS',
-        meta: 'Estrutura inicial do módulo cível no sistema CalculoPro',
-        includeTitle: includeTitle,
-        contentHtml: '',
-        header: branding.header,
-        footer: branding.footer
-      });
-    }
+    const summaryRows = (summary.rows.length ? summary.rows : [{ verba:'Nenhum item resumido até o momento.', note:'', valorCorrigido:0, juros:0, valorDevido:0 }]).map(function(row){
+      return '<tr>' +
+        '<td>' + esc(row.verba || '—') + (row.note ? '<span class="summary-row-note">' + esc(row.note) + '</span>' : '') + '</td>' +
+        '<td class="right">' + esc(formatCurrencyBR(row.valorCorrigido || 0)) + '</td>' +
+        '<td class="right">' + esc(formatCurrencyBR(row.juros || 0)) + '</td>' +
+        '<td class="bold right">' + esc(formatCurrencyBR(row.valorDevido || 0)) + '</td>' +
+      '</tr>';
+    });
+    const summaryFooter = '<tr><td class="bold right">Total geral</td><td class="bold right">' + esc(formatCurrencyBR(summary.totals.valorCorrigido || 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.totals.juros || 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.totals.valorDevido || 0)) + '</td></tr>';
+    CPPrintLayout.appendTable(layout, {
+      title: 'Resumo do cálculo',
+      columns: ['Verba', 'Valor corrigido', 'Juros', 'Valor devido'],
+      rows: summaryRows,
+      tfootHtml: summaryFooter,
+      tableClass: 'report-table report-summary-table',
+      continuationLabel: 'Resumo do cálculo (continuação)'
+    });
 
-    function contentBottomUsed(page){
-      if (window.CPPrintLayout && typeof CPPrintLayout.pageContentBottom === 'function') {
-        return CPPrintLayout.pageContentBottom(page);
-      }
-      const content = page && page.querySelector ? page.querySelector('.content') : null;
-      if (!content) return 0;
-      let max = 0;
-      Array.from(content.children || []).forEach(function(node){
-        if (!(node instanceof HTMLElement)) return;
-        const style = window.getComputedStyle ? window.getComputedStyle(node) : null;
-        const marginBottom = style ? (parseFloat(style.marginBottom || '0') || 0) : 0;
-        max = Math.max(max, node.offsetTop + node.offsetHeight + marginBottom);
-      });
-      return max;
-    }
-
-    function contentLimit(page){
-      if (window.CPPrintLayout && typeof CPPrintLayout.pageContentLimit === 'function') {
-        return CPPrintLayout.pageContentLimit(page, '.footer', 10);
-      }
-      const content = page && page.querySelector ? page.querySelector('.content') : null;
-      const footer = page && page.querySelector ? page.querySelector('.footer') : null;
-      if (!content) return 0;
-      if (!footer) return Math.max(0, content.clientHeight - 10);
-      return Math.max(0, footer.offsetTop - content.offsetTop - 10);
-    }
-
-    function fitsInPage(page){
-      if (window.CPPrintLayout && typeof CPPrintLayout.pageContentFits === 'function') {
-        return CPPrintLayout.pageContentFits(page, '.footer', 10);
-      }
-      return contentBottomUsed(page) <= contentLimit(page);
-    }
-
-    function appendHtml(page, html){
-      const content = page.querySelector('.content');
-      const probe = document.createElement('div');
-      probe.innerHTML = html;
-      Array.from(probe.childNodes).forEach(function(node){ content.appendChild(node); });
-      return true;
-    }
-
-    function appendHtmlIfFits(page, html){
-      const content = page.querySelector('.content');
-      const probe = document.createElement('div');
-      probe.innerHTML = html;
-      const nodes = Array.from(probe.childNodes);
-      nodes.forEach(function(node){ content.appendChild(node); });
-      void content.offsetHeight;
-      if (fitsInPage(page)) return true;
-      nodes.forEach(function(node){
-        if (node.parentNode === content) content.removeChild(node);
-      });
-      return false;
-    }
-
-    function measureRowsFit(page, piece, startIndex, continuation){
-      const content = page.querySelector('.content');
-      if (!content) return 1;
-
-      const remaining = Math.max(0, contentLimit(page) - contentBottomUsed(page));
-      const measure = document.createElement('div');
-      measure.style.position = 'absolute';
-      measure.style.visibility = 'hidden';
-      measure.style.pointerEvents = 'none';
-      measure.style.left = '-99999px';
-      measure.style.top = '0';
-      measure.style.width = content.clientWidth + 'px';
-      content.appendChild(measure);
-
-      measure.innerHTML = piece.buildChunk([piece.rows[startIndex]], continuation, false);
-      const row = measure.querySelector('tbody tr');
-
-      if ((measure.offsetHeight || 0) > remaining) {
-        content.removeChild(measure);
-        return 0;
-      }
-
-      const oneRowHeight = row ? row.offsetHeight : 24;
-      const chromeHeight = Math.max(0, (measure.offsetHeight || 0) - oneRowHeight);
-      let rowsFit = Math.floor((remaining - chromeHeight) / Math.max(oneRowHeight, 1));
-      if (!Number.isFinite(rowsFit) || rowsFit < 1) rowsFit = 1;
-      rowsFit = Math.min(rowsFit, piece.rows.length - startIndex);
-
-      while (rowsFit > 1) {
-        const includeTotal = (startIndex + rowsFit - 1 === piece.rows.length - 1);
-        measure.innerHTML = piece.buildChunk(piece.rows.slice(startIndex, startIndex + rowsFit), continuation, includeTotal);
-        if (measure.offsetHeight <= remaining) break;
-        rowsFit -= 1;
-      }
-
-      while (startIndex + rowsFit < piece.rows.length) {
-        const includeTotal = (startIndex + rowsFit === piece.rows.length - 1);
-        measure.innerHTML = piece.buildChunk(piece.rows.slice(startIndex, startIndex + rowsFit + 1), continuation, includeTotal);
-        if (measure.offsetHeight <= remaining) rowsFit += 1;
-        else break;
-      }
-
-      content.removeChild(measure);
-      return Math.max(1, rowsFit);
-    }
-
-    function appendPieceChunk(page, piece, startIndex, continuation){
-      const rowsFit = measureRowsFit(page, piece, startIndex, continuation);
-      if (!rowsFit) return 0;
-      const includeTotal = (startIndex + rowsFit - 1 === piece.rows.length - 1);
-      appendHtml(page, piece.buildChunk(piece.rows.slice(startIndex, startIndex + rowsFit), continuation, includeTotal));
-      return rowsFit;
-    }
-
-    function appendSectionWithFlow(html){
-      if (appendHtmlIfFits(currentPage, html)) return;
-      currentPage = createCivilPage(++pageIndex, false);
-      appendHtml(currentPage, html);
-    }
-
-    function appendPieceWithFlow(piece){
-      let cursor = 0;
-      let continuation = false;
-
-      while (cursor < piece.rows.length) {
-        const pageContent = currentPage && currentPage.querySelector ? currentPage.querySelector('.content') : null;
-        const hasContent = !!(pageContent && pageContent.children && pageContent.children.length);
-
-        if (hasContent && !fitsInPage(currentPage)) {
-          currentPage = createCivilPage(++pageIndex, false);
-        }
-
-        const usedRows = appendPieceChunk(currentPage, piece, cursor, continuation);
-        if (!usedRows) {
-          if (!hasContent) {
-            const includeTotal = (cursor === piece.rows.length - 1);
-            appendHtml(currentPage, piece.buildChunk([piece.rows[cursor]], continuation, includeTotal));
-            cursor += 1;
-            continuation = cursor < piece.rows.length;
-            if (cursor < piece.rows.length) currentPage = createCivilPage(++pageIndex, false);
-            continue;
-          }
-          currentPage = createCivilPage(++pageIndex, false);
-          continue;
-        }
-
-        cursor += usedRows;
-        continuation = cursor < piece.rows.length;
-        if (cursor < piece.rows.length) currentPage = createCivilPage(++pageIndex, false);
-      }
-    }
-
-    function summaryPieces(summaryData){
-      const headers = '<th style="width:46%">Verba</th><th style="width:18%">Valor corrigido</th><th style="width:18%">Juros</th><th style="width:18%">Valor devido</th>';
-      const rowHtml = (summaryData.rows.length ? summaryData.rows : [{ verba:'Nenhum item resumido até o momento.', note:'', valorCorrigido:0, juros:0, valorDevido:0 }]).map(function(row){
-        return '' +
-          '<tr>' +
-            '<td>' + esc(row.verba || '—') + (row.note ? '<span class="summary-row-note">' + esc(row.note) + '</span>' : '') + '</td>' +
-            '<td class="right">' + esc(formatCurrencyBR(row.valorCorrigido || 0)) + '</td>' +
-            '<td class="right">' + esc(formatCurrencyBR(row.juros || 0)) + '</td>' +
-            '<td class="bold right">' + esc(formatCurrencyBR(row.valorDevido || 0)) + '</td>' +
-          '</tr>';
-      });
-
-      const footerHtml = '<tr><td class="bold right">Total geral</td><td class="bold right">' + esc(formatCurrencyBR(summaryData.totals.valorCorrigido || 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summaryData.totals.juros || 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summaryData.totals.valorDevido || 0)) + '</td></tr>';
-
-      function buildChunk(rows, isContinuation, includeTotal){
-        return '' +
-          '<div class="report-launch report-summary-block">' +
-            '<h3>Resumo do cálculo' + (isContinuation ? ' <span class="meta">(continuação)</span>' : '') + '</h3>' +
-            '<table class="report-table report-summary-table">' +
-              '<thead><tr>' + headers + '</tr></thead>' +
-              '<tbody>' + rows.join('') + '</tbody>' +
-              (includeTotal ? '<tfoot>' + footerHtml + '</tfoot>' : '') +
-            '</table>' +
-          '</div>';
-      }
-
-      return { rows: rowHtml, buildChunk: buildChunk };
-    }
-
-    function launchPieces(lancamento){
-      normalizeLaunch(lancamento);
-      recalculateLaunch(lancamento);
-
-      const launchTitle = esc(lancamento.verba);
-      const headers = ['<th class="col-data">Data</th>'].concat(lancamento.colunas.map(function(coluna, idx){
-        return '<th>' + esc(columnTitle(coluna, idx) + (coluna.tipo === 'formula' ? ' (' + (coluna.formula || '') + ')' : '')) + '</th>';
-      })).join('');
-
-      const rowHtml = lancamento.linhas.map(function(linha){
-        const cols = lancamento.colunas.map(function(coluna){
-          const valor = coluna.id === 'valor' ? linha.valor : linha[coluna.id];
-          const exibicao = displayColumnValue(coluna, valor);
-          return '<td class="right">' + esc(exibicao || '—') + '</td>';
-        }).join('');
-        return '<tr><td class="center">' + esc(linha.periodo) + '</td>' + cols + '</tr>';
-      });
-
-      const totalCells = lancamento.colunas.map(function(coluna){
-        if (coluna.formato === 'percentual' || coluna.formato === 'indice') return '<td class="bold right">—</td>';
-        return '<td class="bold right">' + esc(formatCurrencyBR(totalLancamento(lancamento, coluna.id === 'valor' ? 'valor' : coluna.id))) + '</td>';
-      }).join('');
-
-      function buildChunk(rows, isContinuation, includeTotal){
-        return '' +
-          '<div class="report-launch">' +
-            '<h3>' + launchTitle + (isContinuation ? ' <span class="meta">(continuação)</span>' : '') + '</h3>' +
-            '<table class="report-table report-launch-table">' +
-              '<thead><tr>' + headers + '</tr></thead>' +
-              '<tbody>' + rows.join('') + '</tbody>' +
-              (includeTotal ? '<tfoot><tr><td class="bold right">Total da verba</td>' + totalCells + '</tr></tfoot>' : '') +
-            '</table>' +
-          '</div>';
-      }
-
-      return { rows: rowHtml, buildChunk: buildChunk };
-    }
-
-    reportRoot.innerHTML = '';
-
-    let pageIndex = 1;
-    let currentPage = createCivilPage(pageIndex, true);
-
-    appendSectionWithFlow(resumoIdentificacao);
-    appendSectionWithFlow(resumoControle);
-    appendPieceWithFlow(summaryPieces(summary));
-    appendSectionWithFlow('<div class="sec-title">Lançamentos por verba</div>');
-
+    CPPrintLayout.appendSection(layout, { title:'Lançamentos por verba', html:'' });
     if (!data.lancamentos.length) {
-      appendSectionWithFlow('<table class="report-table report-launch-table"><tbody><tr><td>Nenhuma verba lançada até o momento.</td></tr></tbody></table>');
+      CPPrintLayout.appendSection(layout, { html:'<table class="report-table report-launch-table"><tbody><tr><td>Nenhuma verba lançada até o momento.</td></tr></tbody></table>' });
     } else {
       data.lancamentos.forEach(function(lancamento){
-        appendPieceWithFlow(launchPieces(lancamento));
+        normalizeLaunch(lancamento);
+        recalculateLaunch(lancamento);
+        const headers = ['Data'].concat(lancamento.colunas.map(function(coluna, idx){ return columnTitle(coluna, idx); }));
+        const rows = lancamento.linhas.map(function(linha){
+          const cols = lancamento.colunas.map(function(coluna){
+            const valor = coluna.id === 'valor' ? linha.valor : linha[coluna.id];
+            const exibicao = displayColumnValue(coluna, valor);
+            return '<td class="right">' + esc(exibicao || '—') + '</td>';
+          }).join('');
+          return '<tr><td class="center">' + esc(linha.periodo) + '</td>' + cols + '</tr>';
+        });
+        const totalCells = lancamento.colunas.map(function(coluna){
+          if (coluna.formato === 'percentual' || coluna.formato === 'indice') return '<td class="bold right">—</td>';
+          return '<td class="bold right">' + esc(formatCurrencyBR(totalLancamento(lancamento, coluna.id === 'valor' ? 'valor' : coluna.id))) + '</td>';
+        }).join('');
+        CPPrintLayout.appendTable(layout, {
+          title: esc(lancamento.verba),
+          columns: headers,
+          rows: rows,
+          tfootHtml: '<tr><td class="bold right">Total da verba</td>' + totalCells + '</tr>',
+          tableClass: 'report-table report-launch-table',
+          continuationLabel: esc(lancamento.verba) + ' (continuação)'
+        });
       });
     }
 
-    CPPrintLayout.applyReportBranding(reportRoot, {
-      header: branding.header,
-      footer: branding.footer
-    });
+    CPPrintLayout.applyReportBranding(reportRoot, branding);
   }
 
 
@@ -1987,8 +1799,11 @@
   renderSummaryPanel();
   buildReport(collect());
   if ($('tab-report') && $('tab-report').classList.contains('active')) renderReportDeferred();
-  state.lancamentos.forEach(function(lancamento, index){
-    if (launchNeedsIndexRefresh(lancamento) || !(lancamento.indexConfig && lancamento.indexConfig.lastAutoRefresh)) updateIndicesForLaunch(index);
-  });
+  setTimeout(function(){
+    state.lancamentos.forEach(function(lancamento, index){
+      if (!(launchNeedsIndexRefresh(lancamento) || !(lancamento.indexConfig && lancamento.indexConfig.lastAutoRefresh))) return;
+      Promise.resolve().then(function(){ return updateIndicesForLaunch(index); }).catch(function(){ });
+    });
+  }, 0);
 })();
 
