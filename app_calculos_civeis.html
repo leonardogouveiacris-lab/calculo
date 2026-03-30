@@ -1585,12 +1585,14 @@ textarea{min-height:92px;resize:vertical}
       }
       lancamento.linhas.forEach(function(linha){
         const mesCompetencia = monthKeyFromPeriodo(linha.periodo);
-        const inicioCompetenciaISO = mesCompetencia + '-01';
+        const isPrimeiroMesDaVerba = monthKeyFromISO(lancamento.dataInicial) === mesCompetencia;
+        const inicioCompetenciaISO = isPrimeiroMesDaVerba ? lancamento.dataInicial : (mesCompetencia + '-01');
+        const fimCompetenciaISO = dataAtualizacao;
         indexColumns.forEach(function(coluna){
           const monthMap = mapsByColumnId[coluna.id] || new Map();
           const limit = getIndexLimit(coluna);
           const mode = coluna.accumulationMode || sourceAccumulationMode(coluna.indexSource);
-          linha[coluna.id] = Number(accumulateIndexFactor(monthMap, mesCompetencia, mesAtualizacao, limit, mode, inicioCompetenciaISO, dataAtualizacao).toFixed(7));
+          linha[coluna.id] = Number(accumulateIndexFactor(monthMap, mesCompetencia, mesAtualizacao, limit, mode, inicioCompetenciaISO, fimCompetenciaISO).toFixed(7));
         });
       });
       config.lastAutoRefresh = new Date().toISOString();
