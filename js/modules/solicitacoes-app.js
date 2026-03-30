@@ -1,3 +1,4 @@
+window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeatureFlags || {});
 (function(){
   var root = window.CPSolicitacoes = window.CPSolicitacoes || {};
   var store = root.store;

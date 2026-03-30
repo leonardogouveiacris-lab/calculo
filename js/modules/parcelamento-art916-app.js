@@ -1,3 +1,4 @@
+window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeatureFlags || {});
 /* ===== app.js (inline) ===== */
 /**
  * app.js — Lógica do sistema de Parcelamento (Art. 916 CPC)
