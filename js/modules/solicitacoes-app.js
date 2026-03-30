@@ -50,8 +50,38 @@
     root.renderTable(rows);
   }
 
+  function computeFillRate(rows, column){
+    if (!rows.length) return 0;
+    var filled = rows.filter(function(row){ return String(row[column] || '').trim() !== ''; }).length;
+    return filled / rows.length;
+  }
+
+  function validateImportQuality(rows){
+    if (!rows.length) return { ok: true };
+    var keyColumns = ['Entrega em','Contato: Primeiro nome','Reclamada','Serviços','Total (Total)'];
+    var rates = {};
+    keyColumns.forEach(function(column){ rates[column] = computeFillRate(rows, column); });
+    var lowCoverage = keyColumns.filter(function(column){ return rates[column] < 0.2; }).length;
+    var onlyReclamante = computeFillRate(rows, 'Reclamante') >= 0.6 && keyColumns.every(function(column){ return rates[column] < 0.1; });
+    var verySparse = lowCoverage >= 4;
+    return {
+      ok: !(onlyReclamante || verySparse),
+      rates: rates
+    };
+  }
+
   function afterImport(data){
-    store.allRows = root.normalizeAndFormat(data);
+    var normalized = root.normalizeAndFormat(data);
+    var quality = validateImportQuality(normalized);
+    if (!quality.ok) {
+      alert(
+        'Layout de planilha incompatível para importação.\\n\\n' +
+        'Verifique os cabeçalhos esperados: Entrega em, Contato: Primeiro nome, Reclamada, Serviços e Total (Total).'
+      );
+      return false;
+    }
+
+    store.allRows = normalized;
     store.currentRows = store.allRows.slice();
     store.selectedRowIds.clear();
 
@@ -65,6 +95,7 @@
     root.setReclamadaDropdown(reclamadas);
     root.updateReclamadaBtnLabel();
     applyFilters();
+    return true;
   }
 
   async function handleFileImport(event){
