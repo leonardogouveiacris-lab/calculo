@@ -1687,34 +1687,14 @@ body[data-report-context="parcelamento-art916-print"] #cpPrintHost .page.page3 .
   margin-top:0 !important;
 }
 
-#reportRoot.cp-report-root .report-ident-grid,
-body[data-report-context="parcelamento-art916-print"] #cpPrintHost .report-ident-grid{
+#reportRoot.cp-report-root .process-info-table,
+body[data-report-context="parcelamento-art916-print"] #cpPrintHost .process-info-table{
   margin:8px 0 10px;
 }
 
-#reportRoot.cp-report-root .report-ident-grid .kv-item,
-body[data-report-context="parcelamento-art916-print"] #cpPrintHost .report-ident-grid .kv-item{
-  background:#fff;
-  border:1px solid #dbe1ec;
-  border-radius:12px;
-  padding:8px 10px;
-}
-
-#reportRoot.cp-report-root .report-ident-grid .kv-label,
-body[data-report-context="parcelamento-art916-print"] #cpPrintHost .report-ident-grid .kv-label{
-  font-size:10.5px;
-  text-transform:uppercase;
-  letter-spacing:.04em;
-  color:#667085 !important;
-  margin-bottom:3px;
-}
-
-#reportRoot.cp-report-root .report-ident-grid .kv-value,
-body[data-report-context="parcelamento-art916-print"] #cpPrintHost .report-ident-grid .kv-value{
-  font-size:12.8px;
-  font-weight:600;
-  color:#0b1220 !important;
-  min-height:18px;
+#reportRoot.cp-report-root .sec-title-process,
+body[data-report-context="parcelamento-art916-print"] #cpPrintHost .sec-title-process{
+  margin:0 0 6px !important;
 }
 
 #reportRoot.cp-report-root .page .sec-title,
@@ -2010,11 +1990,14 @@ body[data-report-context="parcelamento-art916-print"] #cpPrintHost .page .report
 </div>
 </div>
 <div class="content" id="rptContent1">
-<div class="kv-grid report-ident-grid" id="rptIdentGrid">
-<div class="kv-item"><div class="kv-label">Reclamante</div><div class="kv-value"><span id="rAutor"></span></div></div>
-<div class="kv-item"><div class="kv-label">Reclamada</div><div class="kv-value"><span id="rReu"></span></div></div>
-<div class="kv-item full"><div class="kv-label">Nº do processo</div><div class="kv-value"><span id="rProc"></span></div></div>
-</div>
+<h3 class="sec-title sec-title-process">Informações do processo</h3>
+<table class="report-table process-info-table" id="rptIdentGrid">
+<tbody>
+<tr><td class="bold">Reclamante</td><td><span id="rAutor"></span></td></tr>
+<tr><td class="bold">Reclamada</td><td><span id="rReu"></span></td></tr>
+<tr><td class="bold">Processo</td><td><span id="rProc"></span></td></tr>
+</tbody>
+</table>
 <div class="title">PARCELAMENTO – ART. 916 DO CPC</div>
 <div class="legal-box" id="rptLegal916">
 <p class="legal-text"><strong>Art. 916 do CPC:</strong> No prazo para embargos, reconhecendo o crédito do exequente e comprovando o depósito de trinta por cento do valor em execução, acrescido de custas e de honorários de advogado, o executado poderá requerer que lhe seja permitido pagar o restante em até 6 (seis) parcelas mensais, acrescidas de correção monetária e de juros de um por cento ao mês.</p>

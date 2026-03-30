@@ -178,6 +178,18 @@ body[data-report-context] #cpPrintHost .print-header .logo{
 #reportRoot.cp-report-root .page .report-table td:last-child{ border-right:none; }
 #reportRoot.cp-report-root .page .report-table tbody tr:last-child td{ border-bottom:none; }
 
+#reportRoot.cp-report-root .page .process-info-table td:first-child,
+body[data-report-context] #cpPrintHost .process-info-table td:first-child{
+  width:34%;
+  font-weight:700;
+  background:#fafbfc;
+}
+
+#reportRoot.cp-report-root .page .process-info-table td:last-child,
+body[data-report-context] #cpPrintHost .process-info-table td:last-child{
+  width:66%;
+}
+
 #reportRoot.cp-report-root .page .summary-row-note{
   display:block;
   font-size:9pt;

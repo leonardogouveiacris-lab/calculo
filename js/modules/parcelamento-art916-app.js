@@ -699,9 +699,9 @@
     }
 
     // Processo
-    $(DOM.rAutor).textContent = state.autor;
-    $(DOM.rReu).textContent = state.reu;
-    $(DOM.rProc).textContent = state.processo;
+    $(DOM.rAutor).textContent = state.autor || "-";
+    $(DOM.rReu).textContent = state.reu || "-";
+    $(DOM.rProc).textContent = state.processo || "-";
 
     // Créditos
     const rCredits = $(DOM.rCredits);

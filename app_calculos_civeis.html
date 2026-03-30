@@ -1599,13 +1599,13 @@ textarea{min-height:92px;resize:vertical}
     };
 
     const resumoIdentificacao = '' +
-      '<div class="kv-grid">' +
-        '<div class="kv-item"><div class="kv-label">Requerente</div><div class="kv-value">' + esc(data.requerente || '—') + '</div></div>' +
-        '<div class="kv-item"><div class="kv-label">Requerido</div><div class="kv-value">' + esc(data.requerido || '—') + '</div></div>' +
-        '<div class="kv-item"><div class="kv-label">Número do processo</div><div class="kv-value">' + esc(data.processo || '—') + '</div></div>' +
-        '<div class="kv-item"><div class="kv-label">Data do ajuizamento</div><div class="kv-value">' + esc(formatDateBR(data.ajuizamento)) + '</div></div>' +
-        '<div class="kv-item full"><div class="kv-label">Observações iniciais</div><div class="kv-value">' + esc(data.observacoes || 'Sem observações iniciais registradas.') + '</div></div>' +
-      '</div>';
+      '<table class="report-table process-info-table"><tbody>' +
+        '<tr><td class="bold">Requerente</td><td>' + esc(data.requerente || '-') + '</td></tr>' +
+        '<tr><td class="bold">Requerido</td><td>' + esc(data.requerido || '-') + '</td></tr>' +
+        '<tr><td class="bold">Número do processo</td><td>' + esc(data.processo || '-') + '</td></tr>' +
+        '<tr><td class="bold">Data do ajuizamento</td><td>' + esc(formatDateBR(data.ajuizamento) || '-') + '</td></tr>' +
+        '<tr><td class="bold">Observações iniciais</td><td>' + esc(data.observacoes || 'Sem observações iniciais registradas.') + '</td></tr>' +
+      '</tbody></table>';
 
     const resumoControle = '' +
       '<table class="report-table"><tbody>' +
@@ -1651,7 +1651,7 @@ textarea{min-height:92px;resize:vertical}
     });
 
     CPPrintLayout.appendSection(layout, {
-      title: 'Identificação do cálculo',
+      title: 'Informações do processo',
       html: resumoIdentificacao
     });
     CPPrintLayout.appendSection(layout, {
