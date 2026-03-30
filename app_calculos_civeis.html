@@ -46,7 +46,7 @@ input:focus,textarea:focus{border-color:rgba(37,99,235,.55);box-shadow:var(--foc
 textarea{min-height:92px;resize:vertical}
 .row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}.col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-12{grid-column:span 12}@media (max-width:900px){.col-3,.col-4,.col-6{grid-column:span 12}}
 .btn-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:12px}
-.kv-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;margin-top:8px}.kv-item{grid-column:span 6;border:1px solid var(--border);border-radius:14px;padding:12px;background:#fff}.kv-item.full{grid-column:span 12}.kv-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}.kv-value{font-size:14px;font-weight:600;color:var(--ink);min-height:20px;word-break:break-word}@media (max-width:900px){.kv-item{grid-column:span 12}}
+.kv-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;margin-top:8px}.kv-item{grid-column:span 6;border:1px solid var(--border);border-radius:14px;padding:12px;background:#fff}.kv-item.full{grid-column:span 12}.kv-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}.kv-value{font-size:14px;font-weight:600;color:var(--ink);min-height:20px;word-break:break-word}
 .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:16px;background:#fff}
 .editor-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;background:#fff;min-width:340px}
 .editor-table thead th{text-align:left;background:var(--soft-2);color:#475467;font-weight:600;padding:11px 12px;border-bottom:1px solid var(--border)}
@@ -86,7 +86,6 @@ textarea{min-height:92px;resize:vertical}
 .modal-close{border:none;background:transparent;box-shadow:none;font-size:24px;line-height:1;padding:2px 6px;color:var(--muted)}
 .modal-close:hover{background:var(--soft)}
 .formula-help{margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:14px;background:var(--soft-2);font-size:12px;color:var(--muted);line-height:1.5}
-@media print{@page{size:A4;margin:0}.no-print{display:none !important}.page{width:210mm !important;max-width:210mm !important;min-height:297mm !important;height:297mm !important;margin:0 !important;border-radius:0 !important;box-shadow:none !important;overflow:hidden !important;page-break-after:always;break-after:page;padding:9mm 16mm 10mm !important}.page:last-child{page-break-after:auto;break-after:auto}.page .header{display:flex !important;align-items:flex-start !important;justify-content:space-between !important;gap:16px !important;min-height:11mm !important}.page .content{margin-top:0 !important;padding-top:5mm !important;padding-bottom:26mm !important;overflow:hidden !important}.page .footer{display:flex !important;justify-content:space-between !important;align-items:flex-end !important;gap:12px !important;position:absolute !important;left:16mm !important;right:16mm !important;bottom:10mm !important}}
 .print-only{display:none}
 </style><script src="js/core/cp-common.js"></script><script src="js/core/print-layout.js"></script></head><body>
 <header class="topbar no-print" id="hdrTopbar"><div class="topbar-inner" id="hdrTopbarInner"><div class="brand" id="hdrBrand"><img class="brand-logo" data-logo="1" src="https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png" alt="CalculoPro"/></div><div class="actions" id="hdrActions"><button class="btn" id="btnBack" type="button">Voltar ao menu</button></div></div><div class="hintbar" id="hdrHintbar"><div class="hintbar-inner" id="hdrHintbarInner"><div class="hint">Módulo inicial do cálculo cível com separação entre dados e relatório, além da lógica inicial de lançamentos por verba.</div></div></div></header>
@@ -1600,17 +1599,15 @@ textarea{min-height:92px;resize:vertical}
     };
 
     const resumoIdentificacao = '' +
-      '<div class="sec-title">Identificação do cálculo</div>' +
-      '<div class="kv-grid">' +
-        '<div class="kv-item"><div class="kv-label">Requerente</div><div class="kv-value">' + esc(data.requerente || '—') + '</div></div>' +
-        '<div class="kv-item"><div class="kv-label">Requerido</div><div class="kv-value">' + esc(data.requerido || '—') + '</div></div>' +
-        '<div class="kv-item"><div class="kv-label">Número do processo</div><div class="kv-value">' + esc(data.processo || '—') + '</div></div>' +
-        '<div class="kv-item"><div class="kv-label">Data do ajuizamento</div><div class="kv-value">' + esc(formatDateBR(data.ajuizamento)) + '</div></div>' +
-        '<div class="kv-item full"><div class="kv-label">Observações iniciais</div><div class="kv-value">' + esc(data.observacoes || 'Sem observações iniciais registradas.') + '</div></div>' +
-      '</div>';
+      '<table class="report-table process-info-table"><tbody>' +
+        '<tr><td class="bold">Requerente</td><td>' + esc(data.requerente || '-') + '</td></tr>' +
+        '<tr><td class="bold">Requerido</td><td>' + esc(data.requerido || '-') + '</td></tr>' +
+        '<tr><td class="bold">Número do processo</td><td>' + esc(data.processo || '-') + '</td></tr>' +
+        '<tr><td class="bold">Data do ajuizamento</td><td>' + esc(formatDateBR(data.ajuizamento) || '-') + '</td></tr>' +
+        '<tr><td class="bold">Observações iniciais</td><td>' + esc(data.observacoes || 'Sem observações iniciais registradas.') + '</td></tr>' +
+      '</tbody></table>';
 
     const resumoControle = '' +
-      '<div class="sec-title">Controle do módulo</div>' +
       '<table class="report-table"><tbody>' +
         '<tr><td class="bold" style="width:34%">Ferramenta</td><td>Cálculos Cíveis</td></tr>' +
         '<tr><td class="bold">Finalidade</td><td>Lançamentos mensais por verba, quadro de resumo, honorários e custas.</td></tr>' +
@@ -1621,203 +1618,9 @@ textarea{min-height:92px;resize:vertical}
         '<tr><td class="bold">Última atualização do relatório</td><td>' + esc(data.atualizadoEm || '—') + '</td></tr>' +
       '</tbody></table>';
 
-    function createCivilPage(pageIndex, includeTitle){
-      return CPPrintLayout.createPage(reportRoot, {
-        pageIndex: pageIndex,
-        title: 'RELATÓRIO INICIAL — CÁLCULOS CÍVEIS',
-        meta: 'Estrutura inicial do módulo cível no sistema CalculoPro',
-        includeTitle: includeTitle,
-        contentHtml: '',
-        header: branding.header,
-        footer: branding.footer
-      });
-    }
-
-    function contentBottomUsed(page){
-      if (window.CPPrintLayout && typeof CPPrintLayout.pageContentBottom === 'function') {
-        return CPPrintLayout.pageContentBottom(page);
-      }
-      const content = page && page.querySelector ? page.querySelector('.content') : null;
-      if (!content) return 0;
-      let max = 0;
-      Array.from(content.children || []).forEach(function(node){
-        if (!(node instanceof HTMLElement)) return;
-        const style = window.getComputedStyle ? window.getComputedStyle(node) : null;
-        const marginBottom = style ? (parseFloat(style.marginBottom || '0') || 0) : 0;
-        max = Math.max(max, node.offsetTop + node.offsetHeight + marginBottom);
-      });
-      return max;
-    }
-
-    function contentLimit(page){
-      if (window.CPPrintLayout && typeof CPPrintLayout.pageContentLimit === 'function') {
-        return CPPrintLayout.pageContentLimit(page, '.footer', 10);
-      }
-      const content = page && page.querySelector ? page.querySelector('.content') : null;
-      const footer = page && page.querySelector ? page.querySelector('.footer') : null;
-      if (!content) return 0;
-      if (!footer) return Math.max(0, content.clientHeight - 10);
-      return Math.max(0, footer.offsetTop - content.offsetTop - 10);
-    }
-
-    function fitsInPage(page){
-      if (window.CPPrintLayout && typeof CPPrintLayout.pageContentFits === 'function') {
-        return CPPrintLayout.pageContentFits(page, '.footer', 10);
-      }
-      return contentBottomUsed(page) <= contentLimit(page);
-    }
-
-    function appendHtml(page, html){
-      const content = page.querySelector('.content');
-      const probe = document.createElement('div');
-      probe.innerHTML = html;
-      Array.from(probe.childNodes).forEach(function(node){ content.appendChild(node); });
-      return true;
-    }
-
-    function appendHtmlIfFits(page, html){
-      const content = page.querySelector('.content');
-      const probe = document.createElement('div');
-      probe.innerHTML = html;
-      const nodes = Array.from(probe.childNodes);
-      nodes.forEach(function(node){ content.appendChild(node); });
-      void content.offsetHeight;
-      if (fitsInPage(page)) return true;
-      nodes.forEach(function(node){
-        if (node.parentNode === content) content.removeChild(node);
-      });
-      return false;
-    }
-
-    function measureRowsFit(page, piece, startIndex, continuation){
-      const content = page.querySelector('.content');
-      if (!content) return 1;
-
-      const remaining = Math.max(0, contentLimit(page) - contentBottomUsed(page));
-      const measure = document.createElement('div');
-      measure.style.position = 'absolute';
-      measure.style.visibility = 'hidden';
-      measure.style.pointerEvents = 'none';
-      measure.style.left = '-99999px';
-      measure.style.top = '0';
-      measure.style.width = content.clientWidth + 'px';
-      content.appendChild(measure);
-
-      measure.innerHTML = piece.buildChunk([piece.rows[startIndex]], continuation, false);
-      const row = measure.querySelector('tbody tr');
-
-      if ((measure.offsetHeight || 0) > remaining) {
-        content.removeChild(measure);
-        return 0;
-      }
-
-      const oneRowHeight = row ? row.offsetHeight : 24;
-      const chromeHeight = Math.max(0, (measure.offsetHeight || 0) - oneRowHeight);
-      let rowsFit = Math.floor((remaining - chromeHeight) / Math.max(oneRowHeight, 1));
-      if (!Number.isFinite(rowsFit) || rowsFit < 1) rowsFit = 1;
-      rowsFit = Math.min(rowsFit, piece.rows.length - startIndex);
-
-      while (rowsFit > 1) {
-        const includeTotal = (startIndex + rowsFit - 1 === piece.rows.length - 1);
-        measure.innerHTML = piece.buildChunk(piece.rows.slice(startIndex, startIndex + rowsFit), continuation, includeTotal);
-        if (measure.offsetHeight <= remaining) break;
-        rowsFit -= 1;
-      }
-
-      while (startIndex + rowsFit < piece.rows.length) {
-        const includeTotal = (startIndex + rowsFit === piece.rows.length - 1);
-        measure.innerHTML = piece.buildChunk(piece.rows.slice(startIndex, startIndex + rowsFit + 1), continuation, includeTotal);
-        if (measure.offsetHeight <= remaining) rowsFit += 1;
-        else break;
-      }
-
-      content.removeChild(measure);
-      return Math.max(1, rowsFit);
-    }
-
-    function appendPieceChunk(page, piece, startIndex, continuation){
-      const rowsFit = measureRowsFit(page, piece, startIndex, continuation);
-      if (!rowsFit) return 0;
-      const includeTotal = (startIndex + rowsFit - 1 === piece.rows.length - 1);
-      appendHtml(page, piece.buildChunk(piece.rows.slice(startIndex, startIndex + rowsFit), continuation, includeTotal));
-      return rowsFit;
-    }
-
-    function appendSectionWithFlow(html){
-      if (appendHtmlIfFits(currentPage, html)) return;
-      currentPage = createCivilPage(++pageIndex, false);
-      appendHtml(currentPage, html);
-    }
-
-    function appendPieceWithFlow(piece){
-      let cursor = 0;
-      let continuation = false;
-
-      while (cursor < piece.rows.length) {
-        const pageContent = currentPage && currentPage.querySelector ? currentPage.querySelector('.content') : null;
-        const hasContent = !!(pageContent && pageContent.children && pageContent.children.length);
-
-        if (hasContent && !fitsInPage(currentPage)) {
-          currentPage = createCivilPage(++pageIndex, false);
-        }
-
-        const usedRows = appendPieceChunk(currentPage, piece, cursor, continuation);
-        if (!usedRows) {
-          if (!hasContent) {
-            const includeTotal = (cursor === piece.rows.length - 1);
-            appendHtml(currentPage, piece.buildChunk([piece.rows[cursor]], continuation, includeTotal));
-            cursor += 1;
-            continuation = cursor < piece.rows.length;
-            if (cursor < piece.rows.length) currentPage = createCivilPage(++pageIndex, false);
-            continue;
-          }
-          currentPage = createCivilPage(++pageIndex, false);
-          continue;
-        }
-
-        cursor += usedRows;
-        continuation = cursor < piece.rows.length;
-        if (cursor < piece.rows.length) currentPage = createCivilPage(++pageIndex, false);
-      }
-    }
-
-    function summaryPieces(summaryData){
-      const headers = '<th style="width:46%">Verba</th><th style="width:18%">Valor corrigido</th><th style="width:18%">Juros</th><th style="width:18%">Valor devido</th>';
-      const rowHtml = (summaryData.rows.length ? summaryData.rows : [{ verba:'Nenhum item resumido até o momento.', note:'', valorCorrigido:0, juros:0, valorDevido:0 }]).map(function(row){
-        return '' +
-          '<tr>' +
-            '<td>' + esc(row.verba || '—') + (row.note ? '<span class="summary-row-note">' + esc(row.note) + '</span>' : '') + '</td>' +
-            '<td class="right">' + esc(formatCurrencyBR(row.valorCorrigido || 0)) + '</td>' +
-            '<td class="right">' + esc(formatCurrencyBR(row.juros || 0)) + '</td>' +
-            '<td class="bold right">' + esc(formatCurrencyBR(row.valorDevido || 0)) + '</td>' +
-          '</tr>';
-      });
-
-      const footerHtml = '<tr><td class="bold right">Total geral</td><td class="bold right">' + esc(formatCurrencyBR(summaryData.totals.valorCorrigido || 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summaryData.totals.juros || 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summaryData.totals.valorDevido || 0)) + '</td></tr>';
-
-      function buildChunk(rows, isContinuation, includeTotal){
-        return '' +
-          '<div class="report-launch report-summary-block">' +
-            '<h3>Resumo do cálculo' + (isContinuation ? ' <span class="meta">(continuação)</span>' : '') + '</h3>' +
-            '<table class="report-table report-summary-table">' +
-              '<thead><tr>' + headers + '</tr></thead>' +
-              '<tbody>' + rows.join('') + '</tbody>' +
-              (includeTotal ? '<tfoot>' + footerHtml + '</tfoot>' : '') +
-            '</table>' +
-          '</div>';
-      }
-
-      return { rows: rowHtml, buildChunk: buildChunk };
-    }
-
-    function launchPieces(lancamento){
+    function launchRows(lancamento){
       normalizeLaunch(lancamento);
       recalculateLaunch(lancamento);
-
-      const launchTitle = esc(lancamento.verba);
-      const headers = ['<th class="col-data">Data</th>'].concat(lancamento.colunas.map(function(coluna, idx){
-        return '<th>' + esc(columnTitle(coluna, idx) + (coluna.tipo === 'formula' ? ' (' + (coluna.formula || '') + ')' : '')) + '</th>';
-      })).join('');
 
       const rowHtml = lancamento.linhas.map(function(linha){
         const cols = lancamento.colunas.map(function(coluna){
@@ -1832,44 +1635,78 @@ textarea{min-height:92px;resize:vertical}
         if (coluna.formato === 'percentual' || coluna.formato === 'indice') return '<td class="bold right">—</td>';
         return '<td class="bold right">' + esc(formatCurrencyBR(totalLancamento(lancamento, coluna.id === 'valor' ? 'valor' : coluna.id))) + '</td>';
       }).join('');
-
-      function buildChunk(rows, isContinuation, includeTotal){
-        return '' +
-          '<div class="report-launch">' +
-            '<h3>' + launchTitle + (isContinuation ? ' <span class="meta">(continuação)</span>' : '') + '</h3>' +
-            '<table class="report-table report-launch-table">' +
-              '<thead><tr>' + headers + '</tr></thead>' +
-              '<tbody>' + rows.join('') + '</tbody>' +
-              (includeTotal ? '<tfoot><tr><td class="bold right">Total da verba</td>' + totalCells + '</tr></tfoot>' : '') +
-            '</table>' +
-          '</div>';
-      }
-
-      return { rows: rowHtml, buildChunk: buildChunk };
+      return {
+        rows: rowHtml,
+        tfootHtml: '<tr><td class="bold right">Total da verba</td>' + totalCells + '</tr>'
+      };
     }
 
-    reportRoot.innerHTML = '';
+    const layout = CPPrintLayout.createLayout({
+      root: reportRoot,
+      contextName: 'calculos-civeis-print',
+      documentTitle: 'Relatório - Cálculos Cíveis',
+      title: 'RELATÓRIO INICIAL — CÁLCULOS CÍVEIS',
+      meta: 'Estrutura inicial do módulo cível no sistema CalculoPro',
+      branding: branding
+    });
 
-    let pageIndex = 1;
-    let currentPage = createCivilPage(pageIndex, true);
+    CPPrintLayout.appendSection(layout, {
+      title: 'Informações do processo',
+      html: resumoIdentificacao
+    });
+    CPPrintLayout.appendSection(layout, {
+      title: 'Controle do módulo',
+      html: resumoControle
+    });
 
-    appendSectionWithFlow(resumoIdentificacao);
-    appendSectionWithFlow(resumoControle);
-    appendPieceWithFlow(summaryPieces(summary));
-    appendSectionWithFlow('<div class="sec-title">Lançamentos por verba</div>');
+    const summaryRows = (summary.rows.length ? summary.rows : [{ verba:'Nenhum item resumido até o momento.', note:'', valorCorrigido:0, juros:0, valorDevido:0 }]).map(function(row){
+      return '' +
+        '<tr>' +
+          '<td>' + esc(row.verba || '—') + (row.note ? '<span class="summary-row-note">' + esc(row.note) + '</span>' : '') + '</td>' +
+          '<td class="right">' + esc(formatCurrencyBR(row.valorCorrigido || 0)) + '</td>' +
+          '<td class="right">' + esc(formatCurrencyBR(row.juros || 0)) + '</td>' +
+          '<td class="bold right">' + esc(formatCurrencyBR(row.valorDevido || 0)) + '</td>' +
+        '</tr>';
+    });
+
+    CPPrintLayout.appendTable(layout, {
+      title: 'Resumo do cálculo',
+      continuationLabel: 'Resumo do cálculo (continuação)',
+      tableClass: 'report-table report-summary-table',
+      columns: ['Verba', 'Valor corrigido', 'Juros', 'Valor devido'],
+      rows: summaryRows,
+      tfootHtml: '<tr><td class="bold right">Total geral</td><td class="bold right">' + esc(formatCurrencyBR(summary.totals.valorCorrigido || 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.totals.juros || 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.totals.valorDevido || 0)) + '</td></tr>'
+    });
+
+    CPPrintLayout.appendSection(layout, { title: 'Lançamentos por verba' });
 
     if (!data.lancamentos.length) {
-      appendSectionWithFlow('<table class="report-table report-launch-table"><tbody><tr><td>Nenhuma verba lançada até o momento.</td></tr></tbody></table>');
+      CPPrintLayout.appendSection(layout, {
+        html: '<table class="report-table report-launch-table"><tbody><tr><td>Nenhuma verba lançada até o momento.</td></tr></tbody></table>'
+      });
     } else {
       data.lancamentos.forEach(function(lancamento){
-        appendPieceWithFlow(launchPieces(lancamento));
+        const launchData = launchRows(lancamento);
+        const launchColumns = ['Data'].concat(lancamento.colunas.map(function(coluna, idx){
+          return esc(columnTitle(coluna, idx) + (coluna.tipo === 'formula' ? ' (' + (coluna.formula || '') + ')' : ''));
+        }));
+        CPPrintLayout.appendTable(layout, {
+          title: esc(lancamento.verba),
+          continuationLabel: esc(lancamento.verba) + ' (continuação)',
+          tableClass: 'report-table report-launch-table',
+          columns: launchColumns,
+          rows: launchData.rows,
+          tfootHtml: launchData.tfootHtml
+        });
       });
     }
 
-    CPPrintLayout.applyReportBranding(reportRoot, {
+    CPPrintLayout.applyReportBranding(layout.root, {
+      logo: branding.logo,
       header: branding.header,
       footer: branding.footer
     });
+    return CPPrintLayout.measureAndPaginate(layout);
   }
 
 

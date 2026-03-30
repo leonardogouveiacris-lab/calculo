@@ -1,4 +1,4 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>CalculoPro — Parcelamento (Art. 916)</title><style>
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>CalculoPro — Parcelamento (Art. 916)</title><link rel="stylesheet" href="css/print-report.css"><style>
 /* ===== styles.css (inline) ===== */
 /* styles.css — Estilos do sistema
    - Extraído do <style> original para facilitar manutenção.
@@ -19,8 +19,8 @@
   --accent:#0b1220;
   --shadow:0 18px 45px rgba(16,24,40,.10);
   --shadow-soft:0 10px 26px rgba(16,24,40,.06);
-  --radius:14px;
-  --radius-sm:10px;
+  --radius:18px;
+  --radius-sm:12px;
   --focus:0 0 0 4px rgba(37, 99, 235, .18);
 }
 
@@ -147,6 +147,17 @@ a:hover{text-decoration:underline}
   padding:18px 16px 64px;
 }
 
+.tabs-head{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  text-align:center;
+  align-items:center;
+  margin:10px 0 14px;
+}
+.tabs-title{font-size:18px;font-weight:700;letter-spacing:.3px}
+.tabs-sub{font-size:14px;color:var(--muted);line-height:1.35}
+
 .tabs{
   display:flex;
   justify-content:center;
@@ -173,6 +184,8 @@ a:hover{text-decoration:underline}
 
 .tabpane{display:none}
 .tabpane.active{display:block}
+
+.report-preview-host{display:flex;flex-direction:column;gap:18px;margin-top:2px}
 
 .grid{
   display:grid;
@@ -1658,6 +1671,41 @@ body[data-report-context] #cpPrintHost .print-header .logo{
   max-height:var(--cp-print-logo-h) !important;
   object-fit:contain !important;
 }
+
+/* === Alinhamento visual do Art. 916 com o módulo Cível (sem alterar conteúdo) === */
+#reportRoot.cp-report-root .page .content,
+body[data-report-context="parcelamento-art916-print"] #cpPrintHost .page .content{
+  padding-top:var(--cp-print-content-top) !important;
+  padding-bottom:calc(var(--cp-print-safe-bottom) + 20mm) !important;
+  overflow:hidden !important;
+}
+
+#reportRoot.cp-report-root .page.page2 .content,
+#reportRoot.cp-report-root .page.page3 .content,
+body[data-report-context="parcelamento-art916-print"] #cpPrintHost .page.page2 .content,
+body[data-report-context="parcelamento-art916-print"] #cpPrintHost .page.page3 .content{
+  margin-top:0 !important;
+}
+
+#reportRoot.cp-report-root .process-info-table,
+body[data-report-context="parcelamento-art916-print"] #cpPrintHost .process-info-table{
+  margin:8px 0 10px;
+}
+
+#reportRoot.cp-report-root .sec-title-process,
+body[data-report-context="parcelamento-art916-print"] #cpPrintHost .sec-title-process{
+  margin:0 0 6px !important;
+}
+
+#reportRoot.cp-report-root .page .sec-title,
+body[data-report-context="parcelamento-art916-print"] #cpPrintHost .page .sec-title{
+  margin:12px 0 8px !important;
+}
+
+#reportRoot.cp-report-root .page .report-table,
+body[data-report-context="parcelamento-art916-print"] #cpPrintHost .page .report-table{
+  margin-bottom:10px;
+}
 </style>
 </head><body>
 <header class="topbar no-print" id="hdrTopbar">
@@ -1927,7 +1975,7 @@ body[data-report-context] #cpPrintHost .print-header .logo{
 <button class="btn" id="btnBackToData" type="button">Voltar para dados</button>
 </div>
 </div>
-<div id="reportRoot">
+<div class="report-preview-host" id="reportRoot">
 <!-- PAGE 1 -->
 <section class="page page1" id="rptPage1">
 <div class="header" id="rptHeader1" style="max-height: 60px;">
@@ -1942,11 +1990,14 @@ body[data-report-context] #cpPrintHost .print-header .logo{
 </div>
 </div>
 <div class="content" id="rptContent1">
-<div class="case-info">
-<div class="case-row"><div class="case-label">Reclamante:</div><div class="case-value"><span id="rAutor"></span></div></div>
-<div class="case-row"><div class="case-label">Reclamada:</div><div class="case-value"><span id="rReu"></span></div></div>
-<div class="case-row"><div class="case-label">Nº do processo:</div><div class="case-value"><span id="rProc"></span></div></div>
-</div>
+<h3 class="sec-title sec-title-process">Informações do processo</h3>
+<table class="report-table process-info-table" id="rptIdentGrid">
+<tbody>
+<tr><td class="bold">Reclamante</td><td><span id="rAutor"></span></td></tr>
+<tr><td class="bold">Reclamada</td><td><span id="rReu"></span></td></tr>
+<tr><td class="bold">Processo</td><td><span id="rProc"></span></td></tr>
+</tbody>
+</table>
 <div class="title">PARCELAMENTO – ART. 916 DO CPC</div>
 <div class="legal-box" id="rptLegal916">
 <p class="legal-text"><strong>Art. 916 do CPC:</strong> No prazo para embargos, reconhecendo o crédito do exequente e comprovando o depósito de trinta por cento do valor em execução, acrescido de custas e de honorários de advogado, o executado poderá requerer que lhe seja permitido pagar o restante em até 6 (seis) parcelas mensais, acrescidas de correção monetária e de juros de um por cento ao mês.</p>
