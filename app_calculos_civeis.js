@@ -311,12 +311,9 @@
     const valor = { id:'valor', nome:'Valor', tipo:'manual' };
     const correcao = normalizeIndexColumn(DEFAULT_INDEX_COLUMNS[0]);
     const juros = normalizeIndexColumn(DEFAULT_INDEX_COLUMNS[1]);
-    const baseCorrecao = [valor, correcao];
-    const valorCorrecao = Object.assign({}, DEFAULT_RESULT_COLUMNS[0], { formula: defaultValorCorrecaoFormula({ colunas: baseCorrecao }) });
-    const baseJuros = [valor, correcao, valorCorrecao, juros];
-    const valorJuros = Object.assign({}, DEFAULT_RESULT_COLUMNS[1], { formula: defaultValorJurosFormula({ colunas: baseJuros }) });
-    const baseFinal = [valor, correcao, valorCorrecao, juros, valorJuros];
-    const valorDevido = Object.assign({}, DEFAULT_RESULT_COLUMNS[2], { formula: defaultValorDevidoFormula({ colunas: baseFinal }) });
+    const valorCorrecao = Object.assign({}, DEFAULT_RESULT_COLUMNS[0], { formula: defaultValorCorrecaoFormula() });
+    const valorJuros = Object.assign({}, DEFAULT_RESULT_COLUMNS[1], { formula: defaultValorJurosFormula() });
+    const valorDevido = Object.assign({}, DEFAULT_RESULT_COLUMNS[2], { formula: defaultValorDevidoFormula() });
     return [valor, correcao, valorCorrecao, juros, valorJuros, valorDevido];
   }
   function defaultIndexConfig(){ return { mode: 'factor_v9', lastAutoRefresh: '' }; }
@@ -551,44 +548,57 @@
     return '(' + columnLetter(idx + 1) + ') ' + (coluna.nome || '');
   }
 
-  function getColumnLetterById(lancamento, columnId){
-    const idx = (lancamento.colunas || []).findIndex(function(item){ return item.id === columnId; });
-    return idx >= 0 ? columnLetter(idx + 1) : '';
+  function defaultValorCorrecaoFormula(){
+    return '({valor}*({correcao_monetaria}-1))';
   }
 
-  function defaultValorCorrecaoFormula(lancamento){
-    const valor = getColumnLetterById(lancamento, 'valor') || 'B';
-    const correcao = getColumnLetterById(lancamento, 'correcao_monetaria') || 'C';
-    return '(' + valor + '*(' + correcao + '-1))';
+  function defaultValorJurosFormula(){
+    return '(({valor}+{valor_correcao})*({juros}-1))';
   }
 
-  function defaultValorJurosFormula(lancamento){
-    const valor = getColumnLetterById(lancamento, 'valor') || 'B';
-    const valorCorrecao = getColumnLetterById(lancamento, 'valor_correcao') || 'D';
-    const juros = getColumnLetterById(lancamento, 'juros') || 'E';
-    return '((' + valor + '+' + valorCorrecao + ')*(' + juros + '-1))';
+  function defaultValorDevidoFormula(){
+    return '({valor}+{valor_correcao}+{valor_juros})';
   }
 
-  function defaultValorDevidoFormula(lancamento){
-    const valor = getColumnLetterById(lancamento, 'valor') || 'B';
-    const valorCorrecao = getColumnLetterById(lancamento, 'valor_correcao') || 'D';
-    const valorJuros = getColumnLetterById(lancamento, 'valor_juros') || 'F';
-    return '(' + valor + '+' + valorCorrecao + '+' + valorJuros + ')';
+  function formulaTokenByColumnId(columnId){
+    const tokenId = String(columnId || '').trim();
+    if (!tokenId) return '';
+    return '{' + tokenId + '}';
   }
 
-  function resolveLegacyFormulaTokens(formula, lancamento){
-    const text = String(formula || '');
-    if (!text) return text;
-    const replacements = {
-      CORRECAO_MONETARIA: getColumnLetterById(lancamento, 'correcao_monetaria') || '',
-      JUROS: getColumnLetterById(lancamento, 'juros') || '',
-      VALOR_CORRECAO: getColumnLetterById(lancamento, 'valor_correcao') || '',
-      VALOR_JUROS: getColumnLetterById(lancamento, 'valor_juros') || '',
-      VALOR_DEVIDO: getColumnLetterById(lancamento, 'valor_devido') || ''
+  function buildFormulaMaps(lancamento){
+    const letterToId = {};
+    const aliasToId = {
+      VALOR: 'valor',
+      CORRECAO_MONETARIA: 'correcao_monetaria',
+      JUROS: 'juros',
+      VALOR_CORRECAO: 'valor_correcao',
+      VALOR_JUROS: 'valor_juros',
+      VALOR_DEVIDO: 'valor_devido'
     };
-    return text.replace(/[A-Z_]+/gi, function(token){
-      const mapped = replacements[String(token).toUpperCase()];
-      return mapped || token;
+    (lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : []).forEach(function(coluna, idx){
+      if (!coluna || !coluna.id) return;
+      const letter = columnLetter(idx + 1);
+      letterToId[letter] = coluna.id;
+      aliasToId[String(coluna.id).toUpperCase()] = coluna.id;
+    });
+    return { letterToId: letterToId, aliasToId: aliasToId };
+  }
+
+  function convertFormulaToStableTokens(formula, lancamento){
+    const text = String(formula || '').trim();
+    if (!text) return text;
+    const maps = buildFormulaMaps(lancamento);
+    const protectedText = text.replace(/\{\s*([a-zA-Z0-9_]+)\s*\}/g, function(match, tokenId){
+      return formulaTokenByColumnId(tokenId);
+    });
+    const aliasesReplaced = protectedText.replace(/\b([A-Z_][A-Z0-9_]*)\b/g, function(match){
+      const mappedId = maps.aliasToId[String(match || '').toUpperCase()];
+      return mappedId ? formulaTokenByColumnId(mappedId) : match;
+    });
+    return aliasesReplaced.replace(/\b([A-Z]{1,3})\b/g, function(match){
+      const mappedId = maps.letterToId[String(match || '').toUpperCase()];
+      return mappedId ? formulaTokenByColumnId(mappedId) : match;
     });
   }
 
@@ -652,12 +662,12 @@
       nome:'Valor da Correção',
       tipo:'formula',
       formato:'moeda',
-      formula: defaultValorCorrecaoFormula({ colunas: leadingCols.concat([correcaoBase]) })
+      formula: defaultValorCorrecaoFormula()
     }, valorCorrecaoAtual || {}, {
       id:'valor_correcao',
       tipo:'formula',
       formato:'moeda',
-      formula: (valorCorrecaoAtual && valorCorrecaoAtual.formula) || defaultValorCorrecaoFormula({ colunas: leadingCols.concat([correcaoBase]) })
+      formula: (valorCorrecaoAtual && valorCorrecaoAtual.formula) || defaultValorCorrecaoFormula()
     });
 
     const valorJurosAtual = existing.find(function(item){ return item && item.id === 'valor_juros'; });
@@ -666,16 +676,16 @@
       nome:'Valor dos Juros',
       tipo:'formula',
       formato:'moeda',
-      formula: defaultValorJurosFormula({ colunas: leadingCols.concat([correcaoBase, valorCorrecaoCol, jurosBase]) })
+      formula: defaultValorJurosFormula()
     }, valorJurosAtual || {}, {
       id:'valor_juros',
       tipo:'formula',
       formato:'moeda',
-      formula: (valorJurosAtual && valorJurosAtual.formula) || defaultValorJurosFormula({ colunas: leadingCols.concat([correcaoBase, valorCorrecaoCol, jurosBase]) })
+      formula: (valorJurosAtual && valorJurosAtual.formula) || defaultValorJurosFormula()
     });
 
     const valorDevidoAtual = existing.find(function(item){ return item && item.id === 'valor_devido'; });
-    const valorDevidoDefaultFormula = defaultValorDevidoFormula({ colunas: leadingCols.concat([correcaoBase, valorCorrecaoCol, jurosBase, valorJurosCol]) });
+    const valorDevidoDefaultFormula = defaultValorDevidoFormula();
     const valorDevidoFormula = (valorDevidoAtual && valorDevidoAtual.formula && !isLegacyValorDevidoFormula(valorDevidoAtual.formula))
       ? valorDevidoAtual.formula
       : valorDevidoDefaultFormula;
@@ -696,7 +706,7 @@
       return coluna && coluna.tipo === 'indice' ? normalizeIndexColumn(coluna) : coluna;
     });
     lancamento.colunas.forEach(function(coluna){
-      if (coluna && coluna.tipo === 'formula') coluna.formula = resolveLegacyFormulaTokens(coluna.formula, lancamento);
+      if (coluna && coluna.tipo === 'formula') coluna.formula = convertFormulaToStableTokens(coluna.formula, lancamento);
     });
     lancamento.linhas = Array.isArray(lancamento.linhas) ? lancamento.linhas : [];
     lancamento.linhas = lancamento.linhas.map(function(linha){
@@ -727,10 +737,20 @@
     return Number.isFinite(num) ? num : 0;
   }
 
-  function evaluateFormula(formula, valuesByLetter){
-    const expression = String(formula || '').toUpperCase().replace(/\s+/g, '').replace(/X/g, '*').replace(/,/g, '.').replace(/([A-Z]+)/g, function(match){
-      return Object.prototype.hasOwnProperty.call(valuesByLetter, match) ? '(' + valuesByLetter[match] + ')' : '(0)';
-    });
+  function evaluateFormula(formula, valuesById, valuesByLetter){
+    const byId = valuesById || {};
+    const byLetter = valuesByLetter || {};
+    const expression = String(formula || '')
+      .replace(/\s+/g, '')
+      .replace(/[xX]/g, '*')
+      .replace(/,/g, '.')
+      .replace(/\{\s*([a-zA-Z0-9_]+)\s*\}/g, function(match, tokenId){
+        return Object.prototype.hasOwnProperty.call(byId, tokenId) ? '(' + byId[tokenId] + ')' : '(0)';
+      })
+      .replace(/\b([A-Z]{1,3})\b/g, function(match){
+        const key = String(match || '').toUpperCase();
+        return Object.prototype.hasOwnProperty.call(byLetter, key) ? '(' + byLetter[key] + ')' : '(0)';
+      });
     if (!expression) return '';
     if (/[^0-9+\-*/().]/.test(expression)) return 'Fórmula inválida';
     try {
@@ -745,16 +765,19 @@
   function recalculateLaunch(lancamento){
     normalizeLaunch(lancamento);
     lancamento.linhas.forEach(function(linha){
+      const valuesById = {};
       const valuesByLetter = { A: 0 };
       lancamento.colunas.forEach(function(coluna, idx){
         const letter = columnLetter(idx + 1);
         const key = coluna.id || (idx === 0 ? 'valor' : 'col_' + idx);
         if (coluna.tipo === 'formula') {
-          linha[key] = evaluateFormula(coluna.formula, valuesByLetter);
+          linha[key] = evaluateFormula(coluna.formula, valuesById, valuesByLetter);
         }
         const rawValue = key === 'valor' ? linha.valor : linha[key];
         const numericValue = Number(String(rawValue === undefined ? '' : rawValue).replace(',', '.'));
-        valuesByLetter[letter] = Number.isFinite(numericValue) ? numericValue : 0;
+        const safeValue = Number.isFinite(numericValue) ? numericValue : 0;
+        valuesByLetter[letter] = safeValue;
+        valuesById[key] = safeValue;
       });
     });
     return lancamento;
@@ -801,7 +824,7 @@
     editIndexFieldWrap.style.display = coluna.tipo === 'indice' ? 'block' : 'none';
     editModalColumnName.readOnly = !!coluna.locked;
     editModalColumnName.placeholder = coluna.locked ? 'Nome fixo da coluna padrão' : 'Ex.: Índice, Percentual, Resultado';
-    if (coluna.id === 'valor_devido' && !editModalColumnFormula.value) editModalColumnFormula.value = coluna.formula || defaultValorDevidoFormula(lancamento);
+    if (coluna.id === 'valor_devido' && !editModalColumnFormula.value) editModalColumnFormula.value = coluna.formula || defaultValorDevidoFormula();
     if (coluna.tipo === 'indice') {
       const opts = INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || [];
       const current = coluna.indexSource || defaultIndexSourceByKind(coluna.indexKind || 'correcao');
@@ -861,7 +884,7 @@
     if (!nome){ alert('Informe o nome da coluna.'); editModalColumnName.focus(); return; }
     if (coluna.tipo === 'formula' && !formula){ alert('Informe a fórmula da coluna.'); editModalColumnFormula.focus(); return; }
     coluna.nome = nome;
-    if (coluna.tipo === 'formula') coluna.formula = formula;
+    if (coluna.tipo === 'formula') coluna.formula = convertFormulaToStableTokens(formula, lancamento);
     recalculateLaunch(lancamento);
     closeEditColumnModal();
     persistAndRefresh();
@@ -1028,7 +1051,7 @@
     const lancamento = state.lancamentos[launchIndex];
     const id = 'col_' + Date.now() + '_' + Math.random().toString(16).slice(2, 6);
     if (tipo === 'formula') {
-      lancamento.colunas.push({ id: id, nome: nome, tipo: 'formula', formula: formula });
+      lancamento.colunas.push({ id: id, nome: nome, tipo: 'formula', formula: convertFormulaToStableTokens(formula, lancamento) });
       lancamento.linhas.forEach(function(linha){ linha[id] = ''; });
     } else if (tipo === 'indice') {
       const kind = modalIndexKind ? modalIndexKind.value : 'correcao';
@@ -1137,7 +1160,7 @@
           '<button type="button" class="btn btnAddIndexCol" data-launch-index="' + index + '">Adicionar coluna de índice</button>' +
         '</div>' +
         '<div>' + badges + '</div>' +
-        '<div class="formula-note">Nas fórmulas, use as letras das colunas. Ex.: (B+C), (BxD), (B+C-D) ou ((B+C)*D). As colunas padrão iniciam com estas fórmulas: Valor da Correção = ' + esc(defaultValorCorrecaoFormula(lancamento)) + '; Valor dos Juros = ' + esc(defaultValorJurosFormula(lancamento)) + '; Valor Devido = ' + esc(defaultValorDevidoFormula(lancamento)) + '.</div>' +
+        '<div class="formula-note">Nas fórmulas, prefira tokens estáveis por coluna (ex.: {valor}, {correcao_monetaria}, {valor_correcao}). Fórmulas legadas com letras (B, C, D...) continuam sendo aceitas e são convertidas automaticamente. As colunas padrão iniciam com estas fórmulas: Valor da Correção = ' + esc(defaultValorCorrecaoFormula()) + '; Valor dos Juros = ' + esc(defaultValorJurosFormula()) + '; Valor Devido = ' + esc(defaultValorDevidoFormula()) + '.</div>' +
         '<div class="readonly-note">Cada coluna de índice tem metadados próprios (tipo, fonte, limite e modo de acumulação). Edite cada coluna para ajustar sua configuração e use “Atualizar índices” para recalcular os fatores em todas as linhas. A coluna Valor fica fixa no início e Valor Devido no final; use ←/→ para reordenar apenas colunas não essenciais.</div>' +
         (indexSummaryRows ? '<div class="index-summary" role="note" aria-label="Resumo dos índices aplicados">' + indexSummaryRows + '</div>' : '') +
         '<div class="table-wrap"><table class="editor-table"><thead><tr>' + headCols + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
