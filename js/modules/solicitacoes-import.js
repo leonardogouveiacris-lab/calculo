@@ -17,6 +17,11 @@
     return '';
   }
 
+  function getFirstCell(row, names){
+    var value = getCell(row, names || []);
+    return String(value == null ? '' : value).trim();
+  }
+
   function parseCurrencyBRL(value){
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
     var text = String(value == null ? '' : value).trim();
@@ -60,11 +65,51 @@
     return copy;
   }
 
+  function extractReclamada(row){
+    var direct = getFirstCell(row, ['Reclamada']);
+    if (direct) return direct;
+
+    var negocio = getFirstCell(row, ['Negócios', 'Negocios']);
+    if (negocio) {
+      var splitBiz = negocio.split(/\s+(?:x|vs\.?)\s+/i);
+      if (splitBiz.length > 1) return splitBiz[splitBiz.length - 1].trim();
+      return negocio;
+    }
+
+    var etapa = getFirstCell(row, ['Etapa']);
+    if (!etapa) return '';
+    var splitStage = etapa.split(/:\s*/);
+    return splitStage.length > 1 ? splitStage[splitStage.length - 1].trim() : etapa;
+  }
+
+  function extractNumeroProcesso(row){
+    var direct = getFirstCell(row, root.ALIASES['Numero do Processo']);
+    if (direct) return direct;
+
+    var candidates = [
+      getFirstCell(row, ['Negócios', 'Negocios']),
+      getFirstCell(row, ['Etapa']),
+      getFirstCell(row, ['Título do negócio', 'Titulo do negocio', 'Título', 'Titulo'])
+    ].filter(Boolean);
+
+    for (var i = 0; i < candidates.length; i += 1) {
+      var text = candidates[i];
+      var cnj = text.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/);
+      if (cnj) return cnj[0];
+      var compact = text.match(/\d{20}/);
+      if (compact) return compact[0];
+    }
+    return '';
+  }
+
   function normalizeAndFormat(data){
     var rows = (data || []).map(function(row){
       var normalized = {};
       root.COLUMNS.forEach(function(column){
-        var raw = getCell(row, root.ALIASES[column]);
+        var raw;
+        if (column === 'Reclamada') raw = extractReclamada(row);
+        else if (column === 'Numero do Processo') raw = extractNumeroProcesso(row);
+        else raw = getCell(row, root.ALIASES[column]);
         if (column === 'Entrega em') {
           var date = parseDateAny(raw);
           normalized[column] = date ? dateBR(date) : (raw == null ? '' : raw);
@@ -189,6 +234,8 @@
   root.dateBR = dateBR;
   root.withRowId = withRowId;
   root.getRowId = getRowId;
+  root.extractReclamada = extractReclamada;
+  root.extractNumeroProcesso = extractNumeroProcesso;
   root.normalizeAndFormat = normalizeAndFormat;
   root.parseCSV = parseCSV;
   root.importModuleLoaded = true;
