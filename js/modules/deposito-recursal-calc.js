@@ -29,18 +29,16 @@
       return Array.from(map.entries()).sort((a,b)=>a[0].localeCompare(b[0])).map((entry)=>({ month: entry[0], value: entry[1] }));
     }
 
-    function normalizeDailyToMonthlyEffective(raw){
-      const monthlyFactor = new Map();
-      (raw || []).forEach((it) => {
-        const p = String(it.data || '').split('/');
-        const month = p.length === 3 ? (p[2] + '-' + p[1]) : '';
-        const annualRate = Number(String(it.valor).replace(',', '.'));
-        if (!/^\d{4}-\d{2}$/.test(month) || !Number.isFinite(annualRate)) return;
-        const dailyRate = Math.pow(1 + (annualRate / 100), 1 / 252) - 1;
-        monthlyFactor.set(month, (monthlyFactor.get(month) || 1) * (1 + dailyRate));
-      });
-      return Array.from(monthlyFactor.entries()).sort((a,b)=>a[0].localeCompare(b[0])).map((entry)=>({ month: entry[0], value: (entry[1] - 1) * 100 }));
+    function normalizeDailyToMonthlyEffective(raw, seriesCode){
+      if (!(global.CPBCBRates && typeof global.CPBCBRates.dailyToMonthlyEffective === 'function')) throw new Error('CPBCBRates.dailyToMonthlyEffective não disponível.');
+      return global.CPBCBRates.dailyToMonthlyEffective(raw, seriesCode);
     }
+
+    (function validateDailyToMonthlyEffectiveConsistency(){
+      if (!(global.CPBCBRates && typeof global.CPBCBRates.validateDailyToMonthlyFixtures === 'function')) return;
+      const report = global.CPBCBRates.validateDailyToMonthlyFixtures(function(raw, seriesCode){ return normalizeDailyToMonthlyEffective(raw, seriesCode); });
+      if (report.some((item) => !item.passed)) console.error('Falha nas fixtures estáticas de conversão diária->mensal (depósito recursal).', report);
+    })();
 
     async function loadIndicesAuto(indexType, start, end){
       if (/^(ipca|inpc|igpm|igpdi)$/.test(indexType)) {
@@ -49,7 +47,7 @@
       }
       if (/^(cdi|selic)$/.test(indexType)) {
         const raw = await fetchBCBSeries(AUTO_CODE_MAP[indexType], start, end);
-        return normalizeDailyToMonthlyEffective(raw);
+        return normalizeDailyToMonthlyEffective(raw, AUTO_CODE_MAP[indexType]);
       }
       if (indexType === 'poupanca_auto' || indexType === 'jam_auto') {
         const [trRaw, metaSelicRaw] = await Promise.all([

@@ -251,6 +251,7 @@ body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,
 .dash-embedded #mainWrap{background:transparent !important}
 </style>
 <script defer src="js/core/cp-common.js"></script>
+<script defer src="js/core/cp-bcb-rates.js"></script>
 <script defer src="js/core/print-layout.js"></script>
 <script defer src="js/modules/deposito-recursal-state.js"></script>
 <script defer src="js/modules/deposito-recursal-render.js"></script>
@@ -361,8 +362,8 @@ body[data-report-context] #cpPrintHost .print-header .logo{
 <option value="inpc">INPC automático (BCB)</option>
 <option value="igpm">IGP-M automático (BCB)</option>
 <option value="igpdi">IGP-DI automático (BCB)</option>
-<option value="cdi">CDI bancário automático (BCB)</option>
-<option value="selic">SELIC bancária automática (BCB)</option>
+<option value="cdi">CDI automático (SGS 4389 diária → mensal composta)</option>
+<option value="selic">SELIC automática (SGS 11 anualizada base 252 → diária efetiva → mensal composta)</option>
 <option value="manual">Manual mensal (Juízo)</option>
 </select>
 </div>
