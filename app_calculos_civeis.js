@@ -221,6 +221,8 @@
   function monthlyMapFromBCB(list){ const map = new Map(); (list || []).forEach(function(item){ const p = String(item.data || '').split('/'); if (p.length === 3) map.set(p[2] + '-' + p[1], parseBCBNumber(item.valor)); }); return map; }
   function dailyToMonthlyEffective(dailyList, seriesCode){ if (!(window.CPBCBRates && typeof window.CPBCBRates.dailyToMonthlyEffective === 'function')) throw new Error('CPBCBRates.dailyToMonthlyEffective não disponível.'); return window.CPBCBRates.dailyToMonthlyEffective(dailyList, seriesCode); }
   (function validateDailyToMonthlyEffectiveConsistency(){ if (!(window.CPBCBRates && typeof window.CPBCBRates.validateDailyToMonthlyFixtures === 'function')) return; const report = window.CPBCBRates.validateDailyToMonthlyFixtures(dailyToMonthlyEffective); if (report.some(function(item){ return !item.passed; })) console.error('Falha nas fixtures estáticas de conversão diária->mensal (módulo cível).', report); })();
+  (function validateProportionalMonthlyConsistency(){ if (!(window.CPBCBRates && typeof window.CPBCBRates.validateProportionalFixtures === 'function')) return; const report = window.CPBCBRates.validateProportionalFixtures(window.CPBCBRates.proportionalMonthlyEffectiveByDays); if (report.some(function(item){ return !item.passed; })) console.error('Falha nas fixtures estáticas de proporcionalização mensal (módulo cível).', report); })();
+  function proportionalMonthlyEffectiveByDays(monthlyPercent, daysApplied, daysInReferenceMonth, mode){ if (!(window.CPBCBRates && typeof window.CPBCBRates.proportionalMonthlyEffectiveByDays === 'function')) throw new Error('CPBCBRates.proportionalMonthlyEffectiveByDays não disponível.'); return window.CPBCBRates.proportionalMonthlyEffectiveByDays(monthlyPercent, daysApplied, daysInReferenceMonth, mode); }
   function buildPoupancaMonthly(trList, metaSelicList){ const trMap = monthlyMapFromBCB(trList), metaMap = monthlyMapFromBCB(metaSelicList); return Array.from(new Set([].concat(Array.from(trMap.keys()), Array.from(metaMap.keys())))).sort().map(function(month){ const tr = trMap.get(month) || 0; const metaSelicAA = metaMap.get(month) || 0; const adicional = metaSelicAA > 8.5 ? 0.5 : 0.7 * (metaSelicAA / 12); return { month: month, value: tr + adicional }; }); }
   function buildJamMonthly(trList){ const trMap = monthlyMapFromBCB(trList); return Array.from(trMap.entries()).map(function(entry){ return { month: entry[0], value: entry[1] + 0.25 }; }).sort(compareMonth); }
   function previousMonthKey(monthKey){ const parts = String(monthKey || '').split('-'); if (parts.length !== 2) return ''; let year = Number(parts[0]); let month = Number(parts[1]) - 1; if (month < 1){ month = 12; year -= 1; } return String(year) + '-' + String(month).padStart(2, '0'); }
@@ -335,20 +337,49 @@
     return list;
   }
 
-  function accumulateIndexFactor(monthMap, startMonthKey, endMonthKey, limit, mode){
+  function parseISODateUTC(value){
+    const parts = String(value || '').split('-').map(Number);
+    if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return null;
+    return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+  }
+
+  function monthBoundsUTC(monthKey){
+    const parts = String(monthKey || '').split('-').map(Number);
+    if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+    const start = new Date(Date.UTC(parts[0], parts[1] - 1, 1));
+    const end = new Date(Date.UTC(parts[0], parts[1], 0));
+    return { start: start, end: end, daysInMonth: end.getUTCDate() };
+  }
+
+  function adjustedMonthlyPercent(monthlyPercent, monthKey, periodStartISO, periodEndISO, mode){
+    const bounds = monthBoundsUTC(monthKey);
+    if (!bounds) return 0;
+    const periodStart = parseISODateUTC(periodStartISO);
+    const periodEnd = parseISODateUTC(periodEndISO);
+    if (!periodStart || !periodEnd || periodStart > periodEnd) return 0;
+    const applyStart = periodStart > bounds.start ? periodStart : bounds.start;
+    const applyEnd = periodEnd < bounds.end ? periodEnd : bounds.end;
+    if (applyStart > applyEnd) return 0;
+    const daysApplied = Math.floor((applyEnd.getTime() - applyStart.getTime()) / 86400000) + 1;
+    return proportionalMonthlyEffectiveByDays(monthlyPercent, daysApplied, bounds.daysInMonth, mode === 'simple' ? 'linear' : 'compound');
+  }
+
+  function accumulateIndexFactor(monthMap, startMonthKey, endMonthKey, limit, mode, periodStartISO, periodEndISO){
     if (!startMonthKey || !endMonthKey || startMonthKey > endMonthKey) return 1;
     const accumulationMode = mode || 'compound';
-    const limitedStart = limit && limit.start ? String(limit.start).slice(0, 7) : '';
-    const limitedEnd = limit && limit.end ? String(limit.end).slice(0, 7) : '';
-    if (limitedStart && startMonthKey < limitedStart) return 1;
-    if (limitedEnd && startMonthKey > limitedEnd) return 1;
-    const clampedStart = startMonthKey;
-    const clampedEnd = limitedEnd && endMonthKey > limitedEnd ? limitedEnd : endMonthKey;
+    const requestedStartISO = String(periodStartISO || (startMonthKey + '-01'));
+    const requestedEndISO = String(periodEndISO || (endMonthKey + '-31'));
+    const effectiveStartISO = limit && limit.start && limit.start > requestedStartISO ? limit.start : requestedStartISO;
+    const effectiveEndISO = limit && limit.end && limit.end < requestedEndISO ? limit.end : requestedEndISO;
+    if (!effectiveStartISO || !effectiveEndISO || effectiveStartISO > effectiveEndISO) return 1;
+    const clampedStart = effectiveStartISO.slice(0, 7);
+    const clampedEnd = effectiveEndISO.slice(0, 7);
     if (!clampedStart || !clampedEnd || clampedStart > clampedEnd) return 1;
     return monthRange(clampedStart, clampedEnd).reduce(function(factor, monthKey){
       const percent = Number(monthMap.get(monthKey) || 0);
-      if (accumulationMode === 'simple') return factor + (percent / 100);
-      return factor * (1 + percent / 100);
+      const adjustedPercent = adjustedMonthlyPercent(percent, monthKey, effectiveStartISO, effectiveEndISO, accumulationMode);
+      if (accumulationMode === 'simple') return factor + (adjustedPercent / 100);
+      return factor * (1 + adjustedPercent / 100);
     }, 1);
   }
 
@@ -899,7 +930,7 @@
         '</div>' +
         '<div>' + badges + '</div>' +
         '<div class="formula-note">Nas fórmulas, use as letras das colunas. Ex.: (B+C), (BxD), (B+C-D) ou ((B+C)*D). As colunas padrão iniciam com estas fórmulas: Valor da Correção = ' + esc(defaultValorCorrecaoFormula(lancamento)) + '; Valor dos Juros = ' + esc(defaultValorJurosFormula(lancamento)) + '; Valor Devido = ' + esc(defaultValorDevidoFormula(lancamento)) + '.</div>' +
-        '<div class="readonly-note">Correção Monetária e Juros usam séries do BACEN/SGS e são acumulados da competência até a data de atualização do cálculo. Estão disponíveis fontes adicionais como IPCA-E, TR, Taxa Legal e EC 113/2021. Se usar EC 113/2021 na correção, o recomendado é deixar os juros como Sem juros para evitar dupla contagem após 12/2021. As colunas Valor da Correção, Valor dos Juros e Valor Devido permanecem obrigatórias no final da tabela, mas agora podem ter nome e fórmula alterados.</div>' +
+        '<div class="readonly-note">Correção Monetária e Juros usam séries do BACEN/SGS e são acumulados da competência até a data de atualização do cálculo. A proporcionalização parcial do mês usa, por padrão oficial, equivalência composta diária sobre o índice mensal efetivo (com modo linear apenas para compatibilidade legada). Estão disponíveis fontes adicionais como IPCA-E, TR, Taxa Legal e EC 113/2021. Se usar EC 113/2021 na correção, o recomendado é deixar os juros como Sem juros para evitar dupla contagem após 12/2021. As colunas Valor da Correção, Valor dos Juros e Valor Devido permanecem obrigatórias no final da tabela, mas agora podem ter nome e fórmula alterados.</div>' +
         '<div class="table-wrap"><table class="editor-table"><thead><tr>' + headCols + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
       '</div>';
   }
@@ -947,8 +978,9 @@
       const jurosMode = sourceAccumulationMode(config.juros);
       lancamento.linhas.forEach(function(linha){
         const mesCompetencia = monthKeyFromPeriodo(linha.periodo);
-        linha.correcao_monetaria = Number(accumulateIndexFactor(correcaoMap, mesCompetencia, mesAtualizacao, correcaoLimit, correcaoMode).toFixed(7));
-        linha.juros = Number(accumulateIndexFactor(jurosMap, mesCompetencia, mesAtualizacao, jurosLimit, jurosMode).toFixed(7));
+        const inicioCompetenciaISO = mesCompetencia + '-01';
+        linha.correcao_monetaria = Number(accumulateIndexFactor(correcaoMap, mesCompetencia, mesAtualizacao, correcaoLimit, correcaoMode, inicioCompetenciaISO, dataAtualizacao).toFixed(7));
+        linha.juros = Number(accumulateIndexFactor(jurosMap, mesCompetencia, mesAtualizacao, jurosLimit, jurosMode, inicioCompetenciaISO, dataAtualizacao).toFixed(7));
       });
       lancamento.indexConfig.lastAutoRefresh = new Date().toISOString();
       recalculateLaunch(lancamento);
@@ -1807,4 +1839,3 @@
     });
   }, 0);
 })();
-
