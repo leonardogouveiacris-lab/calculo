@@ -16,13 +16,13 @@
 
   var COLUMNS = ['Entrega em','Contato: Primeiro nome','Numero do Processo','Reclamante','Reclamada','Serviços','Total (Total)'];
   var ALIASES = {
-    'Entrega em':['Entrega em','Data','Data Entrega','Entrega'],
-    'Contato: Primeiro nome':['Contato: Primeiro nome','Cliente','Contato'],
-    'Numero do Processo':['Numero do Processo','Número do Processo','Processo'],
+    'Entrega em':['Entrega em','Data','Data Entrega','Entrega','Criado em'],
+    'Contato: Primeiro nome':['Contato: Primeiro nome','Cliente','Contato','Nome'],
+    'Numero do Processo':['Numero do Processo','Número do Processo','Processo','Nº do Processo','N° do Processo','Numero Processo'],
     'Reclamante':['Reclamante'],
-    'Reclamada':['Reclamada'],
-    'Serviços':['Serviços','Servico','Serviço'],
-    'Total (Total)':['Total (Total)','Total','Valor']
+    'Reclamada':['Reclamada','Negócios','Negocios','Etapa'],
+    'Serviços':['Serviços','Servico','Serviço','Produtos'],
+    'Total (Total)':['Total (Total)','Total','Valor','Valor/Moeda']
   };
 
   function createStore(){

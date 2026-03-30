@@ -164,6 +164,7 @@
 
   function buildReport(){
     var rootEl = root.E('reportRoot');
+    if (!root.store.currentRows.length) return false;
     rootEl.classList.add('solic-paged');
     var layout = CPPrintLayout.createLayout({
       root: rootEl,
@@ -175,10 +176,26 @@
     });
     fillLayout(layout);
     CPPrintLayout.applyReportBranding(rootEl, getReportBranding());
+    return true;
+  }
+
+  function setReportPreviewVisible(visible){
+    var reportRoot = root.E('reportRoot');
+    var previewCard = root.E('cardPreviewRelatorio');
+    if (previewCard) previewCard.style.display = visible ? '' : 'none';
+    if (reportRoot) {
+      reportRoot.style.display = visible ? '' : 'none';
+      if (!visible) reportRoot.innerHTML = '';
+    }
   }
 
   function goReport(){
+    if (!root.store.currentRows.length) {
+      setReportPreviewVisible(false);
+      return alert('Importe um arquivo para gerar o relatório.');
+    }
     root.switchTab('report');
+    setReportPreviewVisible(true);
     buildReport();
     var reportRoot = root.E('reportRoot');
     if (reportRoot) reportRoot.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -209,6 +226,7 @@
   root.bindHeaderFooterInputs = bindHeaderFooterInputs;
   root.gerarDescricaoNF = gerarDescricaoNF;
   root.buildReport = buildReport;
+  root.setReportPreviewVisible = setReportPreviewVisible;
   root.goReport = goReport;
   root.printReport = printReport;
   root.reportModuleLoaded = true;
