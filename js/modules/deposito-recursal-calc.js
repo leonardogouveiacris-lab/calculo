@@ -5,28 +5,70 @@
 
   ns.attachCalc = function(ctx){
     const { state, el, compareMonth, monthKeyFromDate, minDepositDate, monthsBetweenInclusive } = ctx;
-    const FLAG = global.CPFeatureFlags && global.CPFeatureFlags.useCentralIndices !== false;
+    const AUTO_CODE_MAP = { ipca: 433, inpc: 188, igpm: 189, igpdi: 190, tr: 7811, meta_selic: 432, cdi: 4389, selic: 11 };
 
     function getManualIndex(month){ const found = state.indices.find((i)=>i.month===month); return found ? Number(found.value)/100 : 0; }
 
-    async function loadIndicesFromCentral(indexType, start, end){
-      if (!global.CPIndices) throw new Error('CPIndices não disponível.');
-      const autoMap = { ipca: 'ipca_bcb_433', inpc: 'inpc_bcb_188', igpm: 'igpm_bcb_189', igpdi: 'igpdi_bcb_190', cdi: 'cdi_bcb_4389', selic: 'selic_bcb_11' };
-      if (autoMap[indexType]) {
-        await CPIndices.ensureAutoTable(autoMap[indexType], start, end);
-        const serie = CPIndices.getRange(autoMap[indexType], start, end);
-        return serie.map((it)=>({ month: it.competencia, value: it.valor })).sort(compareMonth);
+    function isoToBrDate(iso){ const p = String(iso || '').split('-'); return p.length >= 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : ''; }
+
+    async function fetchBCBSeries(code, startISO, endISO){
+      if (!global.CPCommon || typeof global.CPCommon.fetchJson !== 'function') throw new Error('CPCommon.fetchJson não disponível.');
+      const url = 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.' + code + '/dados?formato=json&dataInicial=' + encodeURIComponent(isoToBrDate(startISO)) + '&dataFinal=' + encodeURIComponent(isoToBrDate(endISO));
+      return global.CPCommon.fetchJson(url, { timeoutMs: 15000 });
+    }
+
+    function normalizeMonthly(raw){
+      const map = new Map();
+      (raw || []).forEach((it) => {
+        const p = String(it.data || '').split('/');
+        const month = p.length === 3 ? (p[2] + '-' + p[1]) : '';
+        const value = Number(String(it.valor).replace(',', '.'));
+        if (!/^\d{4}-\d{2}$/.test(month) || !Number.isFinite(value)) return;
+        map.set(month, value);
+      });
+      return Array.from(map.entries()).sort((a,b)=>a[0].localeCompare(b[0])).map((entry)=>({ month: entry[0], value: entry[1] }));
+    }
+
+    function normalizeDailyToMonthlyEffective(raw){
+      const monthlyFactor = new Map();
+      (raw || []).forEach((it) => {
+        const p = String(it.data || '').split('/');
+        const month = p.length === 3 ? (p[2] + '-' + p[1]) : '';
+        const annualRate = Number(String(it.valor).replace(',', '.'));
+        if (!/^\d{4}-\d{2}$/.test(month) || !Number.isFinite(annualRate)) return;
+        const dailyRate = Math.pow(1 + (annualRate / 100), 1 / 252) - 1;
+        monthlyFactor.set(month, (monthlyFactor.get(month) || 1) * (1 + dailyRate));
+      });
+      return Array.from(monthlyFactor.entries()).sort((a,b)=>a[0].localeCompare(b[0])).map((entry)=>({ month: entry[0], value: (entry[1] - 1) * 100 }));
+    }
+
+    async function loadIndicesAuto(indexType, start, end){
+      if (/^(ipca|inpc|igpm|igpdi)$/.test(indexType)) {
+        const raw = await fetchBCBSeries(AUTO_CODE_MAP[indexType], start, end);
+        return normalizeMonthly(raw);
       }
-      if (indexType === 'poupanca_auto') {
-        await CPIndices.ensureAutoTable('tr_bcb_7811', start, end);
-        await CPIndices.ensureAutoTable('meta_selic_432', start, end);
-        const months = monthsBetweenInclusive(start.slice(0,7), end.slice(0,7));
-        return months.map((mk)=>({ month: mk, value: CPIndices.resolveRule('poupanca_auto', { month: mk }) }));
+      if (/^(cdi|selic)$/.test(indexType)) {
+        const raw = await fetchBCBSeries(AUTO_CODE_MAP[indexType], start, end);
+        return normalizeDailyToMonthlyEffective(raw);
       }
-      if (indexType === 'jam_auto') {
-        await CPIndices.ensureAutoTable('tr_bcb_7811', start, end);
+      if (indexType === 'poupanca_auto' || indexType === 'jam_auto') {
+        const [trRaw, metaSelicRaw] = await Promise.all([
+          fetchBCBSeries(AUTO_CODE_MAP.tr, start, end),
+          indexType === 'poupanca_auto' ? fetchBCBSeries(AUTO_CODE_MAP.meta_selic, start, end) : Promise.resolve([])
+        ]);
+        const trMap = new Map(normalizeMonthly(trRaw).map((it)=>[it.month, it.value]));
+        const metaSelicMap = new Map(normalizeMonthly(metaSelicRaw).map((it)=>[it.month, it.value]));
         const months = monthsBetweenInclusive(start.slice(0,7), end.slice(0,7));
-        return months.map((mk)=>({ month: mk, value: CPIndices.resolveRule('jam_auto', { month: mk }) }));
+        let prevTR = 0;
+        let prevMetaSelic = 0;
+        return months.map((month) => {
+          if (trMap.has(month)) prevTR = trMap.get(month);
+          if (metaSelicMap.has(month)) prevMetaSelic = metaSelicMap.get(month);
+          const value = indexType === 'jam_auto'
+            ? (prevTR + 0.25)
+            : (prevTR + (prevMetaSelic > 8.5 ? 0.5 : (0.7 * (prevMetaSelic / 12))));
+          return { month, value: Number.isFinite(value) ? value : 0 };
+        });
       }
       return [];
     }
@@ -40,11 +82,12 @@
       const indexType = el.indexType ? el.indexType.value : 'manual';
       const start = minDepositDate(); const endKey = monthKeyFromDate(end);
       try {
-        if (/^(cdi|selic|poupanca_auto|jam_auto|ipca|inpc|igpm|igpdi)$/.test(indexType)) ctx.setAutoStatus('Buscando índices no módulo central...'); else ctx.setAutoStatus('');
-        if (FLAG && indexType !== 'manual') {
-          state.indices = await loadIndicesFromCentral(indexType, start, end);
+        if (/^(cdi|selic|poupanca_auto|jam_auto|ipca|inpc|igpm|igpdi)$/.test(indexType)) ctx.setAutoStatus('Buscando índices automáticos (BCB/SGS)...'); else ctx.setAutoStatus('');
+        if (indexType !== 'manual') {
+          state.indices = await loadIndicesAuto(indexType, start, end);
+          ctx.setAutoStatus('OK (' + state.indices.length + ' meses).');
+          ctx.renderIndices();
         }
-        if (indexType !== 'manual') { ctx.setAutoStatus('OK (' + state.indices.length + ' meses).'); ctx.renderIndices(); }
       } catch (err) {
         ctx.setAutoStatus('Erro ao buscar índices.'); ctx.toast('Erro', err.message || 'Erro ao buscar índices automáticos.', 'err'); return null;
       }
