@@ -1,3 +1,4 @@
+window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeatureFlags || {});
 (function(global){
   'use strict';
 

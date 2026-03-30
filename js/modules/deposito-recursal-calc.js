@@ -4,57 +4,32 @@
   const ns = global.CPDepositoRecursal = global.CPDepositoRecursal || {};
 
   ns.attachCalc = function(ctx){
-    const { state, el, toBR, parseBCBNumber, compareMonth, monthKeyFromDate, minDepositDate, monthsBetweenInclusive, parseISODateUTC, formatISODateUTC } = ctx;
+    const { state, el, compareMonth, monthKeyFromDate, minDepositDate, monthsBetweenInclusive } = ctx;
+    const FLAG = global.CPFeatureFlags && global.CPFeatureFlags.useCentralIndices !== false;
 
-    function addDaysUTC(parts, days){
-      const dt = new Date(Date.UTC(parts.y, parts.m - 1, parts.d + Number(days || 0)));
-      return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
-    }
-
-    function addYearsUTC(parts, years){
-      const dt = new Date(Date.UTC(parts.y + Number(years || 0), parts.m - 1, parts.d));
-      return { y: dt.getUTCFullYear(), m: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
-    }
-
-    function compareISODate(a, b){
-      return formatISODateUTC(a).localeCompare(formatISODateUTC(b));
-    }
-
-    async function fetchSeries(code, startDateISO, endDateISO) {
-      const all = [];
-      let curStart = parseISODateUTC(startDateISO);
-      const endDate = parseISODateUTC(endDateISO);
-      if (!curStart || !endDate) return all;
-      while (compareISODate(curStart, endDate) <= 0) {
-        let curEnd = addYearsUTC(curStart, 9);
-        if (compareISODate(curEnd, endDate) > 0) curEnd = endDate;
-        const curStartIso = formatISODateUTC(curStart);
-        const curEndIso = formatISODateUTC(curEnd);
-        const url = 'https://api.bcb.gov.br/dados/serie/bcdata.sgs.' + code + '/dados?formato=json&dataInicial=' + encodeURIComponent(toBR(curStartIso)) + '&dataFinal=' + encodeURIComponent(toBR(curEndIso));
-        let part;
-        try { part = await CPCommon.fetchJson(url, { timeoutMs: 15000 }); } catch (error) { throw new Error('Falha ao buscar série ' + code + ' no BCB: ' + error.message); }
-        if (Array.isArray(part)) all.push.apply(all, part);
-        curStart = addDaysUTC(curEnd, 1);
-      }
-      return all;
-    }
-
-    function dailyToMonthlyEffective(dailyList, seriesCode){
-      const byMonthFactor = new Map();
-      (dailyList || []).forEach((it) => {
-        const parts = String(it.data).split('/'); const mk = parts[2] + '-' + parts[1]; const v = parseBCBNumber(it.valor);
-        let dailyRate;
-        if (String(seriesCode) === '4389' || String(seriesCode) === '11') dailyRate = Math.pow(1 + (v / 100), 1 / 252) - 1;
-        else return;
-        byMonthFactor.set(mk, (byMonthFactor.get(mk) || 1) * (1 + dailyRate));
-      });
-      return Array.from(byMonthFactor.entries()).map(([month, factor]) => ({ month, value: (factor - 1) * 100 })).sort(compareMonth);
-    }
-    function monthlyMapFromBCB(list){ const map = new Map(); (list||[]).forEach((it)=>{ const p=String(it.data).split('/'); map.set(p[2] + '-' + p[1], parseBCBNumber(it.valor)); }); return map; }
-    function buildPoupancaMonthly(trList, metaSelicList){ const trMap=monthlyMapFromBCB(trList), metaMap=monthlyMapFromBCB(metaSelicList); return Array.from(new Set([...trMap.keys(), ...metaMap.keys()])).sort().map((month)=>{ const tr=trMap.get(month)||0; const metaSelicAA=metaMap.get(month)||0; const adicional = metaSelicAA > 8.5 ? 0.5 : 0.7 * (metaSelicAA / 12); return { month, value: tr + adicional }; }); }
-    function buildJamMonthly(trList){ const trMap = monthlyMapFromBCB(trList); return Array.from(trMap.entries()).map(([month, tr]) => ({ month, value: tr + 0.25 })).sort(compareMonth); }
     function getManualIndex(month){ const found = state.indices.find((i)=>i.month===month); return found ? Number(found.value)/100 : 0; }
-    const AUTO_MONTHLY_SERIES = Object.freeze({ ipca: 433, inpc: 188, igpm: 189, igpdi: 190 });
+
+    async function loadIndicesFromCentral(indexType, start, end){
+      if (!global.CPIndices) throw new Error('CPIndices não disponível.');
+      const autoMap = { ipca: 'ipca_bcb_433', inpc: 'inpc_bcb_188', igpm: 'igpm_bcb_189', igpdi: 'igpdi_bcb_190', cdi: 'cdi_bcb_4389', selic: 'selic_bcb_11' };
+      if (autoMap[indexType]) {
+        await CPIndices.ensureAutoTable(autoMap[indexType], start, end);
+        const serie = CPIndices.getRange(autoMap[indexType], start, end);
+        return serie.map((it)=>({ month: it.competencia, value: it.valor })).sort(compareMonth);
+      }
+      if (indexType === 'poupanca_auto') {
+        await CPIndices.ensureAutoTable('tr_bcb_7811', start, end);
+        await CPIndices.ensureAutoTable('meta_selic_432', start, end);
+        const months = monthsBetweenInclusive(start.slice(0,7), end.slice(0,7));
+        return months.map((mk)=>({ month: mk, value: CPIndices.resolveRule('poupanca_auto', { month: mk }) }));
+      }
+      if (indexType === 'jam_auto') {
+        await CPIndices.ensureAutoTable('tr_bcb_7811', start, end);
+        const months = monthsBetweenInclusive(start.slice(0,7), end.slice(0,7));
+        return months.map((mk)=>({ month: mk, value: CPIndices.resolveRule('jam_auto', { month: mk }) }));
+      }
+      return [];
+    }
 
     async function calculateAll(){
       ctx.sortDeposits();
@@ -65,12 +40,10 @@
       const indexType = el.indexType ? el.indexType.value : 'manual';
       const start = minDepositDate(); const endKey = monthKeyFromDate(end);
       try {
-        if (/^(cdi|selic|poupanca_auto|jam_auto|ipca|inpc|igpm|igpdi)$/.test(indexType)) ctx.setAutoStatus('Buscando índices no BCB...'); else ctx.setAutoStatus('');
-        if (Object.prototype.hasOwnProperty.call(AUTO_MONTHLY_SERIES, indexType)) state.indices = Array.from(monthlyMapFromBCB(await fetchSeries(AUTO_MONTHLY_SERIES[indexType], start, end)).entries()).map(([month, value]) => ({ month, value })).sort(compareMonth);
-        else if (indexType === 'cdi') state.indices = dailyToMonthlyEffective(await fetchSeries(4389, start, end), 4389);
-        else if (indexType === 'selic') state.indices = dailyToMonthlyEffective(await fetchSeries(11, start, end), 11);
-        else if (indexType === 'poupanca_auto') state.indices = buildPoupancaMonthly(await fetchSeries(7811, start, end), await fetchSeries(432, start, end));
-        else if (indexType === 'jam_auto') state.indices = buildJamMonthly(await fetchSeries(7811, start, end));
+        if (/^(cdi|selic|poupanca_auto|jam_auto|ipca|inpc|igpm|igpdi)$/.test(indexType)) ctx.setAutoStatus('Buscando índices no módulo central...'); else ctx.setAutoStatus('');
+        if (FLAG && indexType !== 'manual') {
+          state.indices = await loadIndicesFromCentral(indexType, start, end);
+        }
         if (indexType !== 'manual') { ctx.setAutoStatus('OK (' + state.indices.length + ' meses).'); ctx.renderIndices(); }
       } catch (err) {
         ctx.setAutoStatus('Erro ao buscar índices.'); ctx.toast('Erro', err.message || 'Erro ao buscar índices automáticos.', 'err'); return null;
@@ -86,7 +59,7 @@
       state.lastCalc = result; return result;
     }
 
-    Object.assign(ctx, { fetchSeries, dailyToMonthlyEffective, buildPoupancaMonthly, buildJamMonthly, getManualIndex, calculateAll });
+    Object.assign(ctx, { getManualIndex, calculateAll });
   };
 
   global.CPDepositoRecursalCalcLoaded = true;
