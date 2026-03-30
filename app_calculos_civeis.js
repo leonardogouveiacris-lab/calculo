@@ -1125,12 +1125,6 @@
       return '<span class="mini-badge">' + esc(columnTitle(coluna, idx)) + (coluna.tipo === 'formula' ? ' [' + esc(coluna.formula || '') + ']' : '') + '</span>';
     })).join('');
     const indexCols = getIndexColumns(lancamento);
-    const indexConfigCards = indexCols.map(function(coluna){
-      const sourceLabel = ((INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || []).find(function(opt){ return opt.value === coluna.indexSource; }) || {}).label || coluna.indexSource || '—';
-      const limit = getIndexLimit(coluna);
-      const limitLabel = formatLimitInterval(limit.start, limit.end);
-      return '<div class="cfg-col"><label>' + esc(coluna.nome || 'Índice') + '</label><div style="font-size:12px;color:#475467">Tipo: ' + esc(coluna.indexKind === 'juros' ? 'Juros' : 'Correção') + ' • Fonte: ' + esc(sourceLabel) + '</div><div style="font-size:11px;color:#98a2b3">' + esc(limitLabel) + '</div></div>';
-    }).join('');
     const indexSummaryRows = indexCols.map(function(coluna){
       const sourceLabel = ((INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || []).find(function(opt){ return opt.value === coluna.indexSource; }) || {}).label || coluna.indexSource || '—';
       const limit = getIndexLimit(coluna);
@@ -1151,7 +1145,6 @@
           '</div>' +
         '</div>' +
         '<div class="index-config">' +
-          indexConfigCards +
           '<div class="cfg-col action"><button type="button" class="btn btnFetchIndices" data-launch-index="' + index + '"' + (indexLoadingState[index] ? ' disabled aria-busy="true"' : '') + '>' + (indexLoadingState[index] ? 'Buscando índices...' : 'Atualizar índices') + '</button><span class="index-loading" data-launch-index="' + index + '"' + (indexLoadingState[index] ? '' : ' hidden') + '>Busca de índice em andamento</span></div>' +
         '</div>' +
         '<div class="inline-tools">' +
@@ -1161,7 +1154,7 @@
         '</div>' +
         '<div>' + badges + '</div>' +
         '<div class="formula-note">Nas fórmulas, prefira tokens estáveis por coluna (ex.: {valor}, {correcao_monetaria}, {valor_correcao}). Fórmulas legadas com letras (B, C, D...) continuam sendo aceitas e são convertidas automaticamente. As colunas padrão iniciam com estas fórmulas: Valor da Correção = ' + esc(defaultValorCorrecaoFormula()) + '; Valor dos Juros = ' + esc(defaultValorJurosFormula()) + '; Valor Devido = ' + esc(defaultValorDevidoFormula()) + '.</div>' +
-        '<div class="readonly-note">Cada coluna de índice tem metadados próprios (tipo, fonte, limite e modo de acumulação). Edite cada coluna para ajustar sua configuração e use “Atualizar índices” para recalcular os fatores em todas as linhas. A coluna Valor fica fixa no início e Valor Devido no final; use ←/→ para reordenar apenas colunas não essenciais.</div>' +
+        '<div class="readonly-note">A fonte e o limite de cada índice são definidos no editor da própria coluna. Use "Atualizar índices" para recalcular os fatores com esses metadados por coluna. A coluna Valor fica fixa no início e Valor Devido no final; use ←/→ para reordenar apenas colunas não essenciais.</div>' +
         (indexSummaryRows ? '<div class="index-summary" role="note" aria-label="Resumo dos índices aplicados">' + indexSummaryRows + '</div>' : '') +
         '<div class="table-wrap"><table class="editor-table"><thead><tr>' + headCols + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
       '</div>';
