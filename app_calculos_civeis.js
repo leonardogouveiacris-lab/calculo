@@ -1580,6 +1580,18 @@
       data.lancamentos.forEach(function(lancamento){
         normalizeLaunch(lancamento);
         recalculateLaunch(lancamento);
+        const indexCols = getIndexColumns(lancamento);
+        const indexSummaryRows = indexCols.map(function(coluna){
+          const summary = summarizeIndexColumn(coluna);
+          const tipo = coluna.indexKind === 'juros' ? 'Juros' : 'Correção';
+          return '' +
+            '<div class="report-index-summary-row">' +
+              '<b>' + esc(summary.name) + '</b> — ' +
+              'Tipo: ' + esc(tipo) + ' • ' +
+              'Fonte: ' + esc(summary.sourceLabel) + ' • ' +
+              'Limite: ' + esc(summary.limitLabel) +
+            '</div>';
+        }).join('');
         const headers = ['Data'].concat(lancamento.colunas.map(function(coluna, idx){ return columnTitle(coluna, idx); }));
         const rows = lancamento.linhas.map(function(linha){
           const cols = lancamento.colunas.map(function(coluna){
@@ -1595,10 +1607,13 @@
         }).join('');
         CPPrintLayout.appendSection(layout, {
           html: '<div class="sec-title">' + esc(lancamento.verba) + '</div>' +
-            '<div class="summary-row-note">' +
-            'Período: ' + esc(formatDateBR(lancamento.dataInicial)) + ' até ' + esc(formatDateBR(lancamento.dataFinal)) +
-            (lancamento.observacao ? '<br>Observação: ' + esc(lancamento.observacao) : '') +
-          '</div>'
+            '<div class="report-launch-head">' +
+              '<div class="summary-row-note">' +
+                'Período: ' + esc(formatDateBR(lancamento.dataInicial)) + ' até ' + esc(formatDateBR(lancamento.dataFinal)) +
+                (lancamento.observacao ? '<br>Observação: ' + esc(lancamento.observacao) : '') +
+              '</div>' +
+              (indexSummaryRows ? '<div class="report-index-summary" role="note" aria-label="Resumo de índices da verba"><div class="report-index-summary-title">Índices aplicados nesta verba</div>' + indexSummaryRows + '</div>' : '') +
+            '</div>'
         });
         CPPrintLayout.appendTable(layout, {
           columns: headers,
