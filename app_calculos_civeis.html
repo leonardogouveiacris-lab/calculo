@@ -62,6 +62,7 @@ textarea{min-height:92px;resize:vertical}
 .index-config .cfg-col.action{grid-column:span 2;display:flex;flex-direction:column;justify-content:flex-end;gap:6px}.index-config .cfg-col.action .btn{flex:0 0 auto;align-self:flex-start;margin-top:20px}
 @media (max-width:900px){.index-config .cfg-col,.index-config .cfg-col.action{grid-column:span 12}}
 .index-summary{margin:10px 0 12px;padding:10px 12px;border:1px solid #e7ecf3;border-radius:12px;background:linear-gradient(180deg,#fbfdff 0%,#f6f9fc 100%);display:flex;flex-direction:column;gap:8px}
+.index-summary-title{margin:0;font-size:12px;font-weight:700;color:#1f2937}
 .index-summary-row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;font-size:11.5px;color:#475467;line-height:1.35}
 .index-summary-row strong{font-size:12px;color:#1f2937}
 .index-summary-row span{white-space:normal}
@@ -491,9 +492,26 @@ textarea{min-height:92px;resize:vertical}
 
   function formatLimitInterval(startISO, endISO){
     if (!startISO && !endISO) return 'sem limite';
-    const startLabel = startISO ? formatDateBR(startISO) : 'início aberto';
-    const endLabel = endISO ? formatDateBR(endISO) : 'final aberto';
-    return startLabel + ' até ' + endLabel;
+    return formatDateLabel(startISO, 'início aberto') + ' -> ' + formatDateLabel(endISO, 'fim aberto');
+  }
+
+  function formatDateLabel(value, fallback){
+    if (!value) return fallback || '—';
+    return formatDateBR(value);
+  }
+
+  function getIndexSourceLabel(coluna){
+    const options = INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || [];
+    return (options.find(function(opt){ return opt.value === coluna.indexSource; }) || {}).label || coluna.indexSource || '—';
+  }
+
+  function summarizeIndexColumn(coluna){
+    const limit = getIndexLimit(coluna);
+    return {
+      name: coluna.nome || 'Índice',
+      sourceLabel: getIndexSourceLabel(coluna),
+      limitLabel: formatLimitInterval(limit.start, limit.end)
+    };
   }
 
   function parseBRNumber(value){
@@ -1481,19 +1499,16 @@ textarea{min-height:92px;resize:vertical}
     })).join('');
     const indexCols = getIndexColumns(lancamento);
     const indexConfigCards = indexCols.map(function(coluna){
-      const sourceLabel = ((INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || []).find(function(opt){ return opt.value === coluna.indexSource; }) || {}).label || coluna.indexSource || '—';
-      const limit = getIndexLimit(coluna);
-      const limitLabel = formatLimitInterval(limit.start, limit.end);
-      return '<div class="cfg-col"><label>' + esc(coluna.nome || 'Índice') + '</label><div style="font-size:12px;color:#475467">Tipo: ' + esc(coluna.indexKind === 'juros' ? 'Juros' : 'Correção') + ' • Fonte: ' + esc(sourceLabel) + '</div><div style="font-size:11px;color:#98a2b3">' + esc(limitLabel) + '</div></div>';
+      const summary = summarizeIndexColumn(coluna);
+      return '<div class="cfg-col"><label>' + esc(summary.name) + '</label><div style="font-size:12px;color:#475467">Tipo: ' + esc(coluna.indexKind === 'juros' ? 'Juros' : 'Correção') + ' • Fonte: ' + esc(summary.sourceLabel) + '</div><div style="font-size:11px;color:#98a2b3">Limite: ' + esc(summary.limitLabel) + '</div></div>';
     }).join('');
     const indexSummaryRows = indexCols.map(function(coluna){
-      const sourceLabel = ((INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || []).find(function(opt){ return opt.value === coluna.indexSource; }) || {}).label || coluna.indexSource || '—';
-      const limit = getIndexLimit(coluna);
+      const summary = summarizeIndexColumn(coluna);
       return '' +
         '<div class="index-summary-row">' +
-          '<strong>' + esc(coluna.nome || 'Índice') + '</strong>' +
-          '<span>Fonte: ' + esc(sourceLabel) + '</span>' +
-          '<span>Limitação: ' + esc(formatLimitInterval(limit.start, limit.end)) + '</span>' +
+          '<strong>' + esc(summary.name) + '</strong>' +
+          '<span>Fonte: ' + esc(summary.sourceLabel) + '</span>' +
+          '<span>Limite: ' + esc(summary.limitLabel) + '</span>' +
         '</div>';
     }).join('');
     launchesHost.innerHTML = '' +
@@ -1517,7 +1532,7 @@ textarea{min-height:92px;resize:vertical}
         '<div>' + badges + '</div>' +
         '<div class="formula-note">Nas fórmulas, prefira tokens estáveis por coluna (ex.: {valor}, {correcao_monetaria}, {valor_correcao}). Fórmulas legadas com letras (B, C, D...) continuam sendo aceitas e são convertidas automaticamente. As colunas padrão iniciam com estas fórmulas: Valor da Correção = ' + esc(defaultValorCorrecaoFormula()) + '; Valor dos Juros = ' + esc(defaultValorJurosFormula()) + '; Valor Devido = ' + esc(defaultValorDevidoFormula()) + '.</div>' +
         '<div class="readonly-note">Cada coluna de índice tem metadados próprios (tipo, fonte, limite e modo de acumulação). Edite cada coluna para ajustar sua configuração e use “Atualizar índices” para recalcular os fatores em todas as linhas. A coluna Valor fica fixa no início e Valor Devido no final; use ←/→ para reordenar apenas colunas não essenciais.</div>' +
-        (indexSummaryRows ? '<div class="index-summary" role="note" aria-label="Resumo dos índices aplicados">' + indexSummaryRows + '</div>' : '') +
+        (indexSummaryRows ? '<div class="index-summary" role="note" aria-label="Resumo dos índices aplicados"><p class="index-summary-title">Resumo dos índices desta verba</p>' + indexSummaryRows + '</div>' : '') +
         '<div class="table-wrap"><table class="editor-table"><thead><tr>' + headCols + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
       '</div>';
   }
