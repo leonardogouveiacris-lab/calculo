@@ -1292,6 +1292,20 @@ textarea{min-height:92px;resize:vertical}
     return true;
   }
 
+  function reorderLaunchRowsByColumnIds(lancamento, orderedColumnIds){
+    if (!lancamento || !Array.isArray(lancamento.linhas)) return;
+    const ids = Array.isArray(orderedColumnIds) ? orderedColumnIds : [];
+    lancamento.linhas = lancamento.linhas.map(function(linha){
+      const row = Object.assign({}, linha);
+      const reordered = { periodo: row.periodo || '', valor: row.valor == null ? '' : row.valor };
+      ids.forEach(function(columnId){
+        if (!columnId || columnId === 'valor') return;
+        reordered[columnId] = row[columnId];
+      });
+      return reordered;
+    });
+  }
+
   function moveColumn(launchIndex, columnId, direction){
     const lancamento = state.lancamentos[launchIndex];
     if (!lancamento || !Array.isArray(lancamento.colunas)) return;
@@ -1301,6 +1315,17 @@ textarea{min-height:92px;resize:vertical}
     if (!canMoveColumnTo(lancamento, fromIndex, toIndex)) return;
     const col = lancamento.colunas.splice(fromIndex, 1)[0];
     lancamento.colunas.splice(toIndex, 0, col);
+    const valorIndex = lancamento.colunas.findIndex(function(item){ return item && item.id === 'valor'; });
+    if (valorIndex > 0){
+      const valorCol = lancamento.colunas.splice(valorIndex, 1)[0];
+      lancamento.colunas.unshift(valorCol);
+    }
+    const valorDevidoIndex = lancamento.colunas.findIndex(function(item){ return item && item.id === 'valor_devido'; });
+    if (valorDevidoIndex > -1 && valorDevidoIndex !== lancamento.colunas.length - 1){
+      const valorDevidoCol = lancamento.colunas.splice(valorDevidoIndex, 1)[0];
+      lancamento.colunas.push(valorDevidoCol);
+    }
+    reorderLaunchRowsByColumnIds(lancamento, lancamento.colunas.map(function(item){ return item.id; }));
     recalculateLaunch(lancamento);
     persistAndRefresh();
   }
@@ -1472,10 +1497,12 @@ textarea{min-height:92px;resize:vertical}
         : '';
       const metaHtml = '<div class="th-col-meta"><span>' + esc(columnTitle(coluna, idx)) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + indiceMeta + '</div>'; 
       let actions = '<div class="th-col-actions">';
-      const canMoveLeft = canMoveColumnTo(lancamento, idx, idx - 1);
-      const canMoveRight = canMoveColumnTo(lancamento, idx, idx + 1);
-      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="left" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Mover coluna para a esquerda"' + (canMoveLeft ? '' : ' disabled aria-disabled="true"') + '>←</button>';
-      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="right" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Mover coluna para a direita"' + (canMoveRight ? '' : ' disabled aria-disabled="true"') + '>→</button>';
+      if (!isColumnFixedForReorder(coluna)){
+        const canMoveLeft = canMoveColumnTo(lancamento, idx, idx - 1);
+        const canMoveRight = canMoveColumnTo(lancamento, idx, idx + 1);
+        actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="left" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Mover coluna para a esquerda"' + (canMoveLeft ? '' : ' disabled aria-disabled="true"') + '>←</button>';
+        actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="right" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Mover coluna para a direita"' + (canMoveRight ? '' : ' disabled aria-disabled="true"') + '>→</button>';
+      }
       if (coluna.tipo === 'indice') actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Editar coluna">✎</button>';
       else {
         actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Editar coluna">✎</button>';
@@ -2197,6 +2224,13 @@ textarea{min-height:92px;resize:vertical}
 
   launchesHost.addEventListener('click', function(event){
     const target = event.target;
+    const moveButton = target.closest('.btnMoveColumn');
+    if (moveButton){
+      const launchIndex = Number(moveButton.getAttribute('data-launch-index'));
+      if (!state.lancamentos[launchIndex]) return;
+      moveColumn(launchIndex, moveButton.getAttribute('data-column-id') || '', moveButton.getAttribute('data-direction') === 'left' ? 'left' : 'right');
+      return;
+    }
     const launchIndex = Number(target.getAttribute('data-launch-index'));
     if (!state.lancamentos[launchIndex]) return;
     if (target.classList.contains('btnAddManualCol')){
@@ -2217,10 +2251,6 @@ textarea{min-height:92px;resize:vertical}
     }
     if (target.classList.contains('btnEditColumn')){
       openEditColumnModal(launchIndex, target.getAttribute('data-column-id') || '');
-      return;
-    }
-    if (target.classList.contains('btnMoveColumn')){
-      moveColumn(launchIndex, target.getAttribute('data-column-id') || '', target.getAttribute('data-direction') === 'left' ? 'left' : 'right');
       return;
     }
     if (target.classList.contains('btnDeleteColumn')){
