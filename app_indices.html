@@ -1,75 +1,47 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>CalculoPro — Módulo de Índices</title>
-<style>
-:root{--bg:#f7f8fb;--card:#fff;--border:#e6e8ef;--border-strong:#d7dbe6;--muted:#667085;--ink:#0b1220;--soft:#f2f4f7;--soft-2:#f8fafc;--link:#2563eb;--accent:#0b1220;--shadow-soft:0 10px 26px rgba(16,24,40,.06);--radius:18px;--radius-sm:12px;--focus:0 0 0 4px rgba(37,99,235,.18)}
-*{box-sizing:border-box}html,body{height:100%}body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;font-size:15px;line-height:1.5;color:var(--ink);background:radial-gradient(1200px 500px at 50% -200px, rgba(37,99,235,.08), transparent 60%),radial-gradient(900px 380px at 0% 0%, rgba(2,132,199,.06), transparent 55%),var(--bg)}
-a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
-.topbar{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.78);backdrop-filter:blur(14px);border-bottom:1px solid var(--border)}
-.topbar-inner{max-width:1120px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
-.brand{display:flex;align-items:center;gap:12px;min-width:280px}.brand-logo{height:42px;width:auto;max-width:220px;object-fit:contain}.actions{display:flex;gap:10px;flex-wrap:wrap}
-.btn,button{appearance:none;border:1px solid var(--border);background:#fff;border-radius:12px;padding:10px 12px;font-size:13px;cursor:pointer;color:var(--ink);box-shadow:0 1px 0 rgba(16,24,40,.03);transition:transform .08s ease,border-color .15s ease,background .15s ease,box-shadow .15s ease,filter .15s ease}
-.btn:hover,button:hover{border-color:var(--border-strong);box-shadow:0 8px 18px rgba(16,24,40,.06)}.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 12px 26px rgba(16,24,40,.18)}
-.hintbar{border-top:1px solid var(--border); background:rgba(255,255,255,.58)}.hintbar-inner{max-width:1120px;margin:0 auto;padding:10px 16px}.hint{font-size:12px;color:var(--muted)}
-.wrap{max-width:1120px;margin:0 auto;padding:18px 16px 64px}.tabs-head{text-align:center;margin:10px 0 14px}.tabs-title{font-size:18px;font-weight:700}.tabs-sub{font-size:14px;color:var(--muted)}
-.grid{display:grid;grid-template-columns:minmax(0, 980px);justify-content:center;gap:14px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 16px 14px;box-shadow:var(--shadow-soft)}.card h2{margin:0 0 8px;font-size:15px;font-weight:600;padding-bottom:10px;border-bottom:1px solid var(--border)}
-label{display:block;font-size:12px;color:var(--muted);margin:12px 0 6px}
-input,select,textarea{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:#fff;font-size:13px;color:var(--ink)}
-input:focus,select:focus,textarea:focus{outline:none;border-color:rgba(37,99,235,.55);box-shadow:var(--focus)}
-.row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}.col-2{grid-column:span 2}.col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-12{grid-column:span 12}
-@media (max-width:980px){.col-2,.col-3,.col-4,.col-6{grid-column:span 12}}
-.btn-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:12px}
-.table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;border:1px solid var(--border);border-radius:16px;overflow:hidden;background:#fff}.table thead th{text-align:left;background:var(--soft-2);color:#475467;font-weight:600;padding:11px 12px;border-bottom:1px solid var(--border)}.table tbody td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:top;background:#fff}
-.toast{font-size:12px;color:#344054;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:10px;margin-top:10px;min-height:40px;white-space:pre-wrap}
-</style>
-<script defer src="js/core/cp-common.js"></script>
-<script defer src="js/modules/indices-state.js"></script>
-<script defer src="js/modules/indices-repository.js"></script>
-<script defer src="js/modules/indices-import.js"></script>
-<script defer src="js/modules/indices-service.js"></script>
-<script defer src="js/modules/indices-app.js"></script>
-</head><body>
-<header class="topbar"><div class="topbar-inner"><div class="brand"><img class="brand-logo" src="https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png" alt="CalculoPro"/></div><div class="actions"><a class="btn" href="index.html">Voltar ao dashboard</a></div></div><div class="hintbar"><div class="hintbar-inner"><div class="hint">Gestão central de índices/juros/correção com importação por arquivo e sincronização direta com API do BCB.</div></div></div></header>
-<main class="wrap">
-  <div class="tabs-head"><div class="tabs-title">Módulo de Índices (modulo-indices)</div><div class="tabs-sub">Serviço central reutilizável pelos apps de cálculo.</div></div>
-  <section class="grid">
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>CalculoPro — Módulo de Índices</title>
+  <style>body{font-family:system-ui,sans-serif;background:#f7f8fb;margin:0;color:#0b1220}.wrap{max-width:1100px;margin:0 auto;padding:20px}.card{background:#fff;border:1px solid #e6e8ef;border-radius:12px;padding:14px;margin-bottom:14px}label{font-size:12px;color:#667085;display:block;margin-top:8px}input,select,button{padding:8px;border-radius:8px;border:1px solid #d7dbe6}table{width:100%;border-collapse:collapse}th,td{border:1px solid #e6e8ef;padding:8px;font-size:12px;text-align:left}.row{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}.toast{font-size:12px;color:#475467}</style>
+  <script defer src="js/core/cp-common.js"></script>
+  <script defer src="js/modules/indices-state.js"></script>
+  <script defer src="js/modules/indices-repository.js"></script>
+  <script defer src="js/modules/indices-import.js"></script>
+  <script defer src="js/modules/indices-service.js"></script>
+  <script defer src="js/modules/indices-app.js"></script>
+</head>
+<body>
+  <main class="wrap">
+    <div class="card"><h1>Módulo de Índices (modulo-indices)</h1><p class="toast" id="indicesToast"></p><a href="index.html">← Voltar</a></div>
     <section class="card">
-      <h2>Cadastro e atualização de tabelas</h2>
+      <h2>CRUD de Tabelas</h2>
       <div class="row">
-        <div class="col-3"><label>ID</label><input id="tableId" placeholder="ipca_bcb_433"></div>
-        <div class="col-3"><label>Nome</label><input id="tableNome"></div>
-        <div class="col-2"><label>Tipo</label><select id="tableTipo"><option value="juros">juros</option><option value="correcao">correção</option><option value="misto" selected>misto</option></select></div>
-        <div class="col-2"><label>Periodicidade</label><select id="tablePeriodicidade"><option value="mensal">mensal</option><option value="diaria">diária</option></select></div>
-        <div class="col-2"><label>Updated by</label><input id="tableUpdatedBy" value="admin-local"></div>
-        <div class="col-4"><label>Fonte</label><input id="tableFonte"></div>
-        <div class="col-2"><label>Vigência início</label><input id="tableVigIni" type="date"></div>
-        <div class="col-2"><label>Vigência fim</label><input id="tableVigFim" type="date"></div>
-        <div class="col-2"><label>Competência</label><input id="serieComp" placeholder="YYYY-MM ou YYYY-MM-DD"></div>
-        <div class="col-2"><label>Valor</label><input id="serieVal" type="number" step="0.000001"></div>
+        <div><label>ID</label><input id="tableId" placeholder="ipca_bcb_433"></div>
+        <div><label>Nome</label><input id="tableNome"></div>
+        <div><label>Tipo</label><select id="tableTipo"><option value="juros">juros</option><option value="correcao">correção</option><option value="misto" selected>misto</option></select></div>
+        <div><label>Fonte</label><input id="tableFonte"></div>
+        <div><label>Periodicidade</label><select id="tablePeriodicidade"><option value="mensal">mensal</option><option value="diaria">diária</option></select></div>
+        <div><label>Updated by</label><input id="tableUpdatedBy" value="admin-local"></div>
       </div>
-      <div class="btn-row"><button id="btnSaveTable" class="btn-primary">Salvar tabela</button><button id="btnAddSerie">Upsert linha</button><button id="btnSetActiveDeposito">Ativar p/ Depósito Recursal</button></div>
+      <div class="row">
+        <div><label>Vigência início</label><input id="tableVigIni" type="date"></div>
+        <div><label>Vigência fim</label><input id="tableVigFim" type="date"></div>
+        <div><label>Competência</label><input id="serieComp" placeholder="YYYY-MM ou YYYY-MM-DD"></div>
+        <div><label>Valor</label><input id="serieVal" type="number" step="0.000001"></div>
+        <div style="display:flex;align-items:flex-end;gap:6px"><button id="btnSaveTable">Salvar tabela</button><button id="btnAddSerie">Upsert linha</button></div>
+      </div>
     </section>
-
     <section class="card">
-      <h2>Importação</h2>
-      <div class="row">
-        <div class="col-6"><label>Arquivo (JSON/CSV)</label><input id="importFile" type="file" accept=".json,.csv"/></div>
-        <div class="col-3"><label>&nbsp;</label><button id="btnImport">Importar arquivo</button></div>
-      </div>
-      <hr style="border:0;border-top:1px solid #e6e8ef;margin:14px 0">
-      <div class="row">
-        <div class="col-3"><label>Preset API BCB</label><select id="apiPreset"><option value="ipca_bcb_433">IPCA (433)</option><option value="inpc_bcb_188">INPC (188)</option><option value="igpm_bcb_189">IGP-M (189)</option><option value="igpdi_bcb_190">IGP-DI (190)</option><option value="tr_bcb_7811">TR (7811)</option><option value="meta_selic_432">Meta Selic (432)</option><option value="cdi_bcb_4389">CDI (4389)</option><option value="selic_bcb_11">SELIC (11)</option></select></div>
-        <div class="col-2"><label>Data inicial</label><input id="apiStart" type="date"></div>
-        <div class="col-2"><label>Data final</label><input id="apiEnd" type="date"></div>
-        <div class="col-3"><label>&nbsp;</label><button id="btnImportApi">Sincronizar via API</button></div>
-      </div>
-      <pre id="importReport" class="toast">Aguardando importação...</pre>
+      <h2>Importação / Exportação</h2>
+      <input id="importFile" type="file" accept=".json,.csv"/> <button id="btnImport">Importar</button>
+      <pre id="importReport"></pre>
     </section>
-
     <section class="card">
       <h2>Tabelas cadastradas</h2>
-      <table class="table"><thead><tr><th>ID</th><th>Nome</th><th>Tipo</th><th>Periodicidade</th><th>Versão</th><th>Atualizado em</th><th>Ações</th></tr></thead><tbody id="idxTablesBody"></tbody></table>
-      <p class="toast" id="indicesToast"></p>
+      <table><thead><tr><th>ID</th><th>Nome</th><th>Tipo</th><th>Periodicidade</th><th>Versão</th><th>Atualizado em</th><th>Ações</th></tr></thead><tbody id="idxTablesBody"></tbody></table>
     </section>
-  </section>
-</main>
-</body></html>
+  </main>
+</body>
+</html>
