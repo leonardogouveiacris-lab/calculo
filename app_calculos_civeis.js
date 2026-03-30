@@ -12,7 +12,8 @@
     observacoes: $('observacoes'),
     novaVerba: $('novaVerba'),
     periodoInicial: $('periodoInicial'),
-    periodoFinal: $('periodoFinal')
+    periodoFinal: $('periodoFinal'),
+    novaVerbaObservacao: $('novaVerbaObservacao')
   };
   const reportRoot = $('reportRoot');
   const launchesHost = $('launchesHost');
@@ -45,6 +46,7 @@
   const editLaunchVerba = $('editLaunchVerba');
   const editLaunchDataInicial = $('editLaunchDataInicial');
   const editLaunchDataFinal = $('editLaunchDataFinal');
+  const editLaunchObservacao = $('editLaunchObservacao');
   const honorariosEnabled = $('honorariosEnabled');
   const honorariosDescricao = $('honorariosDescricao');
   const honorariosPercentual = $('honorariosPercentual');
@@ -594,6 +596,7 @@
   }
 
   function normalizeLaunch(lancamento){
+    lancamento.observacao = String(lancamento.observacao || '');
     lancamento.indexConfig = Object.assign(defaultIndexConfig(), lancamento.indexConfig || {});
     const existing = Array.isArray(lancamento.colunas) ? lancamento.colunas.slice() : [];
     const valor = existing.find(function(item){ return item && item.id === 'valor'; }) || { id:'valor', nome:'Valor', tipo:'manual' };
@@ -868,6 +871,7 @@
     editLaunchVerba.value = lancamento.verba || '';
     editLaunchDataInicial.value = lancamento.dataInicial || '';
     editLaunchDataFinal.value = lancamento.dataFinal || '';
+    editLaunchObservacao.value = lancamento.observacao || '';
     editLaunchModal.classList.add('open');
     editLaunchModal.setAttribute('aria-hidden', 'false');
     setTimeout(function(){ editLaunchVerba.focus(); }, 30);
@@ -880,6 +884,7 @@
     editLaunchVerba.value = '';
     editLaunchDataInicial.value = '';
     editLaunchDataFinal.value = '';
+    editLaunchObservacao.value = '';
   }
 
   async function saveEditLaunchModal(){
@@ -889,11 +894,13 @@
     const verba = editLaunchVerba.value.trim();
     const dataInicial = editLaunchDataInicial.value;
     const dataFinal = editLaunchDataFinal.value;
+    const observacao = editLaunchObservacao.value.trim();
     if (!verba){ alert('Informe o nome da verba.'); editLaunchVerba.focus(); return; }
     if (!dataInicial){ alert('Informe a data inicial do cálculo.'); editLaunchDataInicial.focus(); return; }
     if (!dataFinal){ alert('Informe a data final do cálculo.'); editLaunchDataFinal.focus(); return; }
     if (dataInicial > dataFinal){ alert('A data inicial não pode ser maior que a data final.'); editLaunchDataFinal.focus(); return; }
     lancamento.verba = verba;
+    lancamento.observacao = observacao;
     const mudouPeriodo = lancamento.dataInicial !== dataInicial || lancamento.dataFinal !== dataFinal;
     lancamento.dataInicial = dataInicial;
     lancamento.dataFinal = dataFinal;
@@ -1057,6 +1064,7 @@
           '<div>' +
             '<div class="launch-title">' + esc(lancamento.verba) + '</div>' +
             '<div class="launch-sub">Período: ' + esc(formatDateBR(lancamento.dataInicial)) + ' até ' + esc(formatDateBR(lancamento.dataFinal)) + ' — ' + lancamento.linhas.length + ' competência(s)</div>' +
+            (lancamento.observacao ? '<div class="launch-sub">Observação: ' + esc(lancamento.observacao) + '</div>' : '') +
           '</div>' +
         '</div>' +
         '<div class="index-config">' +
@@ -1501,8 +1509,14 @@
           if (coluna.formato === 'percentual' || coluna.formato === 'indice') return '<td class="bold right">—</td>';
           return '<td class="bold right">' + esc(formatCurrencyBR(totalLancamento(lancamento, coluna.id === 'valor' ? 'valor' : coluna.id))) + '</td>';
         }).join('');
+        CPPrintLayout.appendSection(layout, {
+          html: '<div class="sec-title">' + esc(lancamento.verba) + '</div>' +
+            '<div class="summary-row-note">' +
+            'Período: ' + esc(formatDateBR(lancamento.dataInicial)) + ' até ' + esc(formatDateBR(lancamento.dataFinal)) +
+            (lancamento.observacao ? '<br>Observação: ' + esc(lancamento.observacao) : '') +
+          '</div>'
+        });
         CPPrintLayout.appendTable(layout, {
-          title: esc(lancamento.verba),
           columns: headers,
           rows: rows,
           tfootHtml: '<tr><td class="bold right">Total da verba</td>' + totalCells + '</tr>',
@@ -1564,12 +1578,14 @@
     fields.novaVerba.value = '';
     fields.periodoInicial.value = '';
     fields.periodoFinal.value = '';
+    fields.novaVerbaObservacao.value = '';
   }
 
   $('btnCriarLancamento').addEventListener('click', async function(){
     const verba = fields.novaVerba.value.trim();
     const dataInicial = fields.periodoInicial.value;
     const dataFinal = fields.periodoFinal.value;
+    const observacao = fields.novaVerbaObservacao.value.trim();
     if (!verba){ alert('Informe o nome da verba.'); fields.novaVerba.focus(); return; }
     if (!dataInicial){ alert('Informe a data inicial do cálculo.'); fields.periodoInicial.focus(); return; }
     if (!dataFinal){ alert('Informe a data final do cálculo.'); fields.periodoFinal.focus(); return; }
@@ -1577,6 +1593,7 @@
     state.lancamentos.push({
       id: 'lanc_' + Date.now() + '_' + Math.random().toString(16).slice(2),
       verba: verba,
+      observacao: observacao,
       dataInicial: dataInicial,
       dataFinal: dataFinal,
       colunas: buildDefaultColumns(),
@@ -1943,7 +1960,7 @@
       event.preventDefault();
       saveEditColumnModal();
     }
-    if (event.key === 'Enter' && editLaunchModal.classList.contains('open') && (event.target === editLaunchVerba || event.target === editLaunchDataInicial || event.target === editLaunchDataFinal)) {
+    if (event.key === 'Enter' && editLaunchModal.classList.contains('open') && (event.target === editLaunchVerba || event.target === editLaunchDataInicial || event.target === editLaunchDataFinal || event.target === editLaunchObservacao)) {
       event.preventDefault();
       saveEditLaunchModal();
     }
