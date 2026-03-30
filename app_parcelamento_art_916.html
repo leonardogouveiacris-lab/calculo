@@ -1671,6 +1671,43 @@ body[data-report-context] #cpPrintHost .print-header .logo{
   max-height:var(--cp-print-logo-h) !important;
   object-fit:contain !important;
 }
+
+/* === Alinhamento visual do Art. 916 com o módulo Cível (sem alterar conteúdo) === */
+#reportRoot.cp-report-root .page .content,
+body[data-report-context="parcelamento-art916-print"] #cpPrintHost .page .content{
+  padding-top:var(--cp-print-content-top) !important;
+  padding-bottom:calc(var(--cp-print-safe-bottom) + 20mm) !important;
+  overflow:hidden !important;
+}
+
+#reportRoot.cp-report-root .page.page2 .content,
+#reportRoot.cp-report-root .page.page3 .content,
+body[data-report-context="parcelamento-art916-print"] #cpPrintHost .page.page2 .content,
+body[data-report-context="parcelamento-art916-print"] #cpPrintHost .page.page3 .content{
+  margin-top:0 !important;
+}
+
+#reportRoot.cp-report-root .report-ident-grid,
+body[data-report-context="parcelamento-art916-print"] #cpPrintHost .report-ident-grid{
+  margin:8px 0 10px;
+}
+
+#reportRoot.cp-report-root .report-ident-grid .kv-item,
+body[data-report-context="parcelamento-art916-print"] #cpPrintHost .report-ident-grid .kv-item{
+  background:#fff;
+  border:1px solid #dbe1ec;
+  border-radius:12px;
+}
+
+#reportRoot.cp-report-root .page .sec-title,
+body[data-report-context="parcelamento-art916-print"] #cpPrintHost .page .sec-title{
+  margin:12px 0 8px !important;
+}
+
+#reportRoot.cp-report-root .page .report-table,
+body[data-report-context="parcelamento-art916-print"] #cpPrintHost .page .report-table{
+  margin-bottom:10px;
+}
 </style>
 </head><body>
 <header class="topbar no-print" id="hdrTopbar">
@@ -1955,10 +1992,10 @@ body[data-report-context] #cpPrintHost .print-header .logo{
 </div>
 </div>
 <div class="content" id="rptContent1">
-<div class="case-info">
-<div class="case-row"><div class="case-label">Reclamante:</div><div class="case-value"><span id="rAutor"></span></div></div>
-<div class="case-row"><div class="case-label">Reclamada:</div><div class="case-value"><span id="rReu"></span></div></div>
-<div class="case-row"><div class="case-label">Nº do processo:</div><div class="case-value"><span id="rProc"></span></div></div>
+<div class="kv-grid report-ident-grid" id="rptIdentGrid">
+<div class="kv-item"><div class="kv-label">Reclamante</div><div class="kv-value"><span id="rAutor"></span></div></div>
+<div class="kv-item"><div class="kv-label">Reclamada</div><div class="kv-value"><span id="rReu"></span></div></div>
+<div class="kv-item full"><div class="kv-label">Nº do processo</div><div class="kv-value"><span id="rProc"></span></div></div>
 </div>
 <div class="title">PARCELAMENTO – ART. 916 DO CPC</div>
 <div class="legal-box" id="rptLegal916">
