@@ -56,6 +56,26 @@
     return Math.abs(Number(a) - Number(b)) <= Number(eps || 1e-12);
   }
 
+  // monthlyPercent: percentual mensal efetivo (ex.: 1.12548 = 1,12548% a.m. efetivo).
+  // daysApplied: quantidade de dias efetivamente apurados no período.
+  // daysInReferenceMonth: base do mês de referência (28/29/30/31 ou outra base de negócio).
+  // mode: "compound" (padrão oficial) para equivalência composta diária, ou "linear" para compatibilidade legada.
+  // Retorno: percentual efetivo proporcional do período, na mesma unidade percentual da entrada.
+  function proportionalMonthlyEffectiveByDays(monthlyPercent, daysApplied, daysInReferenceMonth, mode){
+    var monthly = Number(monthlyPercent);
+    var applied = Number(daysApplied);
+    var monthBase = Number(daysInReferenceMonth);
+    if (!Number.isFinite(monthly) || !Number.isFinite(applied) || !Number.isFinite(monthBase)) return 0;
+    if (applied <= 0 || monthBase <= 0) return 0;
+    if (applied > monthBase) applied = monthBase;
+    var effectiveMode = mode === 'linear' ? 'linear' : 'compound';
+    if (effectiveMode === 'linear') return monthly * (applied / monthBase);
+    var monthlyFactor = 1 + (monthly / 100);
+    if (!Number.isFinite(monthlyFactor) || monthlyFactor <= 0) return 0;
+    var partialFactor = Math.pow(monthlyFactor, applied / monthBase);
+    return (partialFactor - 1) * 100;
+  }
+
   function validateDailyToMonthlyFixtures(convertFn){
     var converter = typeof convertFn === 'function' ? convertFn : dailyToMonthlyEffective;
     var fixtures = [
@@ -96,12 +116,45 @@
     });
   }
 
+  function validateProportionalFixtures(proportionalFn){
+    var converter = typeof proportionalFn === 'function' ? proportionalFn : proportionalMonthlyEffectiveByDays;
+    var fixtures = [
+      {
+        name: 'Proporcional composto: 10/30 avos de 1,12548% a.m.',
+        input: { monthlyPercent: 1.12548, daysApplied: 10, daysInReferenceMonth: 30, mode: 'compound' },
+        expected: 0.3737612845710059
+      },
+      {
+        name: 'Mês completo retorna exatamente o índice mensal',
+        input: { monthlyPercent: 1.12548, daysApplied: 30, daysInReferenceMonth: 30, mode: 'compound' },
+        expected: 1.12548
+      },
+      {
+        name: 'Sem dias aplicados retorna 0',
+        input: { monthlyPercent: 1.12548, daysApplied: 0, daysInReferenceMonth: 30, mode: 'compound' },
+        expected: 0
+      }
+    ];
+    return fixtures.map(function(fixture){
+      var input = fixture.input || {};
+      var actual = converter(input.monthlyPercent, input.daysApplied, input.daysInReferenceMonth, input.mode);
+      return {
+        fixture: fixture.name,
+        passed: almostEqual(actual, fixture.expected, 1e-12),
+        expected: fixture.expected,
+        actual: actual
+      };
+    });
+  }
+
   global.CPBCBRates = {
     SELIC_DAILY_SERIES: SELIC_DAILY_SERIES,
     CDI_DAILY_SERIES: CDI_DAILY_SERIES,
     parseBCBNumber: parseBCBNumber,
     dailyRateFromBCBValue: dailyRateFromBCBValue,
     dailyToMonthlyEffective: dailyToMonthlyEffective,
-    validateDailyToMonthlyFixtures: validateDailyToMonthlyFixtures
+    proportionalMonthlyEffectiveByDays: proportionalMonthlyEffectiveByDays,
+    validateDailyToMonthlyFixtures: validateDailyToMonthlyFixtures,
+    validateProportionalFixtures: validateProportionalFixtures
   };
 })(window);

@@ -33,12 +33,47 @@
       if (!(global.CPBCBRates && typeof global.CPBCBRates.dailyToMonthlyEffective === 'function')) throw new Error('CPBCBRates.dailyToMonthlyEffective não disponível.');
       return global.CPBCBRates.dailyToMonthlyEffective(raw, seriesCode);
     }
+    function proportionalMonthlyEffectiveByDays(monthlyPercent, daysApplied, daysInReferenceMonth, mode){
+      if (!(global.CPBCBRates && typeof global.CPBCBRates.proportionalMonthlyEffectiveByDays === 'function')) throw new Error('CPBCBRates.proportionalMonthlyEffectiveByDays não disponível.');
+      return global.CPBCBRates.proportionalMonthlyEffectiveByDays(monthlyPercent, daysApplied, daysInReferenceMonth, mode);
+    }
 
     (function validateDailyToMonthlyEffectiveConsistency(){
       if (!(global.CPBCBRates && typeof global.CPBCBRates.validateDailyToMonthlyFixtures === 'function')) return;
       const report = global.CPBCBRates.validateDailyToMonthlyFixtures(function(raw, seriesCode){ return normalizeDailyToMonthlyEffective(raw, seriesCode); });
       if (report.some((item) => !item.passed)) console.error('Falha nas fixtures estáticas de conversão diária->mensal (depósito recursal).', report);
     })();
+    (function validateProportionalMonthlyConsistency(){
+      if (!(global.CPBCBRates && typeof global.CPBCBRates.validateProportionalFixtures === 'function')) return;
+      const report = global.CPBCBRates.validateProportionalFixtures(proportionalMonthlyEffectiveByDays);
+      if (report.some((item) => !item.passed)) console.error('Falha nas fixtures estáticas de proporcionalização mensal (depósito recursal).', report);
+    })();
+
+    function parseISODateUTC(iso){
+      const parts = String(iso || '').split('-').map(Number);
+      if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return null;
+      return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    }
+
+    function monthDaysUTC(monthKey){
+      const parts = String(monthKey || '').split('-').map(Number);
+      if (parts.length !== 2 || !parts[0] || !parts[1]) return 0;
+      return new Date(Date.UTC(parts[0], parts[1], 0)).getUTCDate();
+    }
+
+    function daysAppliedWithinMonth(monthKey, rangeStartISO, rangeEndISO){
+      const parts = String(monthKey || '').split('-').map(Number);
+      if (parts.length !== 2 || !parts[0] || !parts[1]) return 0;
+      const monthStart = new Date(Date.UTC(parts[0], parts[1] - 1, 1));
+      const monthEnd = new Date(Date.UTC(parts[0], parts[1], 0));
+      const rangeStart = parseISODateUTC(rangeStartISO);
+      const rangeEnd = parseISODateUTC(rangeEndISO);
+      if (!rangeStart || !rangeEnd || rangeStart > rangeEnd) return 0;
+      const applyStart = rangeStart > monthStart ? rangeStart : monthStart;
+      const applyEnd = rangeEnd < monthEnd ? rangeEnd : monthEnd;
+      if (applyStart > applyEnd) return 0;
+      return Math.floor((applyEnd.getTime() - applyStart.getTime()) / 86400000) + 1;
+    }
 
     async function loadIndicesAuto(indexType, start, end){
       if (/^(ipca|inpc|igpm|igpdi)$/.test(indexType)) {
@@ -92,7 +127,16 @@
       const depBlocks = []; let totalUpdated = 0;
       state.deposits.forEach((dep) => {
         const startKey = monthKeyFromDate(dep.date); const months = monthsBetweenInclusive(startKey, endKey); let saldo = Number(dep.value); const lines = [];
-        months.forEach((mk, i) => { const idxPercent = indexType === 'manual' ? getManualIndex(mk) : ((state.indices.find((x)=>x.month===mk)?.value || 0) / 100); const saldoAnterior = saldo; const jurosMes = saldoAnterior * idxPercent; saldo = saldoAnterior + jurosMes; lines.push({ i, mk, idxMes: idxPercent, saldoAnterior, jurosMes, saldo }); });
+        months.forEach((mk, i) => {
+          const monthlyPercent = indexType === 'manual' ? getManualIndex(mk) * 100 : (state.indices.find((x)=>x.month===mk)?.value || 0);
+          const baseDias = monthDaysUTC(mk);
+          const diasAplicados = daysAppliedWithinMonth(mk, dep.date, end);
+          const idxPercent = proportionalMonthlyEffectiveByDays(monthlyPercent, diasAplicados, baseDias, 'compound') / 100;
+          const saldoAnterior = saldo;
+          const jurosMes = saldoAnterior * idxPercent;
+          saldo = saldoAnterior + jurosMes;
+          lines.push({ i, mk, idxMes: idxPercent, saldoAnterior, jurosMes, saldo });
+        });
         const pow = Math.pow(10, rounding); saldo = Math.round(saldo * pow) / pow; totalUpdated += saldo; depBlocks.push({ dep, lines, subtotal: saldo });
       });
       const indexLabel = el.indexType ? ((el.indexType.options[el.indexType.selectedIndex] || {}).text || '') : indexType;
