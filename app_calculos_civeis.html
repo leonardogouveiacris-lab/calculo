@@ -1497,12 +1497,10 @@ textarea{min-height:92px;resize:vertical}
         : '';
       const metaHtml = '<div class="th-col-meta"><span>' + esc(columnTitle(coluna, idx)) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + indiceMeta + '</div>'; 
       let actions = '<div class="th-col-actions">';
-      if (!isColumnFixedForReorder(coluna)){
-        const canMoveLeft = canMoveColumnTo(lancamento, idx, idx - 1);
-        const canMoveRight = canMoveColumnTo(lancamento, idx, idx + 1);
-        actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="left" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Mover coluna para a esquerda"' + (canMoveLeft ? '' : ' disabled aria-disabled="true"') + '>←</button>';
-        actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="right" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Mover coluna para a direita"' + (canMoveRight ? '' : ' disabled aria-disabled="true"') + '>→</button>';
-      }
+      const canMoveLeft = canMoveColumnTo(lancamento, idx, idx - 1);
+      const canMoveRight = canMoveColumnTo(lancamento, idx, idx + 1);
+      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="left" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Mover coluna para a esquerda (<)"' + (canMoveLeft ? '' : ' disabled aria-disabled="true"') + '><</button>';
+      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="right" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Mover coluna para a direita (>)"' + (canMoveRight ? '' : ' disabled aria-disabled="true"') + '>></button>';
       if (coluna.tipo === 'indice') actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Editar coluna">✎</button>';
       else {
         actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Editar coluna">✎</button>';
@@ -2224,11 +2222,10 @@ textarea{min-height:92px;resize:vertical}
 
   launchesHost.addEventListener('click', function(event){
     const target = event.target;
-    const moveButton = target.closest('.btnMoveColumn');
-    if (moveButton){
-      const launchIndex = Number(moveButton.getAttribute('data-launch-index'));
+    if (target.classList.contains('btnMoveColumn')) {
+      const launchIndex = Number(target.getAttribute('data-launch-index'));
       if (!state.lancamentos[launchIndex]) return;
-      moveColumn(launchIndex, moveButton.getAttribute('data-column-id') || '', moveButton.getAttribute('data-direction') === 'left' ? 'left' : 'right');
+      moveColumn(launchIndex, target.getAttribute('data-column-id') || '', target.getAttribute('data-direction') === 'left' ? 'left' : 'right');
       return;
     }
     const launchIndex = Number(target.getAttribute('data-launch-index'));
