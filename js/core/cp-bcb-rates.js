@@ -4,6 +4,12 @@
 
   var SELIC_DAILY_SERIES = '11';
   var CDI_DAILY_SERIES = '4389';
+  var UNIT_DAILY_PERCENT = 'daily_percent';
+  var UNIT_ANNUAL_PERCENT_BASE_252 = 'annual_percent_base_252';
+  var seriesMeta = Object.freeze({
+    '11': Object.freeze({ unitType: UNIT_ANNUAL_PERCENT_BASE_252, label: 'Selic anualizada base 252' }),
+    '4389': Object.freeze({ unitType: UNIT_ANNUAL_PERCENT_BASE_252, label: 'CDI anualizado base 252 (DI over)' })
+  });
 
   function parseBCBNumber(value){
     var raw = String(value == null ? '' : value).trim();
@@ -28,14 +34,16 @@
     return String((a && a.month) || a || '').localeCompare(String((b && b.month) || b || ''));
   }
 
-  // Regra oficial: SGS 11 é taxa anualizada base 252 e precisa ser convertida em taxa diária efetiva.
-  // SGS 4389 já é taxa diária (% a.d.). Em ambos os casos, o mês usa capitalização composta
+  // Regra oficial: SGS 11 e SGS 4389 são anualizadas base 252 e precisam ser convertidas em taxa diária efetiva.
+  // Em ambos os casos, o mês usa capitalização composta
   // dos dias disponíveis na série do BCB no período: produto(1 + taxa_dia) - 1.
   function dailyRateFromBCBValue(seriesCode, rawValue){
     var code = String(seriesCode || '');
     var value = parseBCBNumber(rawValue);
-    if (code === SELIC_DAILY_SERIES) return Math.pow(1 + (value / 100), 1 / 252) - 1;
-    if (code === CDI_DAILY_SERIES) return value / 100;
+    var meta = seriesMeta[code];
+    if (!meta) return null;
+    if (meta.unitType === UNIT_ANNUAL_PERCENT_BASE_252) return Math.pow(1 + (value / 100), 1 / 252) - 1;
+    if (meta.unitType === UNIT_DAILY_PERCENT) return value / 100;
     return null;
   }
 
@@ -80,7 +88,7 @@
     var converter = typeof convertFn === 'function' ? convertFn : dailyToMonthlyEffective;
     var fixtures = [
       {
-        name: 'CDI diário já em % a.d. (SGS 4389)',
+        name: 'CDI anualizado base 252 (SGS 4389) -> taxa diária efetiva',
         seriesCode: CDI_DAILY_SERIES,
         raw: [
           { data: '02/01/2025', valor: '0,10' },
@@ -88,7 +96,7 @@
           { data: '06/01/2025', valor: '0,10' }
         ],
         expected: [
-          { month: '2025-01', value: 0.30030009999996787 }
+          { month: '2025-01', value: 0.0011898884280547861 }
         ]
       },
       {
@@ -151,6 +159,7 @@
     SELIC_DAILY_SERIES: SELIC_DAILY_SERIES,
     CDI_DAILY_SERIES: CDI_DAILY_SERIES,
     parseBCBNumber: parseBCBNumber,
+    seriesMeta: seriesMeta,
     dailyRateFromBCBValue: dailyRateFromBCBValue,
     dailyToMonthlyEffective: dailyToMonthlyEffective,
     proportionalMonthlyEffectiveByDays: proportionalMonthlyEffectiveByDays,
