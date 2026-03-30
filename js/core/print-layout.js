@@ -320,7 +320,14 @@
         }
 
         if (end <= start) {
-          createPage(layout, { includeTitle:false });
+          const forcedEnd = Math.min(rows.length, start + 1);
+          appendMeasured(layout, title + buildTableHtml(columns, rows.slice(start, forcedEnd), {
+            tableClass: spec.tableClass,
+            tfootHtml: forcedEnd >= rows.length ? (spec.tfootHtml || '') : ''
+          }));
+          cursor = forcedEnd;
+          continued = cursor < rows.length;
+          if (continued) createPage(layout, { includeTitle:false });
           continue;
         }
 
