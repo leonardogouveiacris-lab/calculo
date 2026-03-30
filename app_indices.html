@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>CalculoPro — Módulo de Índices</title>
+  <style>body{font-family:system-ui,sans-serif;background:#f7f8fb;margin:0;color:#0b1220}.wrap{max-width:1100px;margin:0 auto;padding:20px}.card{background:#fff;border:1px solid #e6e8ef;border-radius:12px;padding:14px;margin-bottom:14px}label{font-size:12px;color:#667085;display:block;margin-top:8px}input,select,button{padding:8px;border-radius:8px;border:1px solid #d7dbe6}table{width:100%;border-collapse:collapse}th,td{border:1px solid #e6e8ef;padding:8px;font-size:12px;text-align:left}.row{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}.toast{font-size:12px;color:#475467}</style>
+  <script defer src="js/core/cp-common.js"></script>
+  <script defer src="js/modules/indices-state.js"></script>
+  <script defer src="js/modules/indices-repository.js"></script>
+  <script defer src="js/modules/indices-import.js"></script>
+  <script defer src="js/modules/indices-service.js"></script>
+  <script defer src="js/modules/indices-app.js"></script>
+</head>
+<body>
+  <main class="wrap">
+    <div class="card"><h1>Módulo de Índices (modulo-indices)</h1><p class="toast" id="indicesToast"></p><a href="index.html">← Voltar</a></div>
+    <section class="card">
+      <h2>CRUD de Tabelas</h2>
+      <div class="row">
+        <div><label>ID</label><input id="tableId" placeholder="ipca_bcb_433"></div>
+        <div><label>Nome</label><input id="tableNome"></div>
+        <div><label>Tipo</label><select id="tableTipo"><option value="juros">juros</option><option value="correcao">correção</option><option value="misto" selected>misto</option></select></div>
+        <div><label>Fonte</label><input id="tableFonte"></div>
+        <div><label>Periodicidade</label><select id="tablePeriodicidade"><option value="mensal">mensal</option><option value="diaria">diária</option></select></div>
+        <div><label>Updated by</label><input id="tableUpdatedBy" value="admin-local"></div>
+      </div>
+      <div class="row">
+        <div><label>Vigência início</label><input id="tableVigIni" type="date"></div>
+        <div><label>Vigência fim</label><input id="tableVigFim" type="date"></div>
+        <div><label>Competência</label><input id="serieComp" placeholder="YYYY-MM ou YYYY-MM-DD"></div>
+        <div><label>Valor</label><input id="serieVal" type="number" step="0.000001"></div>
+        <div style="display:flex;align-items:flex-end;gap:6px"><button id="btnSaveTable">Salvar tabela</button><button id="btnAddSerie">Upsert linha</button></div>
+      </div>
+    </section>
+    <section class="card">
+      <h2>Importação / Exportação</h2>
+      <input id="importFile" type="file" accept=".json,.csv"/> <button id="btnImport">Importar</button>
+      <pre id="importReport"></pre>
+    </section>
+    <section class="card">
+      <h2>Tabelas cadastradas</h2>
+      <table><thead><tr><th>ID</th><th>Nome</th><th>Tipo</th><th>Periodicidade</th><th>Versão</th><th>Atualizado em</th><th>Ações</th></tr></thead><tbody id="idxTablesBody"></tbody></table>
+    </section>
+  </main>
+</body>
+</html>
