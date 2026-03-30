@@ -806,7 +806,9 @@
 
     if (!isEditor) {
       renderReport();
-      renderPrintPreview();
+      if (window.CPPrintLayout && typeof CPPrintLayout.measureAndPaginate === "function") {
+        CPPrintLayout.measureAndPaginate({ root: document.getElementById("reportRoot"), spacing: CPPrintLayout.defaults.spacing });
+      }
     }
   }
 
@@ -826,16 +828,13 @@
     const doPrint = () => {
       setTab("report");
       const reportRoot = document.getElementById("reportRoot");
-      if (!reportRoot || !window.CPPrintLayout || !CPPrintLayout.finalizeAndPrint) {
+      if (!reportRoot || !window.CPPrintLayout || !CPPrintLayout.printRootInHost) {
         setTimeout(() => window.print(), 120);
         return;
       }
       setTimeout(() => {
-        const layout = renderPrintPreview() || buildPrintLayout();
-        CPPrintLayout.finalizeAndPrint(layout, {
-          contextName: "parcelamento-art916-print",
-          title: "Relatorio - Parcelamento Art. 916"
-        });
+        renderReport();
+        CPPrintLayout.printRootInHost(reportRoot, "parcelamento-art916-print", "Relatorio - Parcelamento Art. 916");
       }, 120);
     };
     $(DOM.btnPrint)?.addEventListener("click", doPrint);
