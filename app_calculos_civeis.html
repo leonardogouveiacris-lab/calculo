@@ -51,9 +51,10 @@ textarea{min-height:92px;resize:vertical}
 .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:16px;background:#fff}
 .editor-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px;background:#fff;min-width:340px}
 .editor-table thead th{text-align:left;background:var(--soft-2);color:#475467;font-weight:600;padding:11px 12px;border-bottom:1px solid var(--border)}
-.th-col-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.th-col-head{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:4px}
 .th-col-meta{display:flex;flex-direction:column;gap:2px;min-width:0}
-.th-col-actions{display:flex;gap:4px;flex-shrink:0}
+.th-col-meta .th-col-title{font-weight:600;line-height:1.2}
+.th-col-actions,.th-actions{display:flex;gap:4px;flex-shrink:0;align-items:center;justify-content:flex-start}
 .th-icon-btn{width:24px;height:24px;padding:0;border-radius:999px;font-size:14px;line-height:1;border:1px solid transparent;background:transparent;box-shadow:none;color:#667085;display:inline-flex;align-items:center;justify-content:center}
 .th-icon-btn:hover{background:var(--soft);border-color:var(--border)}
 .th-icon-btn.danger{color:#475467}
@@ -1478,18 +1479,18 @@ textarea{min-height:92px;resize:vertical}
       const indiceMeta = coluna.tipo === 'indice'
         ? ('<span style="font-size:10px;color:#98a2b3">' + esc((coluna.indexKind === 'juros' ? 'Juros' : 'Correção') + ' • ' + (coluna.indexSource || 'fonte automática')) + '</span>')
         : '';
-      const metaHtml = '<div class="th-col-meta"><span>' + esc(columnTitle(coluna, idx)) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + indiceMeta + '</div>'; 
-      let actions = '<div class="th-col-actions">';
+      const metaHtml = '<div class="th-col-meta"><span class="th-col-title">' + esc(columnTitle(coluna, idx)) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + indiceMeta + '</div>';
+      let actionButtons = '';
       const canMoveLeft = canMoveColumnTo(lancamento, idx, idx - 1);
       const canMoveRight = canMoveColumnTo(lancamento, idx, idx + 1);
       actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="left" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Mover esta coluna para a esquerda (<)"' + (canMoveLeft ? '' : ' disabled aria-disabled="true"') + '><</button>';
       actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="right" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Mover esta coluna para a direita (>)"' + (canMoveRight ? '' : ' disabled aria-disabled="true"') + '>></button>';
       if (coluna.tipo === 'indice') actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Editar coluna">✎</button>';
       else {
-        actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Editar coluna">✎</button>';
-        if (coluna.id !== 'valor' && coluna.id !== 'valor_correcao' && coluna.id !== 'valor_juros' && coluna.id !== 'valor_devido') actions += '<button type="button" class="th-icon-btn danger btnDeleteColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Remover coluna">×</button>';
+        actionButtons += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Editar coluna">✎</button>';
+        if (coluna.id !== 'valor' && coluna.id !== 'valor_correcao' && coluna.id !== 'valor_juros' && coluna.id !== 'valor_devido') actionButtons += '<button type="button" class="th-icon-btn danger btnDeleteColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Remover coluna">×</button>';
       }
-      actions += '</div>';
+      const actions = '<div class="th-col-actions th-actions">' + actionButtons + '</div>';
       return '<th><div class="th-col-head">' + metaHtml + actions + '</div></th>';
     })).join('');
     const rows = lancamento.linhas.map(function(linha, rowIndex){
