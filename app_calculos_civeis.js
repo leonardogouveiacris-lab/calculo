@@ -22,6 +22,11 @@
   const modalColumnName = $('modalColumnName');
   const modalColumnFormula = $('modalColumnFormula');
   const formulaFieldWrap = $('formulaFieldWrap');
+  let indexFieldWrap = $('indexFieldWrap');
+  let modalIndexKind = $('modalIndexKind');
+  let modalIndexSource = $('modalIndexSource');
+  let modalIndexStart = $('modalIndexStart');
+  let modalIndexEnd = $('modalIndexEnd');
   const columnModalTitle = $('columnModalTitle');
   const columnModalSub = $('columnModalSub');
   const launchSelector = $('launchSelector');
@@ -76,9 +81,9 @@
       { value:'jam_auto', label:'JAM/TR + 0,25% a.m.' }
     ]
   };
-  const LOCKED_INDEX_COLUMNS = Object.freeze([
-    { id:'correcao_monetaria', nome:'Correção Monetária', tipo:'indice', locked:true, formato:'indice', defaultSource:'ipca', configKey:'correcao' },
-    { id:'juros', nome:'Juros', tipo:'indice', locked:true, formato:'indice', defaultSource:'selic', configKey:'juros' }
+  const DEFAULT_INDEX_COLUMNS = Object.freeze([
+    { id:'correcao_monetaria', nome:'Correção Monetária', tipo:'indice', locked:true, formato:'indice', indexKind:'correcao', indexSource:'ipca', indexLimit:{ start:'', end:'' }, accumulationMode:'compound' },
+    { id:'juros', nome:'Juros', tipo:'indice', locked:true, formato:'indice', indexKind:'juros', indexSource:'selic', indexLimit:{ start:'', end:'' }, accumulationMode:'compound' }
   ]);
   const DEFAULT_RESULT_COLUMNS = Object.freeze([
     { id:'valor_correcao', nome:'Valor da Correção', tipo:'formula', formato:'moeda', formula:'' },
@@ -88,6 +93,31 @@
   let state = { lancamentos: [], lancamentoSelecionadoId: '', honorarios: defaultHonorariosConfig(), custas: [] };
   let honorariosSelectorOpen = false;
   let honorariosSearchTerm = '';
+
+  (function ensureIndexColumnModalFields(){
+    if (!columnModal || $('indexFieldWrap')) return;
+    const modalBody = columnModal.querySelector('.modal-body');
+    if (!modalBody) return;
+    const wrap = document.createElement('div');
+    wrap.id = 'indexFieldWrap';
+    wrap.style.display = 'none';
+    wrap.innerHTML = '' +
+      '<label for="modalIndexKind">Tipo do índice</label>' +
+      '<select id="modalIndexKind" class="select"><option value="correcao">Correção monetária</option><option value="juros">Juros</option></select>' +
+      '<label for="modalIndexSource">Fonte do índice</label>' +
+      '<select id="modalIndexSource" class="select"></select>' +
+      '<div class="row" style="margin-top:8px">' +
+        '<div class="col-6"><label for="modalIndexStart">Aplicar a partir de</label><input id="modalIndexStart" type="date"></div>' +
+        '<div class="col-6"><label for="modalIndexEnd">Aplicar até</label><input id="modalIndexEnd" type="date"></div>' +
+      '</div>' +
+      '<div class="formula-help">Defina fonte e limites opcionais para acumular o fator do índice.</div>';
+    modalBody.appendChild(wrap);
+    indexFieldWrap = $('indexFieldWrap');
+    modalIndexKind = $('modalIndexKind');
+    modalIndexSource = $('modalIndexSource');
+    modalIndexStart = $('modalIndexStart');
+    modalIndexEnd = $('modalIndexEnd');
+  })();
 
   function esc(value){
     return String(value || '').replace(/[&<>\"]/g, function(char){
@@ -240,10 +270,38 @@
     if (coluna && coluna.formato === 'percentual') return formatNumberBR(value, 6, 6, true);
     return formatCurrencyBR(value);
   }
+  function defaultIndexSourceByKind(kind){
+    return kind === 'juros' ? 'selic' : 'ipca';
+  }
+
+  function normalizeIndexColumn(coluna, fallback){
+    const base = Object.assign({}, fallback || {}, coluna || {});
+    const kind = base.indexKind === 'juros' ? 'juros' : 'correcao';
+    const source = String(base.indexSource || base.defaultSource || defaultIndexSourceByKind(kind) || '').trim() || defaultIndexSourceByKind(kind);
+    const mode = String(base.accumulationMode || sourceAccumulationMode(source) || 'compound').trim() || 'compound';
+    const limit = base.indexLimit || {};
+    return Object.assign({}, base, {
+      tipo: 'indice',
+      formato: 'indice',
+      indexKind: kind,
+      indexSource: source,
+      accumulationMode: mode,
+      indexLimit: { start: String(limit.start || ''), end: String(limit.end || '') }
+    });
+  }
+
+  function getIndexColumns(lancamento){
+    return (lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : []).filter(function(coluna){ return coluna && coluna.tipo === 'indice'; });
+  }
+
+  function getIndexColumnByKind(lancamento, kind){
+    return getIndexColumns(lancamento).find(function(coluna){ return coluna.indexKind === kind; }) || null;
+  }
+
   function buildDefaultColumns(){
     const valor = { id:'valor', nome:'Valor', tipo:'manual' };
-    const correcao = Object.assign({}, LOCKED_INDEX_COLUMNS[0]);
-    const juros = Object.assign({}, LOCKED_INDEX_COLUMNS[1]);
+    const correcao = normalizeIndexColumn(DEFAULT_INDEX_COLUMNS[0]);
+    const juros = normalizeIndexColumn(DEFAULT_INDEX_COLUMNS[1]);
     const baseCorrecao = [valor, correcao];
     const valorCorrecao = Object.assign({}, DEFAULT_RESULT_COLUMNS[0], { formula: defaultValorCorrecaoFormula({ colunas: baseCorrecao }) });
     const baseJuros = [valor, correcao, valorCorrecao, juros];
@@ -252,7 +310,7 @@
     const valorDevido = Object.assign({}, DEFAULT_RESULT_COLUMNS[2], { formula: defaultValorDevidoFormula({ colunas: baseFinal }) });
     return [valor, correcao, valorCorrecao, juros, valorJuros, valorDevido];
   }
-  function defaultIndexConfig(){ return { correcao: 'ipca', juros: 'selic', mode: 'factor_v9', limits:{} }; }
+  function defaultIndexConfig(){ return { mode: 'factor_v9', lastAutoRefresh: '' }; }
 
   function uid(prefix){
     return String(prefix || 'id') + '_' + Date.now() + '_' + Math.random().toString(16).slice(2);
@@ -301,10 +359,12 @@
   }
 
   function launchNeedsIndexRefresh(lancamento){
+    const indexColumns = getIndexColumns(lancamento);
     return (lancamento.linhas || []).some(function(linha){
-      const correcao = Number(linha.correcao_monetaria || 1);
-      const juros = Number(linha.juros || 1);
-      return !Number.isFinite(correcao) || !Number.isFinite(juros) || correcao <= 0 || juros <= 0 || correcao > 2 || juros > 2;
+      return indexColumns.some(function(coluna){
+        const fator = Number(linha[coluna.id] || 1);
+        return !Number.isFinite(fator) || fator <= 0 || fator > 2;
+      });
     });
   }
 
@@ -507,37 +567,65 @@
     return '(' + valor + '+' + valorCorrecao + '+' + valorJuros + ')';
   }
 
+  function resolveLegacyFormulaTokens(formula, lancamento){
+    const text = String(formula || '');
+    if (!text) return text;
+    const replacements = {
+      CORRECAO_MONETARIA: getColumnLetterById(lancamento, 'correcao_monetaria') || '',
+      JUROS: getColumnLetterById(lancamento, 'juros') || '',
+      VALOR_CORRECAO: getColumnLetterById(lancamento, 'valor_correcao') || '',
+      VALOR_JUROS: getColumnLetterById(lancamento, 'valor_juros') || '',
+      VALOR_DEVIDO: getColumnLetterById(lancamento, 'valor_devido') || ''
+    };
+    return text.replace(/[A-Z_]+/gi, function(token){
+      const mapped = replacements[String(token).toUpperCase()];
+      return mapped || token;
+    });
+  }
+
   function isLegacyValorDevidoFormula(formula){
     const normalized = String(formula || '').toUpperCase().replace(/\s+/g, '').replace(/X/g, '*');
     return normalized === '(B*C*D)' || normalized === '(B*C*E)' || normalized === '(B*D*E)' || normalized === '(B*CORRECAO_MONETARIA*JUROS)';
   }
 
-  function getIndexLimit(config, key){
-    const all = config && config.limits ? config.limits : {};
-    const item = all && all[key] ? all[key] : {};
-    return { start: item.start || '', end: item.end || '' };
-  }
-
-  function isMonthWithinLimit(monthKey, limit){
-    if (!monthKey) return false;
-    const current = Number(String(monthKey).replace('-', ''));
-    const start = limit && limit.start ? Number(String(limit.start).slice(0,7).replace('-', '')) : null;
-    const end = limit && limit.end ? Number(String(limit.end).slice(0,7).replace('-', '')) : null;
-    if (start && current < start) return false;
-    if (end && current > end) return false;
-    return true;
+  function getIndexLimit(coluna){
+    const limit = coluna && coluna.indexLimit ? coluna.indexLimit : {};
+    return { start: String(limit.start || ''), end: String(limit.end || '') };
   }
 
   function normalizeLaunch(lancamento){
     lancamento.indexConfig = Object.assign(defaultIndexConfig(), lancamento.indexConfig || {});
-    if (!lancamento.indexConfig.limits) lancamento.indexConfig.limits = {};
     const existing = Array.isArray(lancamento.colunas) ? lancamento.colunas.slice() : [];
     const valor = existing.find(function(item){ return item && item.id === 'valor'; }) || { id:'valor', nome:'Valor', tipo:'manual' };
-    const dynamic = existing.filter(function(item){ return item && item.id !== 'valor' && !LOCKED_INDEX_COLUMNS.some(function(lock){ return lock.id === item.id; }) && item.id !== 'valor_correcao' && item.id !== 'valor_juros' && item.id !== 'valor_devido'; });
-    const correcaoBase = Object.assign({}, LOCKED_INDEX_COLUMNS[0], existing.find(function(item){ return item && item.id === 'correcao_monetaria'; }) || {}, { id:'correcao_monetaria', nome:'Correção Monetária', tipo:'indice', locked:true, formato:'indice', defaultSource:'ipca', configKey:'correcao' });
-    const jurosBase = Object.assign({}, LOCKED_INDEX_COLUMNS[1], existing.find(function(item){ return item && item.id === 'juros'; }) || {}, { id:'juros', nome:'Juros', tipo:'indice', locked:true, formato:'indice', defaultSource:'selic', configKey:'juros' });
+    const preserved = existing.filter(function(item){
+      return item && item.id !== 'valor' && item.id !== 'valor_correcao' && item.id !== 'valor_juros' && item.id !== 'valor_devido';
+    });
+    const indexConfig = lancamento.indexConfig || {};
+    const legacyLimits = indexConfig.limits || {};
+    const indexColumns = [];
+    preserved.forEach(function(item){
+      if (!item || item.tipo !== 'indice') return;
+      const legacyKind = item.indexKind || (item.id === 'juros' ? 'juros' : (item.id === 'correcao_monetaria' ? 'correcao' : ''));
+      const legacySource = item.indexSource || item.defaultSource || (legacyKind ? indexConfig[legacyKind] : '');
+      const legacyLimit = item.indexLimit || (legacyKind ? legacyLimits[legacyKind] : null) || {};
+      indexColumns.push(normalizeIndexColumn(item, {
+        indexKind: legacyKind || 'correcao',
+        indexSource: legacySource,
+        indexLimit: legacyLimit
+      }));
+    });
+    if (!indexColumns.some(function(col){ return col.id === 'correcao_monetaria'; })) {
+      indexColumns.push(normalizeIndexColumn(existing.find(function(item){ return item && item.id === 'correcao_monetaria'; }) || DEFAULT_INDEX_COLUMNS[0], DEFAULT_INDEX_COLUMNS[0]));
+    }
+    if (!indexColumns.some(function(col){ return col.id === 'juros'; })) {
+      indexColumns.push(normalizeIndexColumn(existing.find(function(item){ return item && item.id === 'juros'; }) || DEFAULT_INDEX_COLUMNS[1], DEFAULT_INDEX_COLUMNS[1]));
+    }
+    const customNonIndex = preserved.filter(function(item){ return item && item.tipo !== 'indice'; });
+    const orderedDynamic = customNonIndex.concat(indexColumns.filter(function(item){ return item.id !== 'correcao_monetaria' && item.id !== 'juros'; }));
+    const correcaoBase = indexColumns.find(function(col){ return col.id === 'correcao_monetaria'; }) || normalizeIndexColumn(DEFAULT_INDEX_COLUMNS[0]);
+    const jurosBase = indexColumns.find(function(col){ return col.id === 'juros'; }) || normalizeIndexColumn(DEFAULT_INDEX_COLUMNS[1]);
 
-    const leadingCols = [Object.assign({ id:'valor', nome:'Valor', tipo:'manual' }, valor)].concat(dynamic);
+    const leadingCols = [Object.assign({ id:'valor', nome:'Valor', tipo:'manual' }, valor)].concat(orderedDynamic);
     const valorCorrecaoAtual = existing.find(function(item){ return item && item.id === 'valor_correcao'; });
     const valorCorrecaoCol = Object.assign({
       id:'valor_correcao',
@@ -584,7 +672,12 @@
       formula: valorDevidoFormula
     });
 
-    lancamento.colunas = leadingCols.concat([correcaoBase, valorCorrecaoCol, jurosBase, valorJurosCol, valorDevidoCol]);
+    lancamento.colunas = leadingCols.concat([correcaoBase, valorCorrecaoCol, jurosBase, valorJurosCol, valorDevidoCol]).map(function(coluna){
+      return coluna && coluna.tipo === 'indice' ? normalizeIndexColumn(coluna) : coluna;
+    });
+    lancamento.colunas.forEach(function(coluna){
+      if (coluna && coluna.tipo === 'formula') coluna.formula = resolveLegacyFormulaTokens(coluna.formula, lancamento);
+    });
     lancamento.linhas = Array.isArray(lancamento.linhas) ? lancamento.linhas : [];
     lancamento.linhas = lancamento.linhas.map(function(linha){
       const novaLinha = Object.assign({ periodo: linha.periodo || '', valor: linha.valor || '' }, linha);
@@ -597,7 +690,8 @@
     });
     if (lancamento.indexConfig.mode !== 'factor_v9') {
       lancamento.linhas.forEach(function(linha){
-        ['correcao_monetaria','juros'].forEach(function(key){
+        getIndexColumns(lancamento).forEach(function(coluna){
+          const key = coluna.id;
           const raw = Number(String(linha[key] === undefined ? '' : linha[key]).replace(',', '.'));
           linha[key] = Number.isFinite(raw) ? (raw === 0 ? 1 : Number((1 + raw / 100).toFixed(7))) : 1;
         });
@@ -685,14 +779,14 @@
     editModalColumnFormula.value = coluna.formula || '';
     editFormulaFieldWrap.style.display = coluna.tipo === 'formula' ? 'block' : 'none';
     editIndexFieldWrap.style.display = coluna.tipo === 'indice' ? 'block' : 'none';
-    editModalColumnName.readOnly = coluna.tipo === 'indice';
-    editModalColumnName.placeholder = coluna.tipo === 'indice' ? 'Nome fixo da coluna padrão' : 'Ex.: Índice, Percentual, Resultado';
+    editModalColumnName.readOnly = !!coluna.locked;
+    editModalColumnName.placeholder = coluna.locked ? 'Nome fixo da coluna padrão' : 'Ex.: Índice, Percentual, Resultado';
     if (coluna.id === 'valor_devido' && !editModalColumnFormula.value) editModalColumnFormula.value = coluna.formula || defaultValorDevidoFormula(lancamento);
     if (coluna.tipo === 'indice') {
-      const opts = INDEX_SOURCE_OPTIONS[coluna.configKey || 'correcao'] || [];
-      const current = lancamento.indexConfig && lancamento.indexConfig[coluna.configKey || 'correcao'] || coluna.defaultSource || '';
+      const opts = INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || [];
+      const current = coluna.indexSource || defaultIndexSourceByKind(coluna.indexKind || 'correcao');
       editModalIndexSource.innerHTML = opts.map(function(opt){ return '<option value="' + esc(opt.value) + '"' + (opt.value === current ? ' selected' : '') + '>' + esc(opt.label) + '</option>'; }).join('');
-      const limit = getIndexLimit(lancamento.indexConfig || {}, coluna.configKey || 'correcao');
+      const limit = getIndexLimit(coluna);
       editModalIndexStart.value = limit.start || '';
       editModalIndexEnd.value = limit.end || '';
     } else {
@@ -730,15 +824,15 @@
     const coluna = lancamento.colunas.find(function(item){ return item.id === columnId; });
     if (!coluna) return closeEditColumnModal();
     if (coluna.tipo === 'indice') {
-      lancamento.indexConfig = Object.assign(defaultIndexConfig(), lancamento.indexConfig || {});
-      if (!lancamento.indexConfig.limits) lancamento.indexConfig.limits = {};
+      if (!coluna.locked && nome) coluna.nome = nome;
       if (editModalIndexStart.value && editModalIndexEnd.value && editModalIndexStart.value > editModalIndexEnd.value) {
         alert('A data inicial do limite não pode ser maior que a data final.');
         editModalIndexEnd.focus();
         return;
       }
-      lancamento.indexConfig[coluna.configKey || 'correcao'] = editModalIndexSource.value || coluna.defaultSource || '';
-      lancamento.indexConfig.limits[coluna.configKey || 'correcao'] = { start: editModalIndexStart.value || '', end: editModalIndexEnd.value || '' };
+      coluna.indexSource = editModalIndexSource.value || defaultIndexSourceByKind(coluna.indexKind || 'correcao');
+      coluna.indexLimit = { start: editModalIndexStart.value || '', end: editModalIndexEnd.value || '' };
+      coluna.accumulationMode = sourceAccumulationMode(coluna.indexSource);
       closeEditColumnModal();
       persistAndRefresh();
       updateIndicesForLaunch(launchIndex);
@@ -834,13 +928,27 @@
     modalColumnType.value = tipo;
     modalColumnName.value = '';
     modalColumnFormula.value = '';
+    if (modalIndexStart) modalIndexStart.value = '';
+    if (modalIndexEnd) modalIndexEnd.value = '';
     const isFormula = tipo === 'formula';
-    columnModalTitle.textContent = isFormula ? 'Nova coluna com fórmula' : 'Nova coluna manual';
-    columnModalSub.textContent = isFormula ? 'Crie uma coluna calculada com base nas letras das colunas já existentes.' : 'Crie uma coluna manual adicional para preenchimento linha a linha.';
+    const isIndex = tipo === 'indice';
+    columnModalTitle.textContent = isFormula ? 'Nova coluna com fórmula' : (isIndex ? 'Nova coluna de índice' : 'Nova coluna manual');
+    columnModalSub.textContent = isFormula
+      ? 'Crie uma coluna calculada com base nas letras das colunas já existentes.'
+      : (isIndex ? 'Selecione o tipo de índice, a fonte e o limite opcional de aplicação.' : 'Crie uma coluna manual adicional para preenchimento linha a linha.');
     formulaFieldWrap.style.display = isFormula ? 'block' : 'none';
+    if (indexFieldWrap) indexFieldWrap.style.display = isIndex ? 'block' : 'none';
+    if (modalColumnName) modalColumnName.style.display = isIndex ? 'none' : 'block';
+    const nameLabel = document.querySelector('label[for="modalColumnName"]');
+    if (nameLabel) nameLabel.style.display = isIndex ? 'none' : 'block';
+    if (isIndex && modalIndexKind && modalIndexSource){
+      modalIndexKind.value = 'correcao';
+      const options = INDEX_SOURCE_OPTIONS.correcao || [];
+      modalIndexSource.innerHTML = options.map(function(opt){ return '<option value="' + esc(opt.value) + '">' + esc(opt.label) + '</option>'; }).join('');
+    }
     columnModal.classList.add('open');
     columnModal.setAttribute('aria-hidden', 'false');
-    setTimeout(function(){ modalColumnName.focus(); }, 30);
+    setTimeout(function(){ (isIndex && modalIndexKind ? modalIndexKind : modalColumnName).focus(); }, 30);
   }
 
   function closeColumnModal(){
@@ -850,6 +958,10 @@
     modalColumnType.value = '';
     modalColumnName.value = '';
     modalColumnFormula.value = '';
+    if (indexFieldWrap) indexFieldWrap.style.display = 'none';
+    if (modalColumnName) modalColumnName.style.display = 'block';
+    const nameLabel = document.querySelector('label[for="modalColumnName"]');
+    if (nameLabel) nameLabel.style.display = 'block';
   }
 
   function saveColumnFromModal(){
@@ -858,16 +970,38 @@
     const nome = modalColumnName.value.trim();
     const formula = modalColumnFormula.value.trim();
     if (!state.lancamentos[launchIndex]) return closeColumnModal();
-    if (!nome){ alert('Informe o nome da coluna.'); modalColumnName.focus(); return; }
+    if (tipo !== 'indice' && !nome){ alert('Informe o nome da coluna.'); modalColumnName.focus(); return; }
     if (tipo === 'formula' && !formula){ alert('Informe a fórmula da coluna.'); modalColumnFormula.focus(); return; }
     const lancamento = state.lancamentos[launchIndex];
     const id = 'col_' + Date.now() + '_' + Math.random().toString(16).slice(2, 6);
-    if (tipo === 'formula') lancamento.colunas.push({ id: id, nome: nome, tipo: 'formula', formula: formula });
-    else lancamento.colunas.push({ id: id, nome: nome, tipo: 'manual' });
-    lancamento.linhas.forEach(function(linha){ linha[id] = ''; });
+    if (tipo === 'formula') {
+      lancamento.colunas.push({ id: id, nome: nome, tipo: 'formula', formula: formula });
+      lancamento.linhas.forEach(function(linha){ linha[id] = ''; });
+    } else if (tipo === 'indice') {
+      const kind = modalIndexKind ? modalIndexKind.value : 'correcao';
+      const source = modalIndexSource ? (modalIndexSource.value || defaultIndexSourceByKind(kind)) : defaultIndexSourceByKind(kind);
+      const limitStart = modalIndexStart ? modalIndexStart.value : '';
+      const limitEnd = modalIndexEnd ? modalIndexEnd.value : '';
+      if (limitStart && limitEnd && limitStart > limitEnd){ alert('A data inicial do limite não pode ser maior que a data final.'); return; }
+      lancamento.colunas.push(normalizeIndexColumn({
+        id: id,
+        nome: kind === 'juros' ? 'Juros (índice)' : 'Correção (índice)',
+        tipo: 'indice',
+        locked: false,
+        indexKind: kind,
+        indexSource: source,
+        indexLimit: { start: limitStart || '', end: limitEnd || '' },
+        accumulationMode: sourceAccumulationMode(source)
+      }));
+      lancamento.linhas.forEach(function(linha){ linha[id] = 1; });
+    } else {
+      lancamento.colunas.push({ id: id, nome: nome, tipo: 'manual' });
+      lancamento.linhas.forEach(function(linha){ linha[id] = ''; });
+    }
     recalculateLaunch(lancamento);
     closeColumnModal();
     persistAndRefresh();
+    if (tipo === 'indice') updateIndicesForLaunch(launchIndex);
   }
 
   function renderLaunches(){
@@ -884,7 +1018,10 @@
       return;
     }
     const headCols = ['<th class="col-data">Data</th>'].concat(lancamento.colunas.map(function(coluna, idx){
-      const metaHtml = '<div class="th-col-meta"><span>' + esc(columnTitle(coluna, idx)) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + (coluna.tipo === 'indice' ? '<span style="font-size:10px;color:#98a2b3">Índice em fator mensal</span>' : '') + '</div>'; 
+      const indiceMeta = coluna.tipo === 'indice'
+        ? ('<span style="font-size:10px;color:#98a2b3">' + esc((coluna.indexKind === 'juros' ? 'Juros' : 'Correção') + ' • ' + (coluna.indexSource || 'fonte automática')) + '</span>')
+        : '';
+      const metaHtml = '<div class="th-col-meta"><span>' + esc(columnTitle(coluna, idx)) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + indiceMeta + '</div>'; 
       let actions = '<div class="th-col-actions">';
       if (coluna.tipo === 'indice') actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Editar coluna">✎</button>';
       else {
@@ -907,10 +1044,13 @@
     const badges = ['<span class="mini-badge">A = Data</span>'].concat(lancamento.colunas.map(function(coluna, idx){
       return '<span class="mini-badge">' + esc(columnTitle(coluna, idx)) + (coluna.tipo === 'formula' ? ' [' + esc(coluna.formula || '') + ']' : '') + '</span>';
     })).join('');
-    const correcaoValue = esc(lancamento.indexConfig && lancamento.indexConfig.correcao || 'ipca');
-    const jurosValue = esc(lancamento.indexConfig && lancamento.indexConfig.juros || 'selic');
-    const correcaoOptions = INDEX_SOURCE_OPTIONS.correcao.map(function(opt){ return '<option value="' + esc(opt.value) + '"' + (opt.value === correcaoValue ? ' selected' : '') + '>' + esc(opt.label) + '</option>'; }).join('');
-    const jurosOptions = INDEX_SOURCE_OPTIONS.juros.map(function(opt){ return '<option value="' + esc(opt.value) + '"' + (opt.value === jurosValue ? ' selected' : '') + '>' + esc(opt.label) + '</option>'; }).join('');
+    const indexCols = getIndexColumns(lancamento);
+    const indexConfigCards = indexCols.map(function(coluna){
+      const sourceLabel = ((INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || []).find(function(opt){ return opt.value === coluna.indexSource; }) || {}).label || coluna.indexSource || '—';
+      const limit = getIndexLimit(coluna);
+      const limitLabel = (limit.start || limit.end) ? ((limit.start ? formatDateBR(limit.start) : 'início aberto') + ' até ' + (limit.end ? formatDateBR(limit.end) : 'final aberto')) : 'Sem limite de período';
+      return '<div class="cfg-col"><label>' + esc(coluna.nome || 'Índice') + '</label><div style="font-size:12px;color:#475467">Tipo: ' + esc(coluna.indexKind === 'juros' ? 'Juros' : 'Correção') + ' • Fonte: ' + esc(sourceLabel) + '</div><div style="font-size:11px;color:#98a2b3">' + esc(limitLabel) + '</div></div>';
+    }).join('');
     launchesHost.innerHTML = '' +
       '<div class="launch-card">' +
         '<div class="launch-head">' +
@@ -920,17 +1060,17 @@
           '</div>' +
         '</div>' +
         '<div class="index-config">' +
-          '<div class="cfg-col"><label>Fonte da correção monetária</label><select class="select launchIndexSource" data-launch-index="' + index + '" data-kind="correcao">' + correcaoOptions + '</select></div>' +
-          '<div class="cfg-col"><label>Fonte dos juros</label><select class="select launchIndexSource" data-launch-index="' + index + '" data-kind="juros">' + jurosOptions + '</select></div>' +
+          indexConfigCards +
           '<div class="cfg-col action"><button type="button" class="btn btnFetchIndices" data-launch-index="' + index + '"' + (indexLoadingState[index] ? ' disabled aria-busy="true"' : '') + '>' + (indexLoadingState[index] ? 'Buscando índices...' : 'Atualizar índices') + '</button><span class="index-loading" data-launch-index="' + index + '"' + (indexLoadingState[index] ? '' : ' hidden') + '>Busca de índice em andamento</span></div>' +
         '</div>' +
         '<div class="inline-tools">' +
           '<button type="button" class="btn btnAddManualCol" data-launch-index="' + index + '">Adicionar coluna manual</button>' +
           '<button type="button" class="btn btnAddFormulaCol" data-launch-index="' + index + '">Adicionar coluna fórmula</button>' +
+          '<button type="button" class="btn btnAddIndexCol" data-launch-index="' + index + '">Adicionar coluna de índice</button>' +
         '</div>' +
         '<div>' + badges + '</div>' +
         '<div class="formula-note">Nas fórmulas, use as letras das colunas. Ex.: (B+C), (BxD), (B+C-D) ou ((B+C)*D). As colunas padrão iniciam com estas fórmulas: Valor da Correção = ' + esc(defaultValorCorrecaoFormula(lancamento)) + '; Valor dos Juros = ' + esc(defaultValorJurosFormula(lancamento)) + '; Valor Devido = ' + esc(defaultValorDevidoFormula(lancamento)) + '.</div>' +
-        '<div class="readonly-note">Correção Monetária e Juros usam séries do BACEN/SGS e são acumulados da competência até a data de atualização do cálculo. A proporcionalização parcial do mês usa, por padrão oficial, equivalência composta diária sobre o índice mensal efetivo (com modo linear apenas para compatibilidade legada). Estão disponíveis fontes adicionais como IPCA-E, TR, Taxa Legal e EC 113/2021. Se usar EC 113/2021 na correção, o recomendado é deixar os juros como Sem juros para evitar dupla contagem após 12/2021. As colunas Valor da Correção, Valor dos Juros e Valor Devido permanecem obrigatórias no final da tabela, mas agora podem ter nome e fórmula alterados.</div>' +
+        '<div class="readonly-note">Cada coluna de índice tem metadados próprios (tipo, fonte, limite e modo de acumulação). Edite cada coluna para ajustar sua configuração e use “Atualizar índices” para recalcular os fatores em todas as linhas. As colunas Valor da Correção, Valor dos Juros e Valor Devido permanecem obrigatórias no final da tabela, mas agora podem ter nome e fórmula alterados.</div>' +
         '<div class="table-wrap"><table class="editor-table"><thead><tr>' + headCols + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
       '</div>';
   }
@@ -968,21 +1108,25 @@
       return;
     }
     try {
-      const correcaoList = await loadAutoIndices(config.correcao, lancamento.dataInicial, dataAtualizacao);
-      const jurosList = await loadAutoIndices(config.juros, lancamento.dataInicial, dataAtualizacao);
-      const correcaoMap = new Map(correcaoList.map(function(item){ return [item.month, item.value]; }));
-      const jurosMap = new Map(jurosList.map(function(item){ return [item.month, item.value]; }));
-      const correcaoLimit = getIndexLimit(config, 'correcao');
-      const jurosLimit = getIndexLimit(config, 'juros');
-      const correcaoMode = sourceAccumulationMode(config.correcao);
-      const jurosMode = sourceAccumulationMode(config.juros);
+      const indexColumns = getIndexColumns(lancamento);
+      const mapsByColumnId = {};
+      for (let idx = 0; idx < indexColumns.length; idx += 1){
+        const coluna = indexColumns[idx];
+        const list = await loadAutoIndices(coluna.indexSource || defaultIndexSourceByKind(coluna.indexKind), lancamento.dataInicial, dataAtualizacao);
+        mapsByColumnId[coluna.id] = new Map(list.map(function(item){ return [item.month, item.value]; }));
+      }
       lancamento.linhas.forEach(function(linha){
         const mesCompetencia = monthKeyFromPeriodo(linha.periodo);
         const inicioCompetenciaISO = mesCompetencia + '-01';
-        linha.correcao_monetaria = Number(accumulateIndexFactor(correcaoMap, mesCompetencia, mesAtualizacao, correcaoLimit, correcaoMode, inicioCompetenciaISO, dataAtualizacao).toFixed(7));
-        linha.juros = Number(accumulateIndexFactor(jurosMap, mesCompetencia, mesAtualizacao, jurosLimit, jurosMode, inicioCompetenciaISO, dataAtualizacao).toFixed(7));
+        indexColumns.forEach(function(coluna){
+          const monthMap = mapsByColumnId[coluna.id] || new Map();
+          const limit = getIndexLimit(coluna);
+          const mode = coluna.accumulationMode || sourceAccumulationMode(coluna.indexSource);
+          linha[coluna.id] = Number(accumulateIndexFactor(monthMap, mesCompetencia, mesAtualizacao, limit, mode, inicioCompetenciaISO, dataAtualizacao).toFixed(7));
+        });
       });
-      lancamento.indexConfig.lastAutoRefresh = new Date().toISOString();
+      config.lastAutoRefresh = new Date().toISOString();
+      lancamento.indexConfig = config;
       recalculateLaunch(lancamento);
       persistAndRefresh();
     } catch (error) {
@@ -1592,6 +1736,10 @@
       openColumnModal(launchIndex, 'formula');
       return;
     }
+    if (target.classList.contains('btnAddIndexCol')){
+      openColumnModal(launchIndex, 'indice');
+      return;
+    }
     if (target.classList.contains('btnFetchIndices')){
       updateIndicesForLaunch(launchIndex);
       return;
@@ -1603,17 +1751,6 @@
     if (target.classList.contains('btnDeleteColumn')){
       removeColumn(launchIndex, target.getAttribute('data-column-id') || '');
     }
-  });
-
-  launchesHost.addEventListener('change', function(event){
-    const target = event.target;
-    if (!target.classList.contains('launchIndexSource')) return;
-    const launchIndex = Number(target.getAttribute('data-launch-index'));
-    const kind = target.getAttribute('data-kind') || '';
-    if (!state.lancamentos[launchIndex] || !kind) return;
-    state.lancamentos[launchIndex].indexConfig = Object.assign(defaultIndexConfig(), state.lancamentos[launchIndex].indexConfig || {});
-    state.lancamentos[launchIndex].indexConfig[kind] = target.value;
-    save(collect());
   });
 
   function getCustaIndexById(custaId){
@@ -1777,6 +1914,12 @@
   $('btnSaveEditLaunchModal').addEventListener('click', saveEditLaunchModal);
   $('btnCancelColumnModal').addEventListener('click', closeColumnModal);
   $('btnSaveColumnModal').addEventListener('click', saveColumnFromModal);
+  if (modalIndexKind && modalIndexSource) {
+    modalIndexKind.addEventListener('change', function(){
+      const options = INDEX_SOURCE_OPTIONS[this.value || 'correcao'] || [];
+      modalIndexSource.innerHTML = options.map(function(opt){ return '<option value="' + esc(opt.value) + '">' + esc(opt.label) + '</option>'; }).join('');
+    });
+  }
 
   columnModal.addEventListener('click', function(event){
     if (event.target === columnModal) closeColumnModal();
@@ -1792,7 +1935,7 @@
     if (event.key === 'Escape' && columnModal.classList.contains('open')) closeColumnModal();
     if (event.key === 'Escape' && editColumnModal.classList.contains('open')) closeEditColumnModal();
     if (event.key === 'Escape' && editLaunchModal.classList.contains('open')) closeEditLaunchModal();
-    if (event.key === 'Enter' && columnModal.classList.contains('open') && (event.target === modalColumnName || event.target === modalColumnFormula)) {
+    if (event.key === 'Enter' && columnModal.classList.contains('open') && (event.target === modalColumnName || event.target === modalColumnFormula || event.target === modalIndexKind || event.target === modalIndexSource || event.target === modalIndexStart || event.target === modalIndexEnd)) {
       event.preventDefault();
       saveColumnFromModal();
     }
