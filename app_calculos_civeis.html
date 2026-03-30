@@ -715,16 +715,17 @@ textarea{min-height:92px;resize:vertical}
   function accumulateIndexFactor(monthMap, startMonthKey, endMonthKey, limit, mode, periodStartISO, periodEndISO){
     if (!startMonthKey || !endMonthKey || startMonthKey > endMonthKey) return 1;
     const accumulationMode = mode || 'compound';
-    const limitedStart = limit && limit.start ? String(limit.start).slice(0, 7) : '';
-    const limitedEnd = limit && limit.end ? String(limit.end).slice(0, 7) : '';
-    if (limitedStart && startMonthKey < limitedStart) return 1;
-    if (limitedEnd && startMonthKey > limitedEnd) return 1;
-    const clampedStart = startMonthKey;
-    const clampedEnd = limitedEnd && endMonthKey > limitedEnd ? limitedEnd : endMonthKey;
+    const requestedStartISO = String(periodStartISO || (startMonthKey + '-01'));
+    const requestedEndISO = String(periodEndISO || (endMonthKey + '-31'));
+    const effectiveStartISO = limit && limit.start && limit.start > requestedStartISO ? limit.start : requestedStartISO;
+    const effectiveEndISO = limit && limit.end && limit.end < requestedEndISO ? limit.end : requestedEndISO;
+    if (!effectiveStartISO || !effectiveEndISO || effectiveStartISO > effectiveEndISO) return 1;
+    const clampedStart = effectiveStartISO.slice(0, 7);
+    const clampedEnd = effectiveEndISO.slice(0, 7);
     if (!clampedStart || !clampedEnd || clampedStart > clampedEnd) return 1;
     return monthRange(clampedStart, clampedEnd).reduce(function(factor, monthKey){
       const percent = Number(monthMap.get(monthKey) || 0);
-      const adjustedPercent = adjustedMonthlyPercent(percent, monthKey, periodStartISO || (monthKey + '-01'), periodEndISO || (monthKey + '-31'), accumulationMode);
+      const adjustedPercent = adjustedMonthlyPercent(percent, monthKey, effectiveStartISO, effectiveEndISO, accumulationMode);
       if (accumulationMode === 'simple') return factor + (adjustedPercent / 100);
       return factor * (1 + adjustedPercent / 100);
     }, 1);
