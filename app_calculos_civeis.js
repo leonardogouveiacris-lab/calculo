@@ -630,8 +630,18 @@
     if (!indexColumns.some(function(col){ return col.id === 'juros'; })) {
       indexColumns.push(normalizeIndexColumn(existing.find(function(item){ return item && item.id === 'juros'; }) || DEFAULT_INDEX_COLUMNS[1], DEFAULT_INDEX_COLUMNS[1]));
     }
-    const customNonIndex = preserved.filter(function(item){ return item && item.tipo !== 'indice'; });
-    const orderedDynamic = customNonIndex.concat(indexColumns.filter(function(item){ return item.id !== 'correcao_monetaria' && item.id !== 'juros'; }));
+    const indexById = new Map(indexColumns.map(function(col){ return [col.id, col]; }));
+    const orderedDynamic = preserved.map(function(item){
+      if (!item) return null;
+      if (item.tipo === 'indice') return indexById.get(item.id) || null;
+      return item;
+    }).filter(function(item){
+      return item && item.id !== 'correcao_monetaria' && item.id !== 'juros';
+    });
+    indexColumns.forEach(function(item){
+      if (!item || item.id === 'correcao_monetaria' || item.id === 'juros') return;
+      if (!orderedDynamic.some(function(existingCol){ return existingCol.id === item.id; })) orderedDynamic.push(item);
+    });
     const correcaoBase = indexColumns.find(function(col){ return col.id === 'correcao_monetaria'; }) || normalizeIndexColumn(DEFAULT_INDEX_COLUMNS[0]);
     const jurosBase = indexColumns.find(function(col){ return col.id === 'juros'; }) || normalizeIndexColumn(DEFAULT_INDEX_COLUMNS[1]);
 
@@ -870,6 +880,35 @@
     persistAndRefresh();
   }
 
+  function isColumnFixedForReorder(coluna){
+    if (!coluna) return true;
+    if (coluna.locked) return true;
+    return coluna.id === 'valor' || coluna.id === 'correcao_monetaria' || coluna.id === 'juros' || coluna.id === 'valor_correcao' || coluna.id === 'valor_juros' || coluna.id === 'valor_devido';
+  }
+
+  function canMoveColumnTo(lancamento, fromIndex, toIndex){
+    if (!lancamento || !Array.isArray(lancamento.colunas)) return false;
+    if (fromIndex < 0 || toIndex < 0 || fromIndex >= lancamento.colunas.length || toIndex >= lancamento.colunas.length) return false;
+    const fromCol = lancamento.colunas[fromIndex];
+    const toCol = lancamento.colunas[toIndex];
+    if (!fromCol || !toCol) return false;
+    if (isColumnFixedForReorder(fromCol) || isColumnFixedForReorder(toCol)) return false;
+    return true;
+  }
+
+  function moveColumn(launchIndex, columnId, direction){
+    const lancamento = state.lancamentos[launchIndex];
+    if (!lancamento || !Array.isArray(lancamento.colunas)) return;
+    const fromIndex = lancamento.colunas.findIndex(function(item){ return item.id === columnId; });
+    if (fromIndex === -1) return;
+    const toIndex = direction === 'left' ? fromIndex - 1 : fromIndex + 1;
+    if (!canMoveColumnTo(lancamento, fromIndex, toIndex)) return;
+    const col = lancamento.colunas.splice(fromIndex, 1)[0];
+    lancamento.colunas.splice(toIndex, 0, col);
+    recalculateLaunch(lancamento);
+    persistAndRefresh();
+  }
+
   function openEditLaunchModal(){
     const launchIndex = getSelectedLaunchIndex();
     const lancamento = state.lancamentos[launchIndex];
@@ -1037,6 +1076,10 @@
         : '';
       const metaHtml = '<div class="th-col-meta"><span>' + esc(columnTitle(coluna, idx)) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + indiceMeta + '</div>'; 
       let actions = '<div class="th-col-actions">';
+      const canMoveLeft = canMoveColumnTo(lancamento, idx, idx - 1);
+      const canMoveRight = canMoveColumnTo(lancamento, idx, idx + 1);
+      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="left" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Mover coluna para a esquerda"' + (canMoveLeft ? '' : ' disabled aria-disabled="true"') + '>←</button>';
+      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="right" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Mover coluna para a direita"' + (canMoveRight ? '' : ' disabled aria-disabled="true"') + '>→</button>';
       if (coluna.tipo === 'indice') actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Editar coluna">✎</button>';
       else {
         actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Editar coluna">✎</button>';
@@ -1095,7 +1138,7 @@
         '</div>' +
         '<div>' + badges + '</div>' +
         '<div class="formula-note">Nas fórmulas, use as letras das colunas. Ex.: (B+C), (BxD), (B+C-D) ou ((B+C)*D). As colunas padrão iniciam com estas fórmulas: Valor da Correção = ' + esc(defaultValorCorrecaoFormula(lancamento)) + '; Valor dos Juros = ' + esc(defaultValorJurosFormula(lancamento)) + '; Valor Devido = ' + esc(defaultValorDevidoFormula(lancamento)) + '.</div>' +
-        '<div class="readonly-note">Cada coluna de índice tem metadados próprios (tipo, fonte, limite e modo de acumulação). Edite cada coluna para ajustar sua configuração e use “Atualizar índices” para recalcular os fatores em todas as linhas. As colunas Valor da Correção, Valor dos Juros e Valor Devido permanecem obrigatórias no final da tabela, mas agora podem ter nome e fórmula alterados.</div>' +
+        '<div class="readonly-note">Cada coluna de índice tem metadados próprios (tipo, fonte, limite e modo de acumulação). Edite cada coluna para ajustar sua configuração e use “Atualizar índices” para recalcular os fatores em todas as linhas. A coluna Valor fica fixa no início e Valor Devido no final; use ←/→ para reordenar apenas colunas não essenciais.</div>' +
         (indexSummaryRows ? '<div class="index-summary" role="note" aria-label="Resumo dos índices aplicados">' + indexSummaryRows + '</div>' : '') +
         '<div class="table-wrap"><table class="editor-table"><thead><tr>' + headCols + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
       '</div>';
@@ -1781,6 +1824,10 @@
     }
     if (target.classList.contains('btnEditColumn')){
       openEditColumnModal(launchIndex, target.getAttribute('data-column-id') || '');
+      return;
+    }
+    if (target.classList.contains('btnMoveColumn')){
+      moveColumn(launchIndex, target.getAttribute('data-column-id') || '', target.getAttribute('data-direction') === 'left' ? 'left' : 'right');
       return;
     }
     if (target.classList.contains('btnDeleteColumn')){
