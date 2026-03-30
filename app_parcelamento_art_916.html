@@ -1,4 +1,4 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>CalculoPro — Parcelamento (Art. 916)</title><style>
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>CalculoPro — Parcelamento (Art. 916)</title><link rel="stylesheet" href="css/print-report.css"><style>
 /* ===== styles.css (inline) ===== */
 /* styles.css — Estilos do sistema
    - Extraído do <style> original para facilitar manutenção.
@@ -19,8 +19,8 @@
   --accent:#0b1220;
   --shadow:0 18px 45px rgba(16,24,40,.10);
   --shadow-soft:0 10px 26px rgba(16,24,40,.06);
-  --radius:14px;
-  --radius-sm:10px;
+  --radius:18px;
+  --radius-sm:12px;
   --focus:0 0 0 4px rgba(37, 99, 235, .18);
 }
 
@@ -147,6 +147,17 @@ a:hover{text-decoration:underline}
   padding:18px 16px 64px;
 }
 
+.tabs-head{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  text-align:center;
+  align-items:center;
+  margin:10px 0 14px;
+}
+.tabs-title{font-size:18px;font-weight:700;letter-spacing:.3px}
+.tabs-sub{font-size:14px;color:var(--muted);line-height:1.35}
+
 .tabs{
   display:flex;
   justify-content:center;
@@ -173,6 +184,8 @@ a:hover{text-decoration:underline}
 
 .tabpane{display:none}
 .tabpane.active{display:block}
+
+.report-preview-host{display:flex;flex-direction:column;gap:18px;margin-top:2px}
 
 .grid{
   display:grid;
@@ -1927,7 +1940,7 @@ body[data-report-context] #cpPrintHost .print-header .logo{
 <button class="btn" id="btnBackToData" type="button">Voltar para dados</button>
 </div>
 </div>
-<div id="reportRoot">
+<div class="report-preview-host" id="reportRoot">
 <!-- PAGE 1 -->
 <section class="page page1" id="rptPage1">
 <div class="header" id="rptHeader1" style="max-height: 60px;">
