@@ -134,6 +134,13 @@
     return parts[2] + '/' + parts[1] + '/' + parts[0];
   }
 
+  function formatLimitInterval(startISO, endISO){
+    if (!startISO && !endISO) return 'sem limite';
+    const startLabel = startISO ? formatDateBR(startISO) : 'início aberto';
+    const endLabel = endISO ? formatDateBR(endISO) : 'final aberto';
+    return startLabel + ' até ' + endLabel;
+  }
+
   function parseBRNumber(value){
     if (value == null) return 0;
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -1055,8 +1062,18 @@
     const indexConfigCards = indexCols.map(function(coluna){
       const sourceLabel = ((INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || []).find(function(opt){ return opt.value === coluna.indexSource; }) || {}).label || coluna.indexSource || '—';
       const limit = getIndexLimit(coluna);
-      const limitLabel = (limit.start || limit.end) ? ((limit.start ? formatDateBR(limit.start) : 'início aberto') + ' até ' + (limit.end ? formatDateBR(limit.end) : 'final aberto')) : 'Sem limite de período';
+      const limitLabel = formatLimitInterval(limit.start, limit.end);
       return '<div class="cfg-col"><label>' + esc(coluna.nome || 'Índice') + '</label><div style="font-size:12px;color:#475467">Tipo: ' + esc(coluna.indexKind === 'juros' ? 'Juros' : 'Correção') + ' • Fonte: ' + esc(sourceLabel) + '</div><div style="font-size:11px;color:#98a2b3">' + esc(limitLabel) + '</div></div>';
+    }).join('');
+    const indexSummaryRows = indexCols.map(function(coluna){
+      const sourceLabel = ((INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || []).find(function(opt){ return opt.value === coluna.indexSource; }) || {}).label || coluna.indexSource || '—';
+      const limit = getIndexLimit(coluna);
+      return '' +
+        '<div class="index-summary-row">' +
+          '<strong>' + esc(coluna.nome || 'Índice') + '</strong>' +
+          '<span>Fonte: ' + esc(sourceLabel) + '</span>' +
+          '<span>Limitação: ' + esc(formatLimitInterval(limit.start, limit.end)) + '</span>' +
+        '</div>';
     }).join('');
     launchesHost.innerHTML = '' +
       '<div class="launch-card">' +
@@ -1079,6 +1096,7 @@
         '<div>' + badges + '</div>' +
         '<div class="formula-note">Nas fórmulas, use as letras das colunas. Ex.: (B+C), (BxD), (B+C-D) ou ((B+C)*D). As colunas padrão iniciam com estas fórmulas: Valor da Correção = ' + esc(defaultValorCorrecaoFormula(lancamento)) + '; Valor dos Juros = ' + esc(defaultValorJurosFormula(lancamento)) + '; Valor Devido = ' + esc(defaultValorDevidoFormula(lancamento)) + '.</div>' +
         '<div class="readonly-note">Cada coluna de índice tem metadados próprios (tipo, fonte, limite e modo de acumulação). Edite cada coluna para ajustar sua configuração e use “Atualizar índices” para recalcular os fatores em todas as linhas. As colunas Valor da Correção, Valor dos Juros e Valor Devido permanecem obrigatórias no final da tabela, mas agora podem ter nome e fórmula alterados.</div>' +
+        (indexSummaryRows ? '<div class="index-summary" role="note" aria-label="Resumo dos índices aplicados">' + indexSummaryRows + '</div>' : '') +
         '<div class="table-wrap"><table class="editor-table"><thead><tr>' + headCols + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
       '</div>';
   }
