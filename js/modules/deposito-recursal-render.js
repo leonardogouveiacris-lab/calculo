@@ -141,8 +141,8 @@
       if (tipo === 'inpc') return '<ul><li>API SGS/BCB: INPC mensal (SGS 188): <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.188/dados?formato=json" target="_blank" rel="noopener">Série 188</a></li></ul>';
       if (tipo === 'igpm') return '<ul><li>API SGS/BCB: IGP-M mensal (SGS 189): <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.189/dados?formato=json" target="_blank" rel="noopener">Série 189</a></li></ul>';
       if (tipo === 'igpdi') return '<ul><li>API SGS/BCB: IGP-DI mensal (SGS 190): <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.190/dados?formato=json" target="_blank" rel="noopener">Série 190</a></li></ul>';
-      if (tipo === 'cdi') return '<ul><li>API SGS/BCB: CDI bancário (SGS 4389): <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados?formato=json" target="_blank" rel="noopener">Série 4389</a></li></ul>';
-      if (tipo === 'selic') return '<ul><li>API SGS/BCB: Selic diária (SGS 11): <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados?formato=json" target="_blank" rel="noopener">Série 11</a></li></ul>';
+      if (tipo === 'cdi') return '<ul><li>API SGS/BCB: CDI diário (SGS 4389) convertido para taxa mensal efetiva por composição dos dias úteis do mês: <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados?formato=json" target="_blank" rel="noopener">Série 4389</a></li></ul>';
+      if (tipo === 'selic') return '<ul><li>API SGS/BCB: Selic (SGS 11, anualizada base 252) convertida para taxa diária efetiva e depois para taxa mensal efetiva por composição diária: <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados?formato=json" target="_blank" rel="noopener">Série 11</a></li></ul>';
       return '<p>Índices inseridos manualmente com base na tabela do Juízo/Tribunal.</p>';
     }
 

@@ -150,7 +150,7 @@
     const num = Number(normalized);
     return Number.isFinite(num) ? num : 0;
   }
-  const BCB_SERIES_LABELS = { 11:'Selic diária (SGS 11)', 188:'INPC (SGS 188)', 189:'IGP-M (SGS 189)', 190:'IGP-DI (SGS 190)', 432:'Meta Selic (SGS 432)', 433:'IPCA (SGS 433)', 4389:'CDI (SGS 4389)', 7478:'IPCA-15 (SGS 7478)', 7811:'TR mensal (SGS 7811)', 10764:'IPCA-E (SGS 10764)' };
+  const BCB_SERIES_LABELS = { 11:'Selic SGS 11 (anualizada base 252 \u2192 diária efetiva \u2192 mensal composta)', 188:'INPC (SGS 188)', 189:'IGP-M (SGS 189)', 190:'IGP-DI (SGS 190)', 432:'Meta Selic (SGS 432)', 433:'IPCA (SGS 433)', 4389:'CDI SGS 4389 (diária \u2192 mensal composta)', 7478:'IPCA-15 (SGS 7478)', 7811:'TR mensal (SGS 7811)', 10764:'IPCA-E (SGS 10764)' };
   function formatSeriesLabel(code){ return BCB_SERIES_LABELS[Number(code)] || ('série SGS ' + code); }
   function makeUTCDate(iso){ if (!iso) return null; const parts = String(iso).split('-').map(Number); if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return null; return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2])); }
   function cloneUTCDate(date){ return date instanceof Date ? new Date(date.getTime()) : null; }
@@ -219,7 +219,8 @@
     return all;
   }
   function monthlyMapFromBCB(list){ const map = new Map(); (list || []).forEach(function(item){ const p = String(item.data || '').split('/'); if (p.length === 3) map.set(p[2] + '-' + p[1], parseBCBNumber(item.valor)); }); return map; }
-  function dailyToMonthlyEffective(dailyList, seriesCode){ const byMonthFactor = new Map(); (dailyList || []).forEach(function(item){ const p = String(item.data || '').split('/'); if (p.length !== 3) return; const mk = p[2] + '-' + p[1]; const value = parseBCBNumber(item.valor); let dailyRate; if (String(seriesCode) === '4389' || String(seriesCode) === '11') dailyRate = value / 100; else return; byMonthFactor.set(mk, (byMonthFactor.get(mk) || 1) * (1 + dailyRate)); }); return Array.from(byMonthFactor.entries()).map(function(entry){ return { month: entry[0], value: (entry[1] - 1) * 100 }; }).sort(compareMonth); }
+  function dailyToMonthlyEffective(dailyList, seriesCode){ if (!(window.CPBCBRates && typeof window.CPBCBRates.dailyToMonthlyEffective === 'function')) throw new Error('CPBCBRates.dailyToMonthlyEffective não disponível.'); return window.CPBCBRates.dailyToMonthlyEffective(dailyList, seriesCode); }
+  (function validateDailyToMonthlyEffectiveConsistency(){ if (!(window.CPBCBRates && typeof window.CPBCBRates.validateDailyToMonthlyFixtures === 'function')) return; const report = window.CPBCBRates.validateDailyToMonthlyFixtures(dailyToMonthlyEffective); if (report.some(function(item){ return !item.passed; })) console.error('Falha nas fixtures estáticas de conversão diária->mensal (módulo cível).', report); })();
   function buildPoupancaMonthly(trList, metaSelicList){ const trMap = monthlyMapFromBCB(trList), metaMap = monthlyMapFromBCB(metaSelicList); return Array.from(new Set([].concat(Array.from(trMap.keys()), Array.from(metaMap.keys())))).sort().map(function(month){ const tr = trMap.get(month) || 0; const metaSelicAA = metaMap.get(month) || 0; const adicional = metaSelicAA > 8.5 ? 0.5 : 0.7 * (metaSelicAA / 12); return { month: month, value: tr + adicional }; }); }
   function buildJamMonthly(trList){ const trMap = monthlyMapFromBCB(trList); return Array.from(trMap.entries()).map(function(entry){ return { month: entry[0], value: entry[1] + 0.25 }; }).sort(compareMonth); }
   function previousMonthKey(monthKey){ const parts = String(monthKey || '').split('-'); if (parts.length !== 2) return ''; let year = Number(parts[0]); let month = Number(parts[1]) - 1; if (month < 1){ month = 12; year -= 1; } return String(year) + '-' + String(month).padStart(2, '0'); }
