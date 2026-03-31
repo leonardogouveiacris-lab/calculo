@@ -158,19 +158,35 @@
     };
   }
 
+  function normalizeLooseNumericText(value){
+    if (value == null) return '';
+    let text = String(value).trim();
+    if (!text) return '';
+    const negativeByParentheses = /^\(.*\)$/.test(text);
+    text = text.replace(/[()\s\u00a0R$\u202f]/g, '').replace(/[^\d,.\-]/g, '');
+    if (!text) return '';
+    const isNegative = negativeByParentheses || text.includes('-');
+    text = text.replace(/-/g, '');
+    const lastComma = text.lastIndexOf(',');
+    const lastDot = text.lastIndexOf('.');
+    const separatorIndex = Math.max(lastComma, lastDot);
+    if (separatorIndex >= 0){
+      const intPart = text.slice(0, separatorIndex).replace(/[.,]/g, '');
+      const decimalPart = text.slice(separatorIndex + 1).replace(/[.,]/g, '');
+      text = intPart + (decimalPart ? ('.' + decimalPart) : '');
+    } else {
+      text = text.replace(/[.,]/g, '');
+    }
+    if (!text) return '';
+    return (isNegative ? '-' : '') + text;
+  }
+
   function parseBRNumber(value){
     if (value == null) return 0;
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-    let text = String(value).trim();
-    if (!text) return 0;
-    text = text.replace(/\s+/g, '');
-    if (text.indexOf(',') >= 0){
-      text = text.replace(/\./g, '').replace(',', '.');
-    } else {
-      const parts = text.split('.');
-      if (parts.length > 2) text = parts.join('');
-    }
-    const number = Number(text);
+    const normalized = normalizeLooseNumericText(value);
+    if (!normalized || normalized === '-' || normalized === '.') return 0;
+    const number = Number(normalized);
     return Number.isFinite(number) ? number : 0;
   }
 
@@ -185,6 +201,10 @@
 
   function formatCurrencyBR(value){
     return formatNumberBR(value, 2, 2, true);
+  }
+
+  function formatEditableNumberBR(value){
+    return formatNumberBR(value, 2, 2, false);
   }
 
   function monthLabel(year, monthIndex){
@@ -1855,6 +1875,7 @@
     if (!target.classList.contains('valor-input')) return;
     const launchIndex = Number(target.getAttribute('data-launch-index'));
     if (!state.lancamentos[launchIndex]) return;
+    target.value = formatCurrencyBR(target.value);
     recalculateLaunch(state.lancamentos[launchIndex]);
     persistAndRefresh();
   });
@@ -1895,7 +1916,24 @@
   launchesHost.addEventListener('focusin', function(event){
     const target = event.target;
     if (!target.classList.contains('valor-input')) return;
+    target.value = formatEditableNumberBR(target.value);
     target.select();
+  });
+
+  launchesHost.addEventListener('paste', function(event){
+    const target = event.target;
+    if (!target.classList.contains('valor-input')) return;
+    event.preventDefault();
+    const pastedText = event.clipboardData ? event.clipboardData.getData('text') : '';
+    const parsedValue = parseBRNumber(pastedText);
+    target.value = formatEditableNumberBR(parsedValue);
+    const launchIndex = Number(target.getAttribute('data-launch-index'));
+    const rowIndex = Number(target.getAttribute('data-row-index'));
+    const columnId = target.getAttribute('data-column-id') || 'valor';
+    if (!state.lancamentos[launchIndex] || !state.lancamentos[launchIndex].linhas[rowIndex]) return;
+    if (columnId === 'valor') state.lancamentos[launchIndex].linhas[rowIndex].valor = parsedValue;
+    else state.lancamentos[launchIndex].linhas[rowIndex][columnId] = parsedValue;
+    refreshSummaryOutputsOnly();
   });
 
   launchesHost.addEventListener('click', function(event){
@@ -1959,8 +1997,21 @@
       state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { percentual: this.value }));
       refreshSummaryOutputsOnly();
     });
+    honorariosPercentual.addEventListener('focusin', function(){
+      this.value = formatEditableNumberBR(this.value);
+      this.select();
+    });
+    honorariosPercentual.addEventListener('paste', function(event){
+      event.preventDefault();
+      const pastedText = event.clipboardData ? event.clipboardData.getData('text') : '';
+      const parsedValue = parseBRNumber(pastedText);
+      this.value = formatEditableNumberBR(parsedValue);
+      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { percentual: parsedValue }));
+      refreshSummaryOutputsOnly();
+    });
     honorariosPercentual.addEventListener('focusout', function(){
-      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { percentual: this.value }));
+      this.value = formatCurrencyBR(this.value);
+      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { percentual: parseBRNumber(this.value) }));
       persistAndRefresh();
     });
   }
@@ -2024,8 +2075,32 @@
       const index = getCustaIndexById(custaId);
       if (index < 0) return;
       if (target.classList.contains('custa-desc')) state.custas[index].descricao = String(target.value || '').trim() || 'Custas';
-      if (target.classList.contains('custa-valor')) state.custas[index].valor = roundMoney(target.value);
+      if (target.classList.contains('custa-valor')) {
+        state.custas[index].valor = roundMoney(target.value);
+        target.value = formatCurrencyBR(state.custas[index].valor);
+      }
       persistAndRefresh();
+    });
+
+    custasHost.addEventListener('focusin', function(event){
+      const target = event.target;
+      if (!target.classList.contains('custa-valor')) return;
+      target.value = formatEditableNumberBR(target.value);
+      target.select();
+    });
+
+    custasHost.addEventListener('paste', function(event){
+      const target = event.target;
+      if (!target.classList.contains('custa-valor')) return;
+      event.preventDefault();
+      const pastedText = event.clipboardData ? event.clipboardData.getData('text') : '';
+      const parsedValue = roundMoney(pastedText);
+      target.value = formatEditableNumberBR(parsedValue);
+      const custaId = target.getAttribute('data-custa-id');
+      const index = getCustaIndexById(custaId);
+      if (index < 0) return;
+      state.custas[index].valor = parsedValue;
+      refreshSummaryOutputsOnly();
     });
 
     custasHost.addEventListener('click', function(event){
