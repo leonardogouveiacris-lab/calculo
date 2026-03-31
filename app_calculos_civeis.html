@@ -1982,9 +1982,6 @@ textarea{min-height:92px;resize:vertical}
               'Limite: ' + esc(summary.limitLabel) +
             '</div>';
         }).join('');
-        const columnOrderLabel = ['A = Data'].concat(lancamento.colunas.map(function(coluna, idx){
-          return columnLetter(idx + 1) + ' = ' + (coluna.nome || 'Coluna');
-        })).join(' • ');
         const headers = ['Data'].concat(lancamento.colunas.map(function(coluna, idx){ return columnTitle(coluna, idx); }));
         const rows = lancamento.linhas.map(function(linha){
           const cols = lancamento.colunas.map(function(coluna){
@@ -2005,8 +2002,6 @@ textarea{min-height:92px;resize:vertical}
                 'Período: ' + esc(formatDateBR(lancamento.dataInicial)) + ' até ' + esc(formatDateBR(lancamento.dataFinal)) +
                 (lancamento.observacao ? '<br>Observação: ' + esc(lancamento.observacao) : '') +
               '</div>' +
-              '<div class="summary-row-note">Nomenclatura das colunas (📅 e ordem atual): ' + esc(columnOrderLabel) + '</div>' +
-              '<div class="summary-row-note">Legenda de edição na tela de dados: &lt; / &gt; reordena • ✎ edita • × remove.</div>' +
               (indexSummaryRows ? '<div class="report-index-summary" role="note" aria-label="Resumo de índices da verba"><div class="report-index-summary-title">Índices aplicados nesta verba</div>' + indexSummaryRows + '</div>' : '') +
             '</div>'
         });
