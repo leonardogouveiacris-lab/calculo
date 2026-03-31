@@ -148,11 +148,12 @@
     return ((INDEX_SOURCE_OPTIONS[kind] || []).find(function(opt){ return opt.value === source; }) || {}).label || source || '—';
   }
 
-  function summarizeIndexColumn(coluna){
+  function summarizeIndexColumn(coluna, columnRef){
     const kind = coluna && coluna.indexKind === 'juros' ? 'juros' : 'correcao';
     const limit = getIndexLimit(coluna);
     return {
       name: String(coluna && coluna.nome || 'Índice'),
+      columnRef: String(columnRef || ''),
       typeLabel: kind === 'juros' ? 'Juros' : 'Correção',
       sourceLabel: getIndexSourceLabel(coluna),
       limitLabel: formatLimitInterval(limit.start, limit.end)
@@ -1162,14 +1163,22 @@
     const badges = view.badges.map(function(label){
       return '<span class="mini-badge">' + esc(label) + '</span>';
     }).join('');
+    const hasIndexColumn = (lancamento.colunas || []).some(function(coluna){ return coluna && coluna.tipo === 'indice'; });
     const indexSummaryRows = view.indexSummary.map(function(summary){
       return '' +
         '<div class="index-summary-row">' +
           '<strong>' + esc(summary.name) + '</strong>' +
+          (summary.columnRef ? '<span class="index-summary-col-ref">Coluna: ' + esc(summary.columnRef) + '</span>' : '') +
           '<span>Fonte: ' + esc(summary.sourceLabel) + '</span>' +
           '<span>Limitação: ' + esc(summary.limitLabel) + '</span>' +
         '</div>';
     }).join('');
+    const fallbackIndexSummaryRows = hasIndexColumn && !indexSummaryRows
+      ? '<div class="index-summary-row"><strong>Índice</strong><span>Coluna: identificador indisponível</span><span>Fonte: não informada</span><span>Limitação: sem limite</span></div>'
+      : '';
+    const indexSummaryBlock = hasIndexColumn
+      ? '<div class="index-summary" role="note" aria-label="Resumo dos índices aplicados">' + (indexSummaryRows || fallbackIndexSummaryRows) + '</div>'
+      : '';
     launchesHost.innerHTML = '' +
       '<div class="launch-card">' +
         '<div class="launch-head">' +
@@ -1187,7 +1196,7 @@
         '<div>' + badges + '</div>' +
         '<div class="formula-note">Nas fórmulas, prefira tokens estáveis por coluna (ex.: {valor}, {correcao_monetaria}, {valor_correcao}). Fórmulas legadas com letras (B, C, D...) continuam sendo aceitas e são convertidas automaticamente. As colunas padrão iniciam com estas fórmulas: Valor da Correção = ' + esc(defaultValorCorrecaoFormula()) + '; Valor dos Juros = ' + esc(defaultValorJurosFormula()) + '; Valor Devido = ' + esc(defaultValorDevidoFormula()) + '.</div>' +
         '<div class="readonly-note">A fonte e o limite de cada índice são definidos no editor da própria coluna. Use "Atualizar índices" para recalcular os fatores com esses metadados por coluna. A coluna Valor fica fixa no início e Valor Devido no final; use ←/→ para reordenar apenas colunas não essenciais.</div>' +
-        (indexSummaryRows ? '<div class="index-summary" role="note" aria-label="Resumo dos índices aplicados">' + indexSummaryRows + '</div>' : '') +
+        indexSummaryBlock +
         '<div class="table-wrap"><table class="editor-table"><thead><tr>' + headCols + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
       '</div>';
   }
@@ -1325,7 +1334,9 @@
         return coluna.title + (coluna.tipo === 'formula' ? ' [' + coluna.formula + ']' : '');
       })),
       indexSummary: getIndexColumns(lancamento).map(function(coluna){
-        return summarizeIndexColumn(coluna);
+        const colIndex = (lancamento.colunas || []).findIndex(function(item){ return item && item.id === coluna.id; });
+        const ref = colIndex >= 0 ? '(' + columnLetter(colIndex + 1) + ') ' + String(coluna.nome || 'Índice') : String(coluna.nome || 'Índice');
+        return summarizeIndexColumn(coluna, ref);
       }),
       totalCells: columns.map(function(coluna){
         if (coluna.formato === 'percentual' || coluna.formato === 'indice') return '—';

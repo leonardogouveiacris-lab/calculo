@@ -28,3 +28,21 @@ Melhoria futura sugerida: migração para referência por `id` de coluna com cam
 - A entrada oficial em produção do módulo cível é `app_calculos_civeis.html`.
 - A lógica de execução do módulo cível deve ser considerada a partir do script inline existente nesse arquivo.
 - Artefatos legados/experimentais fora desse HTML não devem ser tratados como fonte oficial.
+
+## Regressão visual/manual — resumo dos índices aplicados
+Objetivo: garantir que o bloco de resumo de índices continue visível e completo após reordenação de colunas e rerender do lançamento.
+
+### Pré-condições
+1. Criar ou abrir lançamento que possua ao menos uma coluna de índice (`tipo = indice`).
+2. Confirmar que a coluna de índice está visível no cabeçalho da grade (ex.: `(D) Correção Monetária`).
+
+### Passos
+1. Reordenar uma coluna não essencial (manual, fórmula ou índice adicional) usando `←`/`→`.
+2. Acionar novo render (trocar lançamento no seletor e voltar, ou atualizar índices).
+3. Validar o bloco **"Resumo dos índices aplicados"** no cartão do lançamento.
+
+### Critérios de aceite
+- O bloco **Resumo dos índices aplicados** está presente quando existir coluna de índice.
+- Cada linha do resumo exibe o identificador da coluna (formato `Coluna: (X) Nome`).
+- Cada linha do resumo exibe a **Fonte** do índice configurado para a coluna.
+- O resumo não fica oculto por estilos opcionais (sem `display:none`, `visibility:hidden` ou `opacity:0` para `.index-summary`).
