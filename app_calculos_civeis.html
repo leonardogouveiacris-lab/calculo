@@ -78,7 +78,6 @@ textarea{min-height:92px;resize:vertical}
 .empty-state{border:1px dashed var(--border-strong);border-radius:16px;padding:16px;text-align:center;color:var(--muted);background:#fff}
 .report-launch{margin-top:16px}.report-launch h3{margin:0 0 8px;font-size:14px}
 .report-table{width:100%;border-collapse:collapse;font-size:10.8pt;border-top:1px solid #cfd4de;border-bottom:1px solid #cfd4de}.report-table th,.report-table td{border-bottom:1px solid #d9dde6;border-right:1px solid #eceff5;padding:5px 7px;vertical-align:top}.report-table th{background:#fafbfc;border-bottom:1px solid #c7ceda;text-align:center;font-weight:600}.report-table th:last-child,.report-table td:last-child{border-right:none}.report-table tbody tr:last-child td{border-bottom:none}.report-table .right{text-align:right}.report-table .center{text-align:center}.report-table .bold{font-weight:800}.report-launch-head{display:flex;flex-direction:column;gap:6px;margin:2px 0 8px}.report-index-summary{display:flex;flex-direction:column;gap:4px;padding:6px 8px;border:1px solid #d9dde6;border-radius:6px;background:#fff}.report-index-summary-title{font-size:10.2pt;font-weight:700;color:#1f2937}.report-index-summary-row{font-size:9.8pt;line-height:1.35;color:#344054}.report-index-summary-row b{font-weight:700;color:#111827}
-@media print{.index-summary,.index-summary:hover,.index-summary:focus-within,.report-index-summary{background-image:none !important;background:#f5f6f8 !important;background-color:#f5f6f8 !important;border-color:#d7dbe2 !important;box-shadow:none !important}}
 .launch-actions{display:flex;gap:10px;align-items:center;justify-content:flex-start;flex-wrap:wrap;margin:12px 0}
 .mini-badge{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:var(--soft);border:1px solid var(--border);font-size:11px;color:var(--muted)}.formula-note{font-size:11px;color:var(--muted);margin-top:8px}.editor-table input[readonly]{background:var(--soft-2)}
 .page-note{font-size:12px;color:var(--muted)}
@@ -1404,11 +1403,12 @@ textarea{min-height:92px;resize:vertical}
     if (modalIndexEnd) modalIndexEnd.value = '';
     const isFormula = tipo === 'formula';
     const isIndex = tipo === 'indice';
+    const isFlexibleManual = tipo === 'manual';
     columnModalTitle.textContent = isFormula ? 'Nova coluna com fórmula' : (isIndex ? 'Nova coluna de índice' : 'Nova coluna manual');
     columnModalSub.textContent = isFormula
       ? 'Crie uma coluna calculada com base nas letras das colunas já existentes.'
-      : (isIndex ? 'Selecione o tipo de índice, a fonte e o limite opcional de aplicação.' : 'Crie uma coluna manual adicional para preenchimento linha a linha.');
-    formulaFieldWrap.style.display = isFormula ? 'block' : 'none';
+      : (isIndex ? 'Selecione o tipo de índice, a fonte e o limite opcional de aplicação.' : 'Crie uma coluna manual adicional. Se quiser, preencha a fórmula para gerar uma coluna calculada.');
+    formulaFieldWrap.style.display = (isFormula || isFlexibleManual) ? 'block' : 'none';
     if (indexFieldWrap) indexFieldWrap.style.display = isIndex ? 'block' : 'none';
     if (modalColumnName) modalColumnName.style.display = isIndex ? 'none' : 'block';
     const nameLabel = document.querySelector('label[for="modalColumnName"]');
@@ -1446,7 +1446,7 @@ textarea{min-height:92px;resize:vertical}
     if (tipo === 'formula' && !formula){ alert('Informe a fórmula da coluna.'); modalColumnFormula.focus(); return; }
     const lancamento = state.lancamentos[launchIndex];
     const id = 'col_' + Date.now() + '_' + Math.random().toString(16).slice(2, 6);
-    if (tipo === 'formula') {
+    if (tipo === 'formula' || (tipo === 'manual' && formula)) {
       lancamento.colunas.push({ id: id, nome: nome, tipo: 'formula', formula: convertFormulaToStableTokens(formula, lancamento) });
       lancamento.linhas.forEach(function(linha){ linha[id] = ''; });
     } else if (tipo === 'indice') {
@@ -1537,13 +1537,10 @@ textarea{min-height:92px;resize:vertical}
             (view.observacao ? '<div class="launch-sub">Observação: ' + esc(view.observacao) + '</div>' : '') +
           '</div>' +
         '</div>' +
-        '<div class="index-config">' +
-          '<div class="cfg-col action"><button type="button" class="btn btnFetchIndices" data-launch-index="' + index + '"' + (indexLoadingState[index] ? ' disabled aria-busy="true"' : '') + '>' + (indexLoadingState[index] ? 'Buscando índices...' : 'Atualizar índices') + '</button><span class="index-loading" data-launch-index="' + index + '"' + (indexLoadingState[index] ? '' : ' hidden') + '>Busca de índice em andamento</span></div>' +
-        '</div>' +
-        '<div class="inline-tools">' +
-          '<button type="button" class="btn btnAddManualCol" data-launch-index="' + index + '">Adicionar coluna manual</button>' +
-          '<button type="button" class="btn btnAddFormulaCol" data-launch-index="' + index + '">Adicionar coluna fórmula</button>' +
-          '<button type="button" class="btn btnAddIndexCol" data-launch-index="' + index + '">Adicionar coluna de índice</button>' +
+        '<div class="launch-actions">' +
+          '<button type="button" class="btn btn-primary btnFetchIndices" data-launch-index="' + index + '"' + (indexLoadingState[index] ? ' disabled aria-busy="true"' : '') + '>' + (indexLoadingState[index] ? 'Buscando índices...' : 'Atualizar índices') + '</button>' +
+          '<button type="button" class="btn btn-ghost btnAddColumn" data-launch-index="' + index + '">Adicional Coluna</button>' +
+          '<button type="button" class="btn btn-ghost btnAddIndexCol" data-launch-index="' + index + '">Adicionar coluna de índice</button>' +
         '</div>' +
         '<div>' + badges + '</div>' +
         '<div class="formula-note">Nas fórmulas, prefira tokens estáveis por coluna (ex.: {valor}, {correcao_monetaria}, {valor_correcao}). Fórmulas legadas com letras (B, C, D...) continuam sendo aceitas e são convertidas automaticamente. As colunas padrão iniciam com estas fórmulas: Valor da Correção = ' + esc(defaultValorCorrecaoFormula()) + '; Valor dos Juros = ' + esc(defaultValorJurosFormula()) + '; Valor Devido = ' + esc(defaultValorDevidoFormula()) + '.</div>' +
@@ -1566,9 +1563,6 @@ textarea{min-height:92px;resize:vertical}
       button.disabled = !!isLoading;
       button.setAttribute('aria-busy', isLoading ? 'true' : 'false');
       button.textContent = isLoading ? 'Buscando índices...' : 'Atualizar índices';
-    });
-    document.querySelectorAll('.index-loading[data-launch-index="' + launchIndex + '"]').forEach(function(node){
-      node.hidden = !isLoading;
     });
   }
 
@@ -2343,12 +2337,8 @@ textarea{min-height:92px;resize:vertical}
     const target = event.target;
     const launchIndex = Number(target.getAttribute('data-launch-index'));
     if (!state.lancamentos[launchIndex]) return;
-    if (target.classList.contains('btnAddManualCol')){
+    if (target.classList.contains('btnAddColumn')){
       openColumnModal(launchIndex, 'manual');
-      return;
-    }
-    if (target.classList.contains('btnAddFormulaCol')){
-      openColumnModal(launchIndex, 'formula');
       return;
     }
     if (target.classList.contains('btnAddIndexCol')){
