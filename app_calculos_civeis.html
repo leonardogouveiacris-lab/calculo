@@ -1587,6 +1587,7 @@ textarea{min-height:92px;resize:vertical}
       alert('Informe a data de atualização do cálculo.');
       return;
     }
+    let indicesAtualizados = false;
     try {
       const indexColumns = getIndexColumns(lancamento);
       const mapsByColumnId = {};
@@ -1610,11 +1611,27 @@ textarea{min-height:92px;resize:vertical}
       config.lastAutoRefresh = new Date().toISOString();
       lancamento.indexConfig = config;
       recalculateLaunch(lancamento);
-      persistAndRefresh();
+      indicesAtualizados = true;
     } catch (error) {
-      alert('Não foi possível buscar os índices automáticos. Detalhe: ' + (error.message || 'erro inesperado.'));
+      console.error('Falha ao buscar índices automáticos (módulo cível).', {
+        launchIndex: launchIndex,
+        lancamentoId: lancamento && lancamento.id,
+        error: error,
+        stack: error && error.stack
+      });
+      alert('Falha ao buscar índices automáticos. Detalhe: ' + (error && error.message ? error.message : 'erro inesperado.'));
+      return;
     } finally {
       setIndexLoading(launchIndex, false);
+    }
+    if (indicesAtualizados){
+      persistAndRefresh({
+        reportErrorMessage: 'Índices atualizados, mas houve erro ao renderizar o relatório.',
+        reportErrorContext: {
+          launchIndex: launchIndex,
+          lancamentoId: lancamento && lancamento.id
+        }
+      });
     }
   }
 
@@ -2055,7 +2072,7 @@ textarea{min-height:92px;resize:vertical}
     reportRenderQueued = true;
     requestAnimationFrame(function(){
       requestAnimationFrame(function(){
-        buildReport(collect());
+        safeBuildReport(collect());
         reportRenderQueued = false;
         var callbacks = reportRenderCallbacks.slice();
         reportRenderCallbacks = [];
@@ -2077,17 +2094,43 @@ textarea{min-height:92px;resize:vertical}
     const data = collect();
     save(data);
     renderSummaryTotals(buildCalculationSummary(data));
-    buildReport(data);
+    safeBuildReport(data);
   }
 
-  function persistAndRefresh(){
+  function safeBuildReport(data, options){
+    const opts = options || {};
+    try {
+      buildReport(data);
+      return true;
+    } catch (error) {
+      const context = Object.assign({
+        source: opts.source || 'report-render'
+      }, opts.context || {});
+      console.error('Falha ao renderizar relatório (módulo cível).', {
+        context: context,
+        error: error,
+        stack: error && error.stack
+      });
+      if (opts.alertMessage) {
+        alert(opts.alertMessage + ' Detalhe: ' + (error && error.message ? error.message : 'erro inesperado.'));
+      }
+      return false;
+    }
+  }
+
+  function persistAndRefresh(options){
     sanitizeSummaryState();
     const data = collect();
     save(data);
     renderLaunches();
     renderSummaryPanel();
     restorePendingGridFocus();
-    buildReport(data);
+    const opts = options || {};
+    safeBuildReport(data, {
+      source: 'persistAndRefresh',
+      context: opts.reportErrorContext || {},
+      alertMessage: opts.reportErrorMessage || ''
+    });
   }
 
   function clearLaunchForm(){
