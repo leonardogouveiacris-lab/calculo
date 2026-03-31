@@ -190,6 +190,106 @@
     return Number.isFinite(number) ? number : 0;
   }
 
+  function showSoftFeedback(message){
+    const text = String(message || '').trim();
+    if (!text) return;
+    let toast = document.getElementById('civilPasteToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'civilPasteToast';
+      toast.setAttribute('role', 'status');
+      toast.setAttribute('aria-live', 'polite');
+      toast.style.position = 'fixed';
+      toast.style.right = '18px';
+      toast.style.bottom = '18px';
+      toast.style.maxWidth = '320px';
+      toast.style.padding = '9px 11px';
+      toast.style.borderRadius = '10px';
+      toast.style.border = '1px solid #f2c5c5';
+      toast.style.background = '#fff6f6';
+      toast.style.color = '#a61b1b';
+      toast.style.fontSize = '12px';
+      toast.style.lineHeight = '1.35';
+      toast.style.boxShadow = '0 8px 24px rgba(16,24,40,.14)';
+      toast.style.zIndex = '9999';
+      toast.style.opacity = '0';
+      toast.style.transition = 'opacity .2s ease';
+      document.body.appendChild(toast);
+    }
+    if (showSoftFeedback._timer) clearTimeout(showSoftFeedback._timer);
+    toast.textContent = text;
+    toast.style.opacity = '1';
+    showSoftFeedback._timer = setTimeout(function(){ toast.style.opacity = '0'; }, 2300);
+  }
+
+  function parsePastedDateToISO(rawValue){
+    const text = String(rawValue || '').trim();
+    if (!text) return null;
+    let day = 0;
+    let month = 0;
+    let year = 0;
+    let match = text.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})$/);
+    if (match) {
+      day = Number(match[1]);
+      month = Number(match[2]);
+      year = Number(match[3]);
+    } else {
+      match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!match) return null;
+      year = Number(match[1]);
+      month = Number(match[2]);
+      day = Number(match[3]);
+    }
+    if (!year || month < 1 || month > 12 || day < 1 || day > 31) return null;
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() !== year || (date.getUTCMonth() + 1) !== month || date.getUTCDate() !== day) return null;
+    return String(year).padStart(4, '0') + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+  }
+
+  function isDateInputField(input){
+    if (!(input instanceof HTMLInputElement)) return false;
+    if (input.type === 'date') return true;
+    if (input.type !== 'text') return false;
+    const hint = [input.id, input.name, input.placeholder, input.getAttribute('aria-label'), input.className].join(' ').toLowerCase();
+    return /(data|date|periodo|per[ií]odo|ajuizamento|atualiza[cç][aã]o)/i.test(hint);
+  }
+
+  function parsePastedNumericValue(rawValue){
+    let text = String(rawValue || '').trim();
+    if (!text) return null;
+    text = text.replace(/\u00a0/g, ' ');
+    const hasParens = /^\(.*\)$/.test(text);
+    const hasMinus = /-/.test(text);
+    const sign = (hasParens || hasMinus) ? -1 : 1;
+    text = text.replace(/[^\d,.\-+]/g, '');
+    text = text.replace(/[+-]/g, '');
+    if (!text) return null;
+    const lastComma = text.lastIndexOf(',');
+    const lastDot = text.lastIndexOf('.');
+    const decimalIndex = Math.max(lastComma, lastDot);
+    let integerPart = text;
+    let decimalPart = '';
+    if (decimalIndex >= 0) {
+      integerPart = text.slice(0, decimalIndex);
+      decimalPart = text.slice(decimalIndex + 1);
+    }
+    integerPart = integerPart.replace(/[^\d]/g, '');
+    decimalPart = decimalPart.replace(/[^\d]/g, '');
+    if (!integerPart && !decimalPart) return null;
+    const normalized = (integerPart || '0') + (decimalPart ? ('.' + decimalPart) : '');
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed)) return null;
+    return parsed * sign;
+  }
+
+  function isNumericPasteField(input){
+    if (!(input instanceof HTMLInputElement)) return false;
+    if (input.type === 'number') return true;
+    const inputMode = String(input.getAttribute('inputmode') || '').toLowerCase();
+    if (inputMode === 'decimal' || inputMode === 'numeric') return true;
+    return input.classList.contains('valor-input') || input.classList.contains('custa-valor');
+  }
+
   function formatNumberBR(value, minimumFractionDigits, maximumFractionDigits, useGrouping){
     const number = parseBRNumber(value);
     return number.toLocaleString('pt-BR', {
@@ -2201,6 +2301,52 @@
       saveEditLaunchModal();
     }
   });
+
+  document.addEventListener('paste', function(event){
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    const clipboard = event.clipboardData || window.clipboardData;
+    const pastedText = clipboard && typeof clipboard.getData === 'function' ? clipboard.getData('text') : '';
+    if (!pastedText) return;
+
+    if (isDateInputField(target)) {
+      const normalizedDate = parsePastedDateToISO(pastedText);
+      if (!normalizedDate) {
+        event.preventDefault();
+        showSoftFeedback('Data inválida. Use dd/mm/aaaa, dd-mm-aaaa ou aaaa-mm-dd.');
+        return;
+      }
+      event.preventDefault();
+      target.value = normalizedDate;
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+      return;
+    }
+
+    if (!isNumericPasteField(target)) return;
+    const parsedNumber = parsePastedNumericValue(pastedText);
+    if (parsedNumber == null) {
+      event.preventDefault();
+      showSoftFeedback('Não foi possível interpretar o número colado.');
+      return;
+    }
+    event.preventDefault();
+    target.value = target.type === 'number'
+      ? String(parsedNumber)
+      : formatNumberBR(parsedNumber, 2, 2, false);
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+    target.dispatchEvent(new Event('change', { bubbles: true }));
+
+    if (target.classList.contains('valor-input')) {
+      const launchIndex = Number(target.getAttribute('data-launch-index'));
+      if (state.lancamentos[launchIndex]) {
+        recalculateLaunch(state.lancamentos[launchIndex]);
+        renderSummaryPanel();
+        save(collect());
+        buildReport(collect());
+      }
+    }
+  }, true);
 
   const btnBack = $('btnBack');
   if (btnBack) btnBack.addEventListener('click', function(){ location.href = 'index.html'; });
