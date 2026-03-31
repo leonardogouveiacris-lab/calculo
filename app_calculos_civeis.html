@@ -78,6 +78,7 @@ textarea{min-height:92px;resize:vertical}
 .empty-state{border:1px dashed var(--border-strong);border-radius:16px;padding:16px;text-align:center;color:var(--muted);background:#fff}
 .report-launch{margin-top:16px}.report-launch h3{margin:0 0 8px;font-size:14px}
 .report-table{width:100%;border-collapse:collapse;font-size:10.8pt;border-top:1px solid #cfd4de;border-bottom:1px solid #cfd4de}.report-table th,.report-table td{border-bottom:1px solid #d9dde6;border-right:1px solid #eceff5;padding:5px 7px;vertical-align:top}.report-table th{background:#fafbfc;border-bottom:1px solid #c7ceda;text-align:center;font-weight:600}.report-table th:last-child,.report-table td:last-child{border-right:none}.report-table tbody tr:last-child td{border-bottom:none}.report-table .right{text-align:right}.report-table .center{text-align:center}.report-table .bold{font-weight:800}.report-launch-head{display:flex;flex-direction:column;gap:6px;margin:2px 0 8px}.report-index-summary{display:flex;flex-direction:column;gap:4px;padding:6px 8px;border:1px solid #d9dde6;border-radius:6px;background:#fff}.report-index-summary-title{font-size:10.2pt;font-weight:700;color:#1f2937}.report-index-summary-row{font-size:9.8pt;line-height:1.35;color:#344054}.report-index-summary-row b{font-weight:700;color:#111827}
+@media print{.index-summary,.index-summary:hover,.index-summary:focus-within,.report-index-summary{background-image:none !important;background:#f5f6f8 !important;background-color:#f5f6f8 !important;border-color:#d7dbe2 !important;box-shadow:none !important}}
 .launch-actions{display:flex;gap:10px;align-items:center;justify-content:flex-start;flex-wrap:wrap;margin:12px 0}
 .mini-badge{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:var(--soft);border:1px solid var(--border);font-size:11px;color:var(--muted)}.formula-note{font-size:11px;color:var(--muted);margin-top:8px}.editor-table input[readonly]{background:var(--soft-2)}
 .page-note{font-size:12px;color:var(--muted)}
@@ -517,19 +518,20 @@ textarea{min-height:92px;resize:vertical}
     };
   }
 
-  function resolveEffectiveIndexPeriod(limit, startISO, endISO){
-    const requestedStartISO = String(startISO || '');
-    const requestedEndISO = String(endISO || '');
-    const effectiveStartISO = limit && limit.start && limit.start > requestedStartISO ? limit.start : requestedStartISO;
-    const effectiveEndISO = limit && limit.end && limit.end < requestedEndISO ? limit.end : requestedEndISO;
-    if (!effectiveStartISO || !effectiveEndISO || effectiveStartISO > effectiveEndISO){
-      return { start:'', end:'', label:'fora do período aplicado' };
-    }
-    return {
-      start: effectiveStartISO,
-      end: effectiveEndISO,
-      label: formatDateBR(effectiveStartISO) + ' até ' + formatDateBR(effectiveEndISO)
-    };
+  function buildLaunchIndexSummary(lancamento){
+    const columns = lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : [];
+    return getIndexColumns(lancamento).map(function(coluna){
+      const summary = summarizeIndexColumn(coluna);
+      const columnIdx = columns.findIndex(function(item){ return item && item.id === coluna.id; });
+      const columnLabel = columnIdx >= 0 ? columnTitle(coluna, columnIdx) : (coluna.nome || '');
+      return {
+        name: summary.name,
+        columnLabel: columnLabel,
+        tipoLabel: coluna.indexKind === 'juros' ? 'Juros' : 'Correção',
+        sourceLabel: summary.sourceLabel,
+        limitLabel: summary.limitLabel
+      };
+    });
   }
 
   function parseBRNumber(value){
@@ -1523,15 +1525,13 @@ textarea{min-height:92px;resize:vertical}
     const badges = ['<span class="mini-badge">A = Data</span>'].concat(lancamento.colunas.map(function(coluna, idx){
       return '<span class="mini-badge">' + esc(columnTitle(coluna, idx)) + (coluna.tipo === 'formula' ? ' [' + esc(coluna.formula || '') + ']' : '') + '</span>';
     })).join('');
-    const indexCols = getIndexColumns(lancamento);
-    const indexSummaryRows = indexCols.map(function(coluna){
-      const summary = summarizeIndexColumn(coluna);
-      const columnIdx = lancamento.colunas.findIndex(function(item){ return item && item.id === coluna.id; });
-      const columnLabel = columnIdx >= 0 ? columnTitle(coluna, columnIdx) : (coluna.nome || '');
+    const launchIndexSummary = buildLaunchIndexSummary(lancamento);
+    const indexSummaryRows = launchIndexSummary.map(function(summary){
       return '' +
         '<div class="index-summary-row">' +
           '<strong>' + esc(summary.name) + '</strong>' +
-          '<span class="index-summary-col-ref">Coluna: ' + esc(columnLabel) + '</span>' +
+          '<span class="index-summary-col-ref">Coluna: ' + esc(summary.columnLabel) + '</span>' +
+          '<span>Tipo: ' + esc(summary.tipoLabel) + '</span>' +
           '<span>Fonte: ' + esc(summary.sourceLabel) + '</span>' +
           '<span>Limite: ' + esc(summary.limitLabel) + '</span>' +
         '</div>';
@@ -1547,7 +1547,7 @@ textarea{min-height:92px;resize:vertical}
         '</div>' +
         '<div class="launch-actions">' +
           '<button type="button" class="btn btn-primary btnFetchIndices" data-launch-index="' + index + '"' + (indexLoadingState[index] ? ' disabled aria-busy="true"' : '') + '>' + (indexLoadingState[index] ? 'Buscando índices...' : 'Atualizar índices') + '</button>' +
-          '<button type="button" class="btn btnAddColumn" data-launch-index="' + index + '">Adicional Coluna</button>' +
+          '<button type="button" class="btn btnAddColumn" data-launch-index="' + index + '">Adicionar coluna</button>' +
           '<button type="button" class="btn btnAddIndexCol" data-launch-index="' + index + '">Adicionar coluna de índice</button>' +
         '</div>' +
         '<div>' + badges + '</div>' +
@@ -1973,14 +1973,13 @@ textarea{min-height:92px;resize:vertical}
       data.lancamentos.forEach(function(lancamento){
         normalizeLaunch(lancamento);
         recalculateLaunch(lancamento);
-        const indexCols = getIndexColumns(lancamento);
-        const indexSummaryRows = indexCols.map(function(coluna){
-          const summary = summarizeIndexColumn(coluna);
-          const tipo = coluna.indexKind === 'juros' ? 'Juros' : 'Correção';
+        const launchIndexSummary = buildLaunchIndexSummary(lancamento);
+        const indexSummaryRows = launchIndexSummary.map(function(summary){
           return '' +
             '<div class="report-index-summary-row">' +
               '<b>' + esc(summary.name) + '</b> — ' +
-              'Tipo: ' + esc(tipo) + ' • ' +
+              'Coluna: ' + esc(summary.columnLabel) + ' • ' +
+              'Tipo: ' + esc(summary.tipoLabel) + ' • ' +
               'Fonte: ' + esc(summary.sourceLabel) + ' • ' +
               'Limite: ' + esc(summary.limitLabel) +
             '</div>';
