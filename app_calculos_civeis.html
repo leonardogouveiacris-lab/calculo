@@ -1922,6 +1922,49 @@ textarea{min-height:92px;resize:vertical}
     renderSummaryTotals(summary);
   }
 
+  const BUILD_REPORT_SCOPE_DEPENDENCIES = [
+    'buildCalculationSummary',
+    'columnTitle',
+    'displayColumnValue',
+    'esc',
+    'formatCurrencyBR',
+    'formatDateBR',
+    'formatIndexFactor',
+    'formatNumberBR',
+    'getIndexColumns',
+    'getIndexLimit',
+    'monthKeyFromPeriodo',
+    'normalizeLaunch',
+    'recalculateLaunch',
+    'resolveEffectiveIndexPeriod',
+    'sourceAccumulationMode',
+    'summarizeIndexColumn',
+    'totalLancamento',
+    'CPPrintLayout.createLayout',
+    'CPPrintLayout.appendSection',
+    'CPPrintLayout.appendTable',
+    'CPPrintLayout.applyReportBranding'
+  ];
+
+  function getMissingBuildReportDependencies(){
+    return BUILD_REPORT_SCOPE_DEPENDENCIES.filter(function(path){
+      const chunks = path.split('.');
+      let scope = globalThis;
+      for (let i = 0; i < chunks.length; i += 1) {
+        const key = chunks[i];
+        if (!scope || typeof scope[key] === 'undefined') return true;
+        scope = scope[key];
+      }
+      return typeof scope !== 'function';
+    });
+  }
+
+  function assertBuildReportDependencies(){
+    const missing = getMissingBuildReportDependencies();
+    if (!missing.length) return true;
+    throw new Error('Dependências ausentes no script inline de buildReport: ' + missing.join(', ') + '.');
+  }
+
   function buildReport(data){
     const summary = buildCalculationSummary(data);
     const branding = {
@@ -2125,6 +2168,7 @@ textarea{min-height:92px;resize:vertical}
   function safeBuildReport(data, options){
     const opts = options || {};
     try {
+      assertBuildReportDependencies();
       buildReport(data);
       return true;
     } catch (error) {
