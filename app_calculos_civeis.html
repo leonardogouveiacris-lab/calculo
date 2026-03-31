@@ -517,6 +517,22 @@ textarea{min-height:92px;resize:vertical}
     };
   }
 
+  function buildLaunchIndexSummary(lancamento){
+    const columns = lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : [];
+    return getIndexColumns(lancamento).map(function(coluna){
+      const summary = summarizeIndexColumn(coluna);
+      const columnIdx = columns.findIndex(function(item){ return item && item.id === coluna.id; });
+      const columnLabel = columnIdx >= 0 ? columnTitle(coluna, columnIdx) : (coluna.nome || '');
+      return {
+        name: summary.name,
+        columnLabel: columnLabel,
+        tipoLabel: coluna.indexKind === 'juros' ? 'Juros' : 'Correção',
+        sourceLabel: summary.sourceLabel,
+        limitLabel: summary.limitLabel
+      };
+    });
+  }
+
   function parseBRNumber(value){
     if (value == null) return 0;
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -1508,15 +1524,13 @@ textarea{min-height:92px;resize:vertical}
     const badges = ['<span class="mini-badge">A = Data</span>'].concat(lancamento.colunas.map(function(coluna, idx){
       return '<span class="mini-badge">' + esc(columnTitle(coluna, idx)) + (coluna.tipo === 'formula' ? ' [' + esc(coluna.formula || '') + ']' : '') + '</span>';
     })).join('');
-    const indexCols = getIndexColumns(lancamento);
-    const indexSummaryRows = indexCols.map(function(coluna){
-      const summary = summarizeIndexColumn(coluna);
-      const columnIdx = lancamento.colunas.findIndex(function(item){ return item && item.id === coluna.id; });
-      const columnLabel = columnIdx >= 0 ? columnTitle(coluna, columnIdx) : (coluna.nome || '');
+    const launchIndexSummary = buildLaunchIndexSummary(lancamento);
+    const indexSummaryRows = launchIndexSummary.map(function(summary){
       return '' +
         '<div class="index-summary-row">' +
           '<strong>' + esc(summary.name) + '</strong>' +
-          '<span class="index-summary-col-ref">Coluna: ' + esc(columnLabel) + '</span>' +
+          '<span class="index-summary-col-ref">Coluna: ' + esc(summary.columnLabel) + '</span>' +
+          '<span>Tipo: ' + esc(summary.tipoLabel) + '</span>' +
           '<span>Fonte: ' + esc(summary.sourceLabel) + '</span>' +
           '<span>Limite: ' + esc(summary.limitLabel) + '</span>' +
         '</div>';
@@ -1532,7 +1546,7 @@ textarea{min-height:92px;resize:vertical}
         '</div>' +
         '<div class="launch-actions">' +
           '<button type="button" class="btn btn-primary btnFetchIndices" data-launch-index="' + index + '"' + (indexLoadingState[index] ? ' disabled aria-busy="true"' : '') + '>' + (indexLoadingState[index] ? 'Buscando índices...' : 'Atualizar índices') + '</button>' +
-          '<button type="button" class="btn btnAddColumn" data-launch-index="' + index + '">Adicional Coluna</button>' +
+          '<button type="button" class="btn btnAddColumn" data-launch-index="' + index + '">Adicionar coluna</button>' +
           '<button type="button" class="btn btnAddIndexCol" data-launch-index="' + index + '">Adicionar coluna de índice</button>' +
         '</div>' +
         '<div>' + badges + '</div>' +
@@ -1956,14 +1970,13 @@ textarea{min-height:92px;resize:vertical}
       data.lancamentos.forEach(function(lancamento){
         normalizeLaunch(lancamento);
         recalculateLaunch(lancamento);
-        const indexCols = getIndexColumns(lancamento);
-        const indexSummaryRows = indexCols.map(function(coluna){
-          const summary = summarizeIndexColumn(coluna);
-          const tipo = coluna.indexKind === 'juros' ? 'Juros' : 'Correção';
+        const launchIndexSummary = buildLaunchIndexSummary(lancamento);
+        const indexSummaryRows = launchIndexSummary.map(function(summary){
           return '' +
             '<div class="report-index-summary-row">' +
               '<b>' + esc(summary.name) + '</b> — ' +
-              'Tipo: ' + esc(tipo) + ' • ' +
+              'Coluna: ' + esc(summary.columnLabel) + ' • ' +
+              'Tipo: ' + esc(summary.tipoLabel) + ' • ' +
               'Fonte: ' + esc(summary.sourceLabel) + ' • ' +
               'Limite: ' + esc(summary.limitLabel) +
             '</div>';
