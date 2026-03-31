@@ -141,6 +141,23 @@
     return startLabel + ' até ' + endLabel;
   }
 
+  function getIndexSourceLabel(coluna){
+    const kind = coluna && coluna.indexKind ? coluna.indexKind : 'correcao';
+    const source = coluna && coluna.indexSource ? coluna.indexSource : '';
+    return ((INDEX_SOURCE_OPTIONS[kind] || []).find(function(opt){ return opt.value === source; }) || {}).label || source || '—';
+  }
+
+  function summarizeIndexColumn(coluna){
+    const kind = coluna && coluna.indexKind === 'juros' ? 'juros' : 'correcao';
+    const limit = getIndexLimit(coluna);
+    return {
+      name: String(coluna && coluna.nome || 'Índice'),
+      typeLabel: kind === 'juros' ? 'Juros' : 'Correção',
+      sourceLabel: getIndexSourceLabel(coluna),
+      limitLabel: formatLimitInterval(limit.start, limit.end)
+    };
+  }
+
   function parseBRNumber(value){
     if (value == null) return 0;
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -276,8 +293,7 @@
   }
 
   function formatInputValueByColumn(coluna, value){
-    if (coluna && coluna.formato === 'percentual') return formatNumberBR(value, 6, 6, true);
-    return formatCurrencyBR(value);
+    return displayColumnValue(coluna, value, { forInput:true });
   }
   function defaultIndexSourceByKind(kind){
     return kind === 'juros' ? 'selic' : 'ipca';
@@ -1093,55 +1109,52 @@
       launchesHost.innerHTML = '<div class="empty-state">Selecione um lançamento para visualizar a respectiva tabela.</div>';
       return;
     }
-    const headCols = ['<th class="col-data">Data</th>'].concat(lancamento.colunas.map(function(coluna, idx){
+    // Regra de apresentação da verba: alterar somente mapLaunchForView para refletir tela e relatório.
+    const view = mapLaunchForView(lancamento, index);
+    const headCols = ['<th class="col-data">Data</th>'].concat(view.columns.map(function(column, idx){
+      const coluna = column.raw;
       const indiceMeta = coluna.tipo === 'indice'
-        ? ('<span style="font-size:10px;color:#98a2b3">' + esc((coluna.indexKind === 'juros' ? 'Juros' : 'Correção') + ' • ' + (coluna.indexSource || 'fonte automática')) + '</span>')
+        ? ('<span style="font-size:10px;color:#98a2b3">' + esc(summarizeIndexColumn(coluna).typeLabel + ' • ' + getIndexSourceLabel(coluna)) + '</span>')
         : '';
-      const metaHtml = '<div class="th-col-meta"><span>' + esc(columnTitle(coluna, idx)) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + indiceMeta + '</div>'; 
+      const metaHtml = '<div class="th-col-meta"><span>' + esc(column.title) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + indiceMeta + '</div>';
       let actions = '<div class="th-col-actions">';
       const canMoveLeft = canMoveColumnTo(lancamento, idx, idx - 1);
       const canMoveRight = canMoveColumnTo(lancamento, idx, idx + 1);
-      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="left" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Mover coluna para a esquerda"' + (canMoveLeft ? '' : ' disabled aria-disabled="true"') + '>←</button>';
-      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="right" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Mover coluna para a direita"' + (canMoveRight ? '' : ' disabled aria-disabled="true"') + '>→</button>';
-      if (coluna.tipo === 'indice') actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Editar coluna">✎</button>';
-      else {
-        actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Editar coluna">✎</button>';
-        if (coluna.id !== 'valor' && coluna.id !== 'valor_correcao' && coluna.id !== 'valor_juros' && coluna.id !== 'valor_devido') actions += '<button type="button" class="th-icon-btn danger btnDeleteColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Remover coluna">×</button>';
+      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="left" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a esquerda"' + (canMoveLeft ? '' : ' disabled aria-disabled="true"') + '>←</button>';
+      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="right" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a direita"' + (canMoveRight ? '' : ' disabled aria-disabled="true"') + '>→</button>';
+      actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Editar coluna">✎</button>';
+      if (coluna.tipo !== 'indice' && coluna.id !== 'valor' && coluna.id !== 'valor_correcao' && coluna.id !== 'valor_juros' && coluna.id !== 'valor_devido') {
+        actions += '<button type="button" class="th-icon-btn danger btnDeleteColumn" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Remover coluna">×</button>';
       }
       actions += '</div>';
       return '<th><div class="th-col-head">' + metaHtml + actions + '</div></th>';
     })).join('');
-    const rows = lancamento.linhas.map(function(linha, rowIndex){
-      const valueCells = lancamento.colunas.map(function(coluna){
-        const key = coluna.id === 'valor' ? 'valor' : coluna.id;
-        const value = key === 'valor' ? linha.valor : linha[key];
-        if (coluna.tipo === 'formula') return '<td><input type="text" readonly value="' + esc(formatInputValueByColumn(coluna, value)) + '" placeholder="Calculado automaticamente"></td>';
-        if (coluna.tipo === 'indice') return '<td><input type="text" readonly value="' + esc(formatIndexFactor(value || 1)) + '" placeholder="1,0000000"></td>';
-        return '<td><input type="text" inputmode="decimal" data-launch-index="' + index + '" data-row-index="' + rowIndex + '" data-column-id="' + esc(key) + '" class="valor-input" value="' + esc(formatInputValueByColumn(coluna, value)) + '" placeholder="0,00"></td>';
+    const rows = view.rows.map(function(row){
+      const valueCells = row.cells.map(function(cell){
+        if (cell.tipo === 'formula') return '<td><input type="text" readonly value="' + esc(cell.inputValue) + '" placeholder="Calculado automaticamente"></td>';
+        if (cell.tipo === 'indice') return '<td><input type="text" readonly value="' + esc(cell.inputValue) + '" placeholder="1,0000000"></td>';
+        return '<td><input type="text" inputmode="decimal" data-launch-index="' + index + '" data-row-index="' + cell.rowIndex + '" data-column-id="' + esc(cell.columnId) + '" class="valor-input" value="' + esc(cell.inputValue) + '" placeholder="0,00"></td>';
       }).join('');
-      return '<tr><td>' + esc(linha.periodo) + '</td>' + valueCells + '</tr>';
+      return '<tr><td>' + esc(row.periodo) + '</td>' + valueCells + '</tr>';
     }).join('');
-    const badges = ['<span class="mini-badge">A = Data</span>'].concat(lancamento.colunas.map(function(coluna, idx){
-      return '<span class="mini-badge">' + esc(columnTitle(coluna, idx)) + (coluna.tipo === 'formula' ? ' [' + esc(coluna.formula || '') + ']' : '') + '</span>';
-    })).join('');
-    const indexCols = getIndexColumns(lancamento);
-    const indexSummaryRows = indexCols.map(function(coluna){
-      const sourceLabel = ((INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || []).find(function(opt){ return opt.value === coluna.indexSource; }) || {}).label || coluna.indexSource || '—';
-      const limit = getIndexLimit(coluna);
+    const badges = view.badges.map(function(label){
+      return '<span class="mini-badge">' + esc(label) + '</span>';
+    }).join('');
+    const indexSummaryRows = view.indexSummary.map(function(summary){
       return '' +
         '<div class="index-summary-row">' +
-          '<strong>' + esc(coluna.nome || 'Índice') + '</strong>' +
-          '<span>Fonte: ' + esc(sourceLabel) + '</span>' +
-          '<span>Limitação: ' + esc(formatLimitInterval(limit.start, limit.end)) + '</span>' +
+          '<strong>' + esc(summary.name) + '</strong>' +
+          '<span>Fonte: ' + esc(summary.sourceLabel) + '</span>' +
+          '<span>Limitação: ' + esc(summary.limitLabel) + '</span>' +
         '</div>';
     }).join('');
     launchesHost.innerHTML = '' +
       '<div class="launch-card">' +
         '<div class="launch-head">' +
           '<div>' +
-            '<div class="launch-title">' + esc(lancamento.verba) + '</div>' +
-            '<div class="launch-sub">Período: ' + esc(formatDateBR(lancamento.dataInicial)) + ' até ' + esc(formatDateBR(lancamento.dataFinal)) + ' — ' + lancamento.linhas.length + ' competência(s)</div>' +
-            (lancamento.observacao ? '<div class="launch-sub">Observação: ' + esc(lancamento.observacao) + '</div>' : '') +
+            '<div class="launch-title">' + esc(view.title) + '</div>' +
+            '<div class="launch-sub">' + esc(view.periodLabel) + ' — ' + view.competenciaCount + ' competência(s)</div>' +
+            (view.observacao ? '<div class="launch-sub">Observação: ' + esc(view.observacao) + '</div>' : '') +
           '</div>' +
         '</div>' +
         '<div class="index-config">' +
@@ -1221,12 +1234,71 @@
     }
   }
 
-  function displayColumnValue(coluna, valor){
-    if (coluna && coluna.formato === 'percentual') return valor === '' || valor == null ? '—' : formatPercent(valor || 0);
-    if (coluna && coluna.formato === 'indice') return valor === '' || valor == null ? '—' : formatIndexFactor(valor || 1);
+  function displayColumnValue(coluna, valor, options){
+    const opts = options || {};
+    if (coluna && coluna.formato === 'percentual') {
+      if (opts.forInput) return formatNumberBR(valor || 0, 6, 6, true);
+      return valor === '' || valor == null ? '—' : formatPercent(valor || 0);
+    }
+    if (coluna && coluna.formato === 'indice') {
+      if (opts.forInput) return formatIndexFactor(valor || 1);
+      return valor === '' || valor == null ? '—' : formatIndexFactor(valor || 1);
+    }
     if (typeof valor === 'number') return formatCurrencyBR(valor || 0);
     if (valor !== '' && valor != null && !Number.isNaN(parseBRNumber(valor))) return formatCurrencyBR(valor || 0);
-    return String(valor || '');
+    return opts.fallbackDash && (valor === '' || valor == null) ? '—' : String(valor || '');
+  }
+
+  function mapLaunchForView(lancamento, launchIndex){
+    normalizeLaunch(lancamento);
+    recalculateLaunch(lancamento);
+    const columns = (lancamento.colunas || []).map(function(coluna, idx){
+      return {
+        id: coluna.id,
+        tipo: coluna.tipo,
+        formato: coluna.formato,
+        formula: coluna.formula || '',
+        title: columnTitle(coluna, idx),
+        raw: coluna
+      };
+    });
+    const rows = (lancamento.linhas || []).map(function(linha, rowIndex){
+      return {
+        periodo: String(linha.periodo || ''),
+        cells: columns.map(function(coluna){
+          const key = coluna.id === 'valor' ? 'valor' : coluna.id;
+          const rawValue = key === 'valor' ? linha.valor : linha[key];
+          return {
+            columnId: key,
+            rowIndex: rowIndex,
+            tipo: coluna.tipo,
+            displayValue: displayColumnValue(coluna.raw, rawValue, { fallbackDash:true }),
+            inputValue: formatInputValueByColumn(coluna.raw, rawValue),
+            rawValue: rawValue
+          };
+        })
+      };
+    });
+    return {
+      launchIndex: launchIndex,
+      launchId: String(lancamento.id || ''),
+      title: String(lancamento.verba || 'Verba'),
+      periodLabel: 'Período: ' + formatDateBR(lancamento.dataInicial) + ' até ' + formatDateBR(lancamento.dataFinal),
+      observacao: String(lancamento.observacao || ''),
+      competenciaCount: rows.length,
+      columns: columns,
+      rows: rows,
+      badges: ['A = Data'].concat(columns.map(function(coluna){
+        return coluna.title + (coluna.tipo === 'formula' ? ' [' + coluna.formula + ']' : '');
+      })),
+      indexSummary: getIndexColumns(lancamento).map(function(coluna){
+        return summarizeIndexColumn(coluna);
+      }),
+      totalCells: columns.map(function(coluna){
+        if (coluna.formato === 'percentual' || coluna.formato === 'indice') return '—';
+        return formatCurrencyBR(totalLancamento(lancamento, coluna.id === 'valor' ? 'valor' : coluna.id));
+      })
+    };
   }
 
   function totalLancamento(lancamento, colunaId){
@@ -1571,39 +1643,32 @@
       CPPrintLayout.appendSection(layout, { html:'<table class="report-table report-launch-table"><tbody><tr><td>Nenhuma verba lançada até o momento.</td></tr></tbody></table>' });
     } else {
       data.lancamentos.forEach(function(lancamento){
-        normalizeLaunch(lancamento);
-        recalculateLaunch(lancamento);
-        const indexCols = getIndexColumns(lancamento);
-        const indexSummaryRows = indexCols.map(function(coluna){
-          const summary = summarizeIndexColumn(coluna);
-          const tipo = coluna.indexKind === 'juros' ? 'Juros' : 'Correção';
+        const view = mapLaunchForView(lancamento, -1);
+        const indexSummaryRows = view.indexSummary.map(function(summary){
           return '' +
             '<div class="report-index-summary-row">' +
               '<b>' + esc(summary.name) + '</b> — ' +
-              'Tipo: ' + esc(tipo) + ' • ' +
+              'Tipo: ' + esc(summary.typeLabel) + ' • ' +
               'Fonte: ' + esc(summary.sourceLabel) + ' • ' +
               'Limite: ' + esc(summary.limitLabel) +
             '</div>';
         }).join('');
-        const headers = ['Data'].concat(lancamento.colunas.map(function(coluna, idx){ return columnTitle(coluna, idx); }));
-        const rows = lancamento.linhas.map(function(linha){
-          const cols = lancamento.colunas.map(function(coluna){
-            const valor = coluna.id === 'valor' ? linha.valor : linha[coluna.id];
-            const exibicao = displayColumnValue(coluna, valor);
-            return '<td class="right">' + esc(exibicao || '—') + '</td>';
+        const headers = ['Data'].concat(view.columns.map(function(coluna){ return coluna.title; }));
+        const rows = view.rows.map(function(row){
+          const cols = row.cells.map(function(cell){
+            return '<td class="right">' + esc(cell.displayValue || '—') + '</td>';
           }).join('');
-          return '<tr><td class="center">' + esc(linha.periodo) + '</td>' + cols + '</tr>';
+          return '<tr><td class="center">' + esc(row.periodo) + '</td>' + cols + '</tr>';
         });
-        const totalCells = lancamento.colunas.map(function(coluna){
-          if (coluna.formato === 'percentual' || coluna.formato === 'indice') return '<td class="bold right">—</td>';
-          return '<td class="bold right">' + esc(formatCurrencyBR(totalLancamento(lancamento, coluna.id === 'valor' ? 'valor' : coluna.id))) + '</td>';
+        const totalCells = view.totalCells.map(function(totalValue){
+          return '<td class="bold right">' + esc(totalValue) + '</td>';
         }).join('');
         CPPrintLayout.appendSection(layout, {
-          html: '<div class="sec-title">' + esc(lancamento.verba) + '</div>' +
+          html: '<div class="sec-title">' + esc(view.title) + '</div>' +
             '<div class="report-launch-head">' +
               '<div class="summary-row-note">' +
-                'Período: ' + esc(formatDateBR(lancamento.dataInicial)) + ' até ' + esc(formatDateBR(lancamento.dataFinal)) +
-                (lancamento.observacao ? '<br>Observação: ' + esc(lancamento.observacao) : '') +
+                esc(view.periodLabel) +
+                (view.observacao ? '<br>Observação: ' + esc(view.observacao) : '') +
               '</div>' +
               (indexSummaryRows ? '<div class="report-index-summary" role="note" aria-label="Resumo de índices da verba"><div class="report-index-summary-title">Índices aplicados nesta verba</div>' + indexSummaryRows + '</div>' : '') +
             '</div>'
@@ -1613,7 +1678,7 @@
           rows: rows,
           tfootHtml: '<tr><td class="bold right">Total da verba</td>' + totalCells + '</tr>',
           tableClass: 'report-table report-launch-table',
-          continuationLabel: esc(lancamento.verba) + ' (continuação)'
+          continuationLabel: esc(view.title) + ' (continuação)'
         });
       });
     }
