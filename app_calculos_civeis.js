@@ -141,20 +141,153 @@
     return startLabel + ' até ' + endLabel;
   }
 
+  function getIndexSourceLabel(coluna){
+    const kind = coluna && coluna.indexKind ? coluna.indexKind : 'correcao';
+    const source = coluna && coluna.indexSource ? coluna.indexSource : '';
+    return ((INDEX_SOURCE_OPTIONS[kind] || []).find(function(opt){ return opt.value === source; }) || {}).label || source || '—';
+  }
+
+  function summarizeIndexColumn(coluna){
+    const kind = coluna && coluna.indexKind === 'juros' ? 'juros' : 'correcao';
+    const limit = getIndexLimit(coluna);
+    return {
+      name: String(coluna && coluna.nome || 'Índice'),
+      typeLabel: kind === 'juros' ? 'Juros' : 'Correção',
+      sourceLabel: getIndexSourceLabel(coluna),
+      limitLabel: formatLimitInterval(limit.start, limit.end)
+    };
+  }
+
+  function normalizeLooseNumericText(value){
+    if (value == null) return '';
+    let text = String(value).trim();
+    if (!text) return '';
+    const negativeByParentheses = /^\(.*\)$/.test(text);
+    text = text.replace(/[()\s\u00a0R$\u202f]/g, '').replace(/[^\d,.\-]/g, '');
+    if (!text) return '';
+    const isNegative = negativeByParentheses || text.includes('-');
+    text = text.replace(/-/g, '');
+    const lastComma = text.lastIndexOf(',');
+    const lastDot = text.lastIndexOf('.');
+    const separatorIndex = Math.max(lastComma, lastDot);
+    if (separatorIndex >= 0){
+      const intPart = text.slice(0, separatorIndex).replace(/[.,]/g, '');
+      const decimalPart = text.slice(separatorIndex + 1).replace(/[.,]/g, '');
+      text = intPart + (decimalPart ? ('.' + decimalPart) : '');
+    } else {
+      text = text.replace(/[.,]/g, '');
+    }
+    if (!text) return '';
+    return (isNegative ? '-' : '') + text;
+  }
+
   function parseBRNumber(value){
     if (value == null) return 0;
     if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-    let text = String(value).trim();
-    if (!text) return 0;
-    text = text.replace(/\s+/g, '');
-    if (text.indexOf(',') >= 0){
-      text = text.replace(/\./g, '').replace(',', '.');
-    } else {
-      const parts = text.split('.');
-      if (parts.length > 2) text = parts.join('');
-    }
-    const number = Number(text);
+    const normalized = normalizeLooseNumericText(value);
+    if (!normalized || normalized === '-' || normalized === '.') return 0;
+    const number = Number(normalized);
     return Number.isFinite(number) ? number : 0;
+  }
+
+  function showSoftFeedback(message){
+    const text = String(message || '').trim();
+    if (!text) return;
+    let toast = document.getElementById('civilPasteToast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'civilPasteToast';
+      toast.setAttribute('role', 'status');
+      toast.setAttribute('aria-live', 'polite');
+      toast.style.position = 'fixed';
+      toast.style.right = '18px';
+      toast.style.bottom = '18px';
+      toast.style.maxWidth = '320px';
+      toast.style.padding = '9px 11px';
+      toast.style.borderRadius = '10px';
+      toast.style.border = '1px solid #f2c5c5';
+      toast.style.background = '#fff6f6';
+      toast.style.color = '#a61b1b';
+      toast.style.fontSize = '12px';
+      toast.style.lineHeight = '1.35';
+      toast.style.boxShadow = '0 8px 24px rgba(16,24,40,.14)';
+      toast.style.zIndex = '9999';
+      toast.style.opacity = '0';
+      toast.style.transition = 'opacity .2s ease';
+      document.body.appendChild(toast);
+    }
+    if (showSoftFeedback._timer) clearTimeout(showSoftFeedback._timer);
+    toast.textContent = text;
+    toast.style.opacity = '1';
+    showSoftFeedback._timer = setTimeout(function(){ toast.style.opacity = '0'; }, 2300);
+  }
+
+  function parsePastedDateToISO(rawValue){
+    const text = String(rawValue || '').trim();
+    if (!text) return null;
+    let day = 0;
+    let month = 0;
+    let year = 0;
+    let match = text.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})$/);
+    if (match) {
+      day = Number(match[1]);
+      month = Number(match[2]);
+      year = Number(match[3]);
+    } else {
+      match = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!match) return null;
+      year = Number(match[1]);
+      month = Number(match[2]);
+      day = Number(match[3]);
+    }
+    if (!year || month < 1 || month > 12 || day < 1 || day > 31) return null;
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (date.getUTCFullYear() !== year || (date.getUTCMonth() + 1) !== month || date.getUTCDate() !== day) return null;
+    return String(year).padStart(4, '0') + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+  }
+
+  function isDateInputField(input){
+    if (!(input instanceof HTMLInputElement)) return false;
+    if (input.type === 'date') return true;
+    if (input.type !== 'text') return false;
+    const hint = [input.id, input.name, input.placeholder, input.getAttribute('aria-label'), input.className].join(' ').toLowerCase();
+    return /(data|date|periodo|per[ií]odo|ajuizamento|atualiza[cç][aã]o)/i.test(hint);
+  }
+
+  function parsePastedNumericValue(rawValue){
+    let text = String(rawValue || '').trim();
+    if (!text) return null;
+    text = text.replace(/\u00a0/g, ' ');
+    const hasParens = /^\(.*\)$/.test(text);
+    const hasMinus = /-/.test(text);
+    const sign = (hasParens || hasMinus) ? -1 : 1;
+    text = text.replace(/[^\d,.\-+]/g, '');
+    text = text.replace(/[+-]/g, '');
+    if (!text) return null;
+    const lastComma = text.lastIndexOf(',');
+    const lastDot = text.lastIndexOf('.');
+    const decimalIndex = Math.max(lastComma, lastDot);
+    let integerPart = text;
+    let decimalPart = '';
+    if (decimalIndex >= 0) {
+      integerPart = text.slice(0, decimalIndex);
+      decimalPart = text.slice(decimalIndex + 1);
+    }
+    integerPart = integerPart.replace(/[^\d]/g, '');
+    decimalPart = decimalPart.replace(/[^\d]/g, '');
+    if (!integerPart && !decimalPart) return null;
+    const normalized = (integerPart || '0') + (decimalPart ? ('.' + decimalPart) : '');
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed)) return null;
+    return parsed * sign;
+  }
+
+  function isNumericPasteField(input){
+    if (!(input instanceof HTMLInputElement)) return false;
+    if (input.type === 'number') return true;
+    const inputMode = String(input.getAttribute('inputmode') || '').toLowerCase();
+    if (inputMode === 'decimal' || inputMode === 'numeric') return true;
+    return input.classList.contains('valor-input') || input.classList.contains('custa-valor');
   }
 
   function formatNumberBR(value, minimumFractionDigits, maximumFractionDigits, useGrouping){
@@ -168,6 +301,10 @@
 
   function formatCurrencyBR(value){
     return formatNumberBR(value, 2, 2, true);
+  }
+
+  function formatEditableNumberBR(value){
+    return formatNumberBR(value, 2, 2, false);
   }
 
   function monthLabel(year, monthIndex){
@@ -276,8 +413,7 @@
   }
 
   function formatInputValueByColumn(coluna, value){
-    if (coluna && coluna.formato === 'percentual') return formatNumberBR(value, 6, 6, true);
-    return formatCurrencyBR(value);
+    return displayColumnValue(coluna, value, { forInput:true });
   }
   function defaultIndexSourceByKind(kind){
     return kind === 'juros' ? 'selic' : 'ipca';
@@ -1093,55 +1229,52 @@
       launchesHost.innerHTML = '<div class="empty-state">Selecione um lançamento para visualizar a respectiva tabela.</div>';
       return;
     }
-    const headCols = ['<th class="col-data">Data</th>'].concat(lancamento.colunas.map(function(coluna, idx){
+    // Regra de apresentação da verba: alterar somente mapLaunchForView para refletir tela e relatório.
+    const view = mapLaunchForView(lancamento, index);
+    const headCols = ['<th class="col-data">Data</th>'].concat(view.columns.map(function(column, idx){
+      const coluna = column.raw;
       const indiceMeta = coluna.tipo === 'indice'
-        ? ('<span style="font-size:10px;color:#98a2b3">' + esc((coluna.indexKind === 'juros' ? 'Juros' : 'Correção') + ' • ' + (coluna.indexSource || 'fonte automática')) + '</span>')
+        ? ('<span style="font-size:10px;color:#98a2b3">' + esc(summarizeIndexColumn(coluna).typeLabel + ' • ' + getIndexSourceLabel(coluna)) + '</span>')
         : '';
-      const metaHtml = '<div class="th-col-meta"><span>' + esc(columnTitle(coluna, idx)) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + indiceMeta + '</div>'; 
+      const metaHtml = '<div class="th-col-meta"><span>' + esc(column.title) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + indiceMeta + '</div>';
       let actions = '<div class="th-col-actions">';
       const canMoveLeft = canMoveColumnTo(lancamento, idx, idx - 1);
       const canMoveRight = canMoveColumnTo(lancamento, idx, idx + 1);
-      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="left" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Mover coluna para a esquerda"' + (canMoveLeft ? '' : ' disabled aria-disabled="true"') + '>←</button>';
-      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="right" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Mover coluna para a direita"' + (canMoveRight ? '' : ' disabled aria-disabled="true"') + '>→</button>';
-      if (coluna.tipo === 'indice') actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Editar coluna">✎</button>';
-      else {
-        actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Editar coluna">✎</button>';
-        if (coluna.id !== 'valor' && coluna.id !== 'valor_correcao' && coluna.id !== 'valor_juros' && coluna.id !== 'valor_devido') actions += '<button type="button" class="th-icon-btn danger btnDeleteColumn" data-launch-index="' + index + '" data-column-id="' + esc(coluna.id) + '" title="Remover coluna">×</button>';
+      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="left" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a esquerda"' + (canMoveLeft ? '' : ' disabled aria-disabled="true"') + '>←</button>';
+      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="right" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a direita"' + (canMoveRight ? '' : ' disabled aria-disabled="true"') + '>→</button>';
+      actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Editar coluna">✎</button>';
+      if (coluna.tipo !== 'indice' && coluna.id !== 'valor' && coluna.id !== 'valor_correcao' && coluna.id !== 'valor_juros' && coluna.id !== 'valor_devido') {
+        actions += '<button type="button" class="th-icon-btn danger btnDeleteColumn" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Remover coluna">×</button>';
       }
       actions += '</div>';
       return '<th><div class="th-col-head">' + metaHtml + actions + '</div></th>';
     })).join('');
-    const rows = lancamento.linhas.map(function(linha, rowIndex){
-      const valueCells = lancamento.colunas.map(function(coluna){
-        const key = coluna.id === 'valor' ? 'valor' : coluna.id;
-        const value = key === 'valor' ? linha.valor : linha[key];
-        if (coluna.tipo === 'formula') return '<td><input type="text" readonly value="' + esc(formatInputValueByColumn(coluna, value)) + '" placeholder="Calculado automaticamente"></td>';
-        if (coluna.tipo === 'indice') return '<td><input type="text" readonly value="' + esc(formatIndexFactor(value || 1)) + '" placeholder="1,0000000"></td>';
-        return '<td><input type="text" inputmode="decimal" data-launch-index="' + index + '" data-row-index="' + rowIndex + '" data-column-id="' + esc(key) + '" class="valor-input" value="' + esc(formatInputValueByColumn(coluna, value)) + '" placeholder="0,00"></td>';
+    const rows = view.rows.map(function(row){
+      const valueCells = row.cells.map(function(cell){
+        if (cell.tipo === 'formula') return '<td><input type="text" readonly value="' + esc(cell.inputValue) + '" placeholder="Calculado automaticamente"></td>';
+        if (cell.tipo === 'indice') return '<td><input type="text" readonly value="' + esc(cell.inputValue) + '" placeholder="1,0000000"></td>';
+        return '<td><input type="text" inputmode="decimal" data-launch-index="' + index + '" data-row-index="' + cell.rowIndex + '" data-column-id="' + esc(cell.columnId) + '" class="valor-input" value="' + esc(cell.inputValue) + '" placeholder="0,00"></td>';
       }).join('');
-      return '<tr><td>' + esc(linha.periodo) + '</td>' + valueCells + '</tr>';
+      return '<tr><td>' + esc(row.periodo) + '</td>' + valueCells + '</tr>';
     }).join('');
-    const badges = ['<span class="mini-badge">A = Data</span>'].concat(lancamento.colunas.map(function(coluna, idx){
-      return '<span class="mini-badge">' + esc(columnTitle(coluna, idx)) + (coluna.tipo === 'formula' ? ' [' + esc(coluna.formula || '') + ']' : '') + '</span>';
-    })).join('');
-    const indexCols = getIndexColumns(lancamento);
-    const indexSummaryRows = indexCols.map(function(coluna){
-      const sourceLabel = ((INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || []).find(function(opt){ return opt.value === coluna.indexSource; }) || {}).label || coluna.indexSource || '—';
-      const limit = getIndexLimit(coluna);
+    const badges = view.badges.map(function(label){
+      return '<span class="mini-badge">' + esc(label) + '</span>';
+    }).join('');
+    const indexSummaryRows = view.indexSummary.map(function(summary){
       return '' +
         '<div class="index-summary-row">' +
-          '<strong>' + esc(coluna.nome || 'Índice') + '</strong>' +
-          '<span>Fonte: ' + esc(sourceLabel) + '</span>' +
-          '<span>Limitação: ' + esc(formatLimitInterval(limit.start, limit.end)) + '</span>' +
+          '<strong>' + esc(summary.name) + '</strong>' +
+          '<span>Fonte: ' + esc(summary.sourceLabel) + '</span>' +
+          '<span>Limitação: ' + esc(summary.limitLabel) + '</span>' +
         '</div>';
     }).join('');
     launchesHost.innerHTML = '' +
       '<div class="launch-card">' +
         '<div class="launch-head">' +
           '<div>' +
-            '<div class="launch-title">' + esc(lancamento.verba) + '</div>' +
-            '<div class="launch-sub">Período: ' + esc(formatDateBR(lancamento.dataInicial)) + ' até ' + esc(formatDateBR(lancamento.dataFinal)) + ' — ' + lancamento.linhas.length + ' competência(s)</div>' +
-            (lancamento.observacao ? '<div class="launch-sub">Observação: ' + esc(lancamento.observacao) + '</div>' : '') +
+            '<div class="launch-title">' + esc(view.title) + '</div>' +
+            '<div class="launch-sub">' + esc(view.periodLabel) + ' — ' + view.competenciaCount + ' competência(s)</div>' +
+            (view.observacao ? '<div class="launch-sub">Observação: ' + esc(view.observacao) + '</div>' : '') +
           '</div>' +
         '</div>' +
         '<div class="index-config">' +
@@ -1221,12 +1354,71 @@
     }
   }
 
-  function displayColumnValue(coluna, valor){
-    if (coluna && coluna.formato === 'percentual') return valor === '' || valor == null ? '—' : formatPercent(valor || 0);
-    if (coluna && coluna.formato === 'indice') return valor === '' || valor == null ? '—' : formatIndexFactor(valor || 1);
+  function displayColumnValue(coluna, valor, options){
+    const opts = options || {};
+    if (coluna && coluna.formato === 'percentual') {
+      if (opts.forInput) return formatNumberBR(valor || 0, 6, 6, true);
+      return valor === '' || valor == null ? '—' : formatPercent(valor || 0);
+    }
+    if (coluna && coluna.formato === 'indice') {
+      if (opts.forInput) return formatIndexFactor(valor || 1);
+      return valor === '' || valor == null ? '—' : formatIndexFactor(valor || 1);
+    }
     if (typeof valor === 'number') return formatCurrencyBR(valor || 0);
     if (valor !== '' && valor != null && !Number.isNaN(parseBRNumber(valor))) return formatCurrencyBR(valor || 0);
-    return String(valor || '');
+    return opts.fallbackDash && (valor === '' || valor == null) ? '—' : String(valor || '');
+  }
+
+  function mapLaunchForView(lancamento, launchIndex){
+    normalizeLaunch(lancamento);
+    recalculateLaunch(lancamento);
+    const columns = (lancamento.colunas || []).map(function(coluna, idx){
+      return {
+        id: coluna.id,
+        tipo: coluna.tipo,
+        formato: coluna.formato,
+        formula: coluna.formula || '',
+        title: columnTitle(coluna, idx),
+        raw: coluna
+      };
+    });
+    const rows = (lancamento.linhas || []).map(function(linha, rowIndex){
+      return {
+        periodo: String(linha.periodo || ''),
+        cells: columns.map(function(coluna){
+          const key = coluna.id === 'valor' ? 'valor' : coluna.id;
+          const rawValue = key === 'valor' ? linha.valor : linha[key];
+          return {
+            columnId: key,
+            rowIndex: rowIndex,
+            tipo: coluna.tipo,
+            displayValue: displayColumnValue(coluna.raw, rawValue, { fallbackDash:true }),
+            inputValue: formatInputValueByColumn(coluna.raw, rawValue),
+            rawValue: rawValue
+          };
+        })
+      };
+    });
+    return {
+      launchIndex: launchIndex,
+      launchId: String(lancamento.id || ''),
+      title: String(lancamento.verba || 'Verba'),
+      periodLabel: 'Período: ' + formatDateBR(lancamento.dataInicial) + ' até ' + formatDateBR(lancamento.dataFinal),
+      observacao: String(lancamento.observacao || ''),
+      competenciaCount: rows.length,
+      columns: columns,
+      rows: rows,
+      badges: ['A = Data'].concat(columns.map(function(coluna){
+        return coluna.title + (coluna.tipo === 'formula' ? ' [' + coluna.formula + ']' : '');
+      })),
+      indexSummary: getIndexColumns(lancamento).map(function(coluna){
+        return summarizeIndexColumn(coluna);
+      }),
+      totalCells: columns.map(function(coluna){
+        if (coluna.formato === 'percentual' || coluna.formato === 'indice') return '—';
+        return formatCurrencyBR(totalLancamento(lancamento, coluna.id === 'valor' ? 'valor' : coluna.id));
+      })
+    };
   }
 
   function totalLancamento(lancamento, colunaId){
@@ -1571,39 +1763,32 @@
       CPPrintLayout.appendSection(layout, { html:'<table class="report-table report-launch-table"><tbody><tr><td>Nenhuma verba lançada até o momento.</td></tr></tbody></table>' });
     } else {
       data.lancamentos.forEach(function(lancamento){
-        normalizeLaunch(lancamento);
-        recalculateLaunch(lancamento);
-        const indexCols = getIndexColumns(lancamento);
-        const indexSummaryRows = indexCols.map(function(coluna){
-          const summary = summarizeIndexColumn(coluna);
-          const tipo = coluna.indexKind === 'juros' ? 'Juros' : 'Correção';
+        const view = mapLaunchForView(lancamento, -1);
+        const indexSummaryRows = view.indexSummary.map(function(summary){
           return '' +
             '<div class="report-index-summary-row">' +
               '<b>' + esc(summary.name) + '</b> — ' +
-              'Tipo: ' + esc(tipo) + ' • ' +
+              'Tipo: ' + esc(summary.typeLabel) + ' • ' +
               'Fonte: ' + esc(summary.sourceLabel) + ' • ' +
               'Limite: ' + esc(summary.limitLabel) +
             '</div>';
         }).join('');
-        const headers = ['Data'].concat(lancamento.colunas.map(function(coluna, idx){ return columnTitle(coluna, idx); }));
-        const rows = lancamento.linhas.map(function(linha){
-          const cols = lancamento.colunas.map(function(coluna){
-            const valor = coluna.id === 'valor' ? linha.valor : linha[coluna.id];
-            const exibicao = displayColumnValue(coluna, valor);
-            return '<td class="right">' + esc(exibicao || '—') + '</td>';
+        const headers = ['Data'].concat(view.columns.map(function(coluna){ return coluna.title; }));
+        const rows = view.rows.map(function(row){
+          const cols = row.cells.map(function(cell){
+            return '<td class="right">' + esc(cell.displayValue || '—') + '</td>';
           }).join('');
-          return '<tr><td class="center">' + esc(linha.periodo) + '</td>' + cols + '</tr>';
+          return '<tr><td class="center">' + esc(row.periodo) + '</td>' + cols + '</tr>';
         });
-        const totalCells = lancamento.colunas.map(function(coluna){
-          if (coluna.formato === 'percentual' || coluna.formato === 'indice') return '<td class="bold right">—</td>';
-          return '<td class="bold right">' + esc(formatCurrencyBR(totalLancamento(lancamento, coluna.id === 'valor' ? 'valor' : coluna.id))) + '</td>';
+        const totalCells = view.totalCells.map(function(totalValue){
+          return '<td class="bold right">' + esc(totalValue) + '</td>';
         }).join('');
         CPPrintLayout.appendSection(layout, {
-          html: '<div class="sec-title">' + esc(lancamento.verba) + '</div>' +
+          html: '<div class="sec-title">' + esc(view.title) + '</div>' +
             '<div class="report-launch-head">' +
               '<div class="summary-row-note">' +
-                'Período: ' + esc(formatDateBR(lancamento.dataInicial)) + ' até ' + esc(formatDateBR(lancamento.dataFinal)) +
-                (lancamento.observacao ? '<br>Observação: ' + esc(lancamento.observacao) : '') +
+                esc(view.periodLabel) +
+                (view.observacao ? '<br>Observação: ' + esc(view.observacao) : '') +
               '</div>' +
               (indexSummaryRows ? '<div class="report-index-summary" role="note" aria-label="Resumo de índices da verba"><div class="report-index-summary-title">Índices aplicados nesta verba</div>' + indexSummaryRows + '</div>' : '') +
             '</div>'
@@ -1613,7 +1798,7 @@
           rows: rows,
           tfootHtml: '<tr><td class="bold right">Total da verba</td>' + totalCells + '</tr>',
           tableClass: 'report-table report-launch-table',
-          continuationLabel: esc(lancamento.verba) + ' (continuação)'
+          continuationLabel: esc(view.title) + ' (continuação)'
         });
       });
     }
@@ -1790,6 +1975,7 @@
     if (!target.classList.contains('valor-input')) return;
     const launchIndex = Number(target.getAttribute('data-launch-index'));
     if (!state.lancamentos[launchIndex]) return;
+    target.value = formatCurrencyBR(target.value);
     recalculateLaunch(state.lancamentos[launchIndex]);
     persistAndRefresh();
   });
@@ -1830,7 +2016,24 @@
   launchesHost.addEventListener('focusin', function(event){
     const target = event.target;
     if (!target.classList.contains('valor-input')) return;
+    target.value = formatEditableNumberBR(target.value);
     target.select();
+  });
+
+  launchesHost.addEventListener('paste', function(event){
+    const target = event.target;
+    if (!target.classList.contains('valor-input')) return;
+    event.preventDefault();
+    const pastedText = event.clipboardData ? event.clipboardData.getData('text') : '';
+    const parsedValue = parseBRNumber(pastedText);
+    target.value = formatEditableNumberBR(parsedValue);
+    const launchIndex = Number(target.getAttribute('data-launch-index'));
+    const rowIndex = Number(target.getAttribute('data-row-index'));
+    const columnId = target.getAttribute('data-column-id') || 'valor';
+    if (!state.lancamentos[launchIndex] || !state.lancamentos[launchIndex].linhas[rowIndex]) return;
+    if (columnId === 'valor') state.lancamentos[launchIndex].linhas[rowIndex].valor = parsedValue;
+    else state.lancamentos[launchIndex].linhas[rowIndex][columnId] = parsedValue;
+    refreshSummaryOutputsOnly();
   });
 
   launchesHost.addEventListener('click', function(event){
@@ -1894,8 +2097,21 @@
       state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { percentual: this.value }));
       refreshSummaryOutputsOnly();
     });
+    honorariosPercentual.addEventListener('focusin', function(){
+      this.value = formatEditableNumberBR(this.value);
+      this.select();
+    });
+    honorariosPercentual.addEventListener('paste', function(event){
+      event.preventDefault();
+      const pastedText = event.clipboardData ? event.clipboardData.getData('text') : '';
+      const parsedValue = parseBRNumber(pastedText);
+      this.value = formatEditableNumberBR(parsedValue);
+      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { percentual: parsedValue }));
+      refreshSummaryOutputsOnly();
+    });
     honorariosPercentual.addEventListener('focusout', function(){
-      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { percentual: this.value }));
+      this.value = formatCurrencyBR(this.value);
+      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { percentual: parseBRNumber(this.value) }));
       persistAndRefresh();
     });
   }
@@ -1959,8 +2175,32 @@
       const index = getCustaIndexById(custaId);
       if (index < 0) return;
       if (target.classList.contains('custa-desc')) state.custas[index].descricao = String(target.value || '').trim() || 'Custas';
-      if (target.classList.contains('custa-valor')) state.custas[index].valor = roundMoney(target.value);
+      if (target.classList.contains('custa-valor')) {
+        state.custas[index].valor = roundMoney(target.value);
+        target.value = formatCurrencyBR(state.custas[index].valor);
+      }
       persistAndRefresh();
+    });
+
+    custasHost.addEventListener('focusin', function(event){
+      const target = event.target;
+      if (!target.classList.contains('custa-valor')) return;
+      target.value = formatEditableNumberBR(target.value);
+      target.select();
+    });
+
+    custasHost.addEventListener('paste', function(event){
+      const target = event.target;
+      if (!target.classList.contains('custa-valor')) return;
+      event.preventDefault();
+      const pastedText = event.clipboardData ? event.clipboardData.getData('text') : '';
+      const parsedValue = roundMoney(pastedText);
+      target.value = formatEditableNumberBR(parsedValue);
+      const custaId = target.getAttribute('data-custa-id');
+      const index = getCustaIndexById(custaId);
+      if (index < 0) return;
+      state.custas[index].valor = parsedValue;
+      refreshSummaryOutputsOnly();
     });
 
     custasHost.addEventListener('click', function(event){
@@ -2061,6 +2301,52 @@
       saveEditLaunchModal();
     }
   });
+
+  document.addEventListener('paste', function(event){
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    const clipboard = event.clipboardData || window.clipboardData;
+    const pastedText = clipboard && typeof clipboard.getData === 'function' ? clipboard.getData('text') : '';
+    if (!pastedText) return;
+
+    if (isDateInputField(target)) {
+      const normalizedDate = parsePastedDateToISO(pastedText);
+      if (!normalizedDate) {
+        event.preventDefault();
+        showSoftFeedback('Data inválida. Use dd/mm/aaaa, dd-mm-aaaa ou aaaa-mm-dd.');
+        return;
+      }
+      event.preventDefault();
+      target.value = normalizedDate;
+      target.dispatchEvent(new Event('input', { bubbles: true }));
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+      return;
+    }
+
+    if (!isNumericPasteField(target)) return;
+    const parsedNumber = parsePastedNumericValue(pastedText);
+    if (parsedNumber == null) {
+      event.preventDefault();
+      showSoftFeedback('Não foi possível interpretar o número colado.');
+      return;
+    }
+    event.preventDefault();
+    target.value = target.type === 'number'
+      ? String(parsedNumber)
+      : formatNumberBR(parsedNumber, 2, 2, false);
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+    target.dispatchEvent(new Event('change', { bubbles: true }));
+
+    if (target.classList.contains('valor-input')) {
+      const launchIndex = Number(target.getAttribute('data-launch-index'));
+      if (state.lancamentos[launchIndex]) {
+        recalculateLaunch(state.lancamentos[launchIndex]);
+        renderSummaryPanel();
+        save(collect());
+        buildReport(collect());
+      }
+    }
+  }, true);
 
   const btnBack = $('btnBack');
   if (btnBack) btnBack.addEventListener('click', function(){ location.href = 'index.html'; });
