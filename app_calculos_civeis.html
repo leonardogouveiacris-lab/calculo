@@ -2004,31 +2004,6 @@ textarea{min-height:92px;resize:vertical}
               'Limite: ' + esc(summary.limitLabel) +
             '</div>';
         }).join('');
-        const indexAuditRows = indexCols.map(function(coluna){
-          const summary = summarizeIndexColumn(coluna);
-          const mode = coluna.accumulationMode || sourceAccumulationMode(coluna.indexSource);
-          const rowsByMonth = lancamento.linhas.map(function(linha){
-            const monthKey = monthKeyFromPeriodo(linha.periodo);
-            const startISO = monthKey ? (monthKey + '-01') : '';
-            const effectivePeriod = resolveEffectiveIndexPeriod(getIndexLimit(coluna), startISO, data.dataAtualizacao);
-            const fatorFinal = Number(linha[coluna.id] || 1);
-            return '<tr>' +
-              '<td class="center">' + esc(linha.periodo || '—') + '</td>' +
-              '<td class="center">' + esc(effectivePeriod.label) + '</td>' +
-              '<td class="right">' + esc(formatIndexFactor(fatorFinal)) + '</td>' +
-            '</tr>';
-          }).join('');
-          return '' +
-            '<div class="report-index-summary-row" style="margin-top:8px">' +
-              '<b>' + esc(summary.name) + '</b> — ' +
-              'Fonte: ' + esc(summary.sourceLabel) + ' • ' +
-              'Modo: ' + esc(mode === 'simple' ? 'Simples' : 'Composto') +
-            '</div>' +
-            '<table class="report-table report-launch-table" style="margin-top:6px">' +
-              '<thead><tr><th style="width:20%">Mês</th><th style="width:50%">Período efetivo aplicado</th><th style="width:30%" class="right">Fator acumulado final</th></tr></thead>' +
-              '<tbody>' + rowsByMonth + '</tbody>' +
-            '</table>';
-        }).join('');
         const headers = ['Data'].concat(lancamento.colunas.map(function(coluna, idx){ return columnTitle(coluna, idx); }));
         const rows = lancamento.linhas.map(function(linha){
           const cols = lancamento.colunas.map(function(coluna){
@@ -2049,7 +2024,7 @@ textarea{min-height:92px;resize:vertical}
                 'Período: ' + esc(formatDateBR(lancamento.dataInicial)) + ' até ' + esc(formatDateBR(lancamento.dataFinal)) +
                 (lancamento.observacao ? '<br>Observação: ' + esc(lancamento.observacao) : '') +
                 '</div>' +
-              (indexSummaryRows ? '<div class="report-index-summary" role="note" aria-label="Resumo de índices da verba"><div class="report-index-summary-title">Índices aplicados nesta verba</div>' + indexSummaryRows + indexAuditRows + '</div>' : '') +
+              (indexSummaryRows ? '<div class="report-index-summary" role="note" aria-label="Resumo de índices da verba"><div class="report-index-summary-title">Índices aplicados nesta verba</div>' + indexSummaryRows + '</div>' : '') +
             '</div>'
         });
         CPPrintLayout.appendTable(layout, {
