@@ -2008,13 +2008,23 @@ textarea{min-height:92px;resize:vertical}
           const summary = summarizeIndexColumn(coluna);
           const mode = coluna.accumulationMode || sourceAccumulationMode(coluna.indexSource);
           const rowsByMonth = lancamento.linhas.map(function(linha){
-            const monthKey = monthKeyFromPeriodo(linha.periodo);
+            const monthKey = monthKeyFromPeriodo(linha && linha.periodo);
             const startISO = monthKey ? (monthKey + '-01') : '';
-            const effectivePeriod = resolveEffectiveIndexPeriod(getIndexLimit(coluna), startISO, data.dataAtualizacao);
+            const limit = getIndexLimit(coluna || {});
+            const requestedStartISO = startISO || '';
+            const requestedEndISO = String((data && data.dataAtualizacao) || '');
+            const safeLimitStart = String((limit && limit.start) || '');
+            const safeLimitEnd = String((limit && limit.end) || '');
+            const effectiveStartISO = safeLimitStart && (!requestedStartISO || safeLimitStart > requestedStartISO) ? safeLimitStart : requestedStartISO;
+            const effectiveEndISO = safeLimitEnd && (!requestedEndISO || safeLimitEnd < requestedEndISO) ? safeLimitEnd : requestedEndISO;
+            let effectivePeriodLabel = 'Sem limite';
+            if (effectiveStartISO && effectiveEndISO) {
+              effectivePeriodLabel = formatDateBR(effectiveStartISO) + ' até ' + formatDateBR(effectiveEndISO);
+            }
             const fatorFinal = Number(linha[coluna.id] || 1);
             return '<tr>' +
               '<td class="center">' + esc(linha.periodo || '—') + '</td>' +
-              '<td class="center">' + esc(effectivePeriod.label) + '</td>' +
+              '<td class="center">' + esc(effectivePeriodLabel) + '</td>' +
               '<td class="right">' + esc(formatIndexFactor(fatorFinal)) + '</td>' +
             '</tr>';
           }).join('');
