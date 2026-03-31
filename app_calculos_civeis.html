@@ -1973,7 +1973,10 @@ textarea{min-height:92px;resize:vertical}
       data.lancamentos.forEach(function(lancamento){
         normalizeLaunch(lancamento);
         recalculateLaunch(lancamento);
-        const launchIndexSummary = buildLaunchIndexSummary(lancamento);
+        const indexCols = getIndexColumns(lancamento);
+        const launchIndexSummary = indexCols.map(function(coluna){
+          return summarizeIndexColumn(coluna);
+        });
         const indexSummaryRows = launchIndexSummary.map(function(summary){
           return '' +
             '<div class="report-index-summary-row">' +
