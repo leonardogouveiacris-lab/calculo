@@ -1525,10 +1525,8 @@ textarea{min-height:92px;resize:vertical}
     const badges = ['<span class="mini-badge">A = Data</span>'].concat(lancamento.colunas.map(function(coluna, idx){
       return '<span class="mini-badge">' + esc(columnTitle(coluna, idx)) + (coluna.tipo === 'formula' ? ' [' + esc(coluna.formula || '') + ']' : '') + '</span>';
     })).join('');
-    const indexSummaryRows = getIndexColumns(lancamento).map(function(coluna){
-      const summary = summarizeIndexColumn(coluna);
-      const columnIdx = lancamento.colunas.findIndex(function(item){ return item && item.id === coluna.id; });
-      const columnLabel = columnIdx >= 0 ? columnTitle(coluna, columnIdx) : (coluna.nome || '');
+    const launchIndexSummary = buildLaunchIndexSummary(lancamento);
+    const indexSummaryRows = launchIndexSummary.map(function(summary){
       return '' +
         '<div class="index-summary-row">' +
           '<strong>' + esc(summary.name) + '</strong>' +
@@ -1975,9 +1973,8 @@ textarea{min-height:92px;resize:vertical}
       data.lancamentos.forEach(function(lancamento){
         normalizeLaunch(lancamento);
         recalculateLaunch(lancamento);
-        const indexSummaryRows = getIndexColumns(lancamento).map(function(coluna){
-          const summary = summarizeIndexColumn(coluna);
-          const tipo = coluna.indexKind === 'juros' ? 'Juros' : 'Correção';
+        const launchIndexSummary = buildLaunchIndexSummary(lancamento);
+        const indexSummaryRows = launchIndexSummary.map(function(summary){
           return '' +
             '<div class="report-index-summary-row">' +
               '<b>' + esc(summary.name) + '</b> — ' +
