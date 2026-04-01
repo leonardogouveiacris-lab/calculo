@@ -62,7 +62,7 @@
 
   function normalizeEntregaText(raw){
     if (raw == null || raw === '') return '';
-    return String(raw).trim();
+    return String(raw);
   }
 
   function nextRowId(){
