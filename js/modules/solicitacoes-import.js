@@ -38,20 +38,44 @@
 
   function parseDateAny(value){
     if (value == null || value === '') return null;
-    if (value instanceof Date && !isNaN(value.getTime())) return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()));
+    if (value instanceof Date && !isNaN(value.getTime())) {
+      return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+    }
     if (typeof value === 'number' && Number.isFinite(value)) return new Date(Date.UTC(1899,11,30) + Math.round(value * 86400000));
     var text = String(value).trim();
+    if (/^\d{5,}(?:\.\d+)?$/.test(text)) {
+      var serial = Number(text);
+      if (Number.isFinite(serial)) return new Date(Date.UTC(1899,11,30) + Math.round(serial * 86400000));
+    }
+    var isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
+    if (isoMatch) return new Date(Date.UTC(+isoMatch[1], +isoMatch[2] - 1, +isoMatch[3]));
     var match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
     if (match) return new Date(Date.UTC(+match[3], +match[2] - 1, +match[1]));
-    match = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-    if (match) return new Date(Date.UTC(+match[3], +match[2] - 1, +match[1]));
-    match = text.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})$/);
-    if (match) return new Date(Date.UTC(+match[1], +match[2] - 1, +match[3]));
     return null;
   }
 
   function dateBR(date){
     return String(date.getUTCDate()).padStart(2, '0') + '/' + String(date.getUTCMonth() + 1).padStart(2, '0') + '/' + date.getUTCFullYear();
+  }
+
+  function normalizeEntregaText(raw){
+    if (raw == null || raw === '') return '';
+    if (typeof raw === 'number' && Number.isFinite(raw)) {
+      return dateBR(new Date(Date.UTC(1899,11,30) + Math.round(raw * 86400000)));
+    }
+    if (raw instanceof Date && !isNaN(raw.getTime())) {
+      return dateBR(new Date(Date.UTC(raw.getUTCFullYear(), raw.getUTCMonth(), raw.getUTCDate())));
+    }
+    var text = String(raw).trim();
+    if (!text) return '';
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(text)) return text;
+    var isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
+    if (isoMatch) return isoMatch[3] + '/' + isoMatch[2] + '/' + isoMatch[1];
+    if (/^\d{5,}(?:\.\d+)?$/.test(text)) {
+      var serial = Number(text);
+      if (Number.isFinite(serial)) return dateBR(new Date(Date.UTC(1899,11,30) + Math.round(serial * 86400000)));
+    }
+    return text;
   }
 
   function nextRowId(){
@@ -111,8 +135,7 @@
         else if (column === 'Numero do Processo') raw = extractNumeroProcesso(row);
         else raw = getCell(row, root.ALIASES[column]);
         if (column === 'Entrega em') {
-          var date = parseDateAny(raw);
-          normalized[column] = date ? dateBR(date) : (raw == null ? '' : raw);
+          normalized[column] = normalizeEntregaText(raw);
           return;
         }
         if (column === 'Total (Total)') {
