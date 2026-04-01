@@ -528,7 +528,7 @@
     fields.ajuizamento.value = source.ajuizamento || '';
     fields.dataAtualizacao.value = source.dataAtualizacao || new Date().toISOString().slice(0,10);
     fields.observacoes.value = source.observacoes || '';
-    state.lancamentos = (Array.isArray(source.lancamentos) ? source.lancamentos : []).map(normalizeLaunch).map(recalculateLaunch);
+    state.lancamentos = normalizeLaunchListSafely(Array.isArray(source.lancamentos) ? source.lancamentos : []);
     state.lancamentoSelecionadoId = source.lancamentoSelecionadoId || (state.lancamentos[0] ? state.lancamentos[0].id : '');
     state.honorarios = normalizeHonorarios(source.honorarios);
     state.custas = Array.isArray(source.custas) ? source.custas.map(normalizeCusta) : [];
@@ -558,6 +558,17 @@
       if (legacy && Object.keys(legacy).length) return legacy;
     }
     return {};
+  }
+
+  function normalizeLaunchListSafely(list){
+    return (Array.isArray(list) ? list : []).reduce(function(acc, lancamento){
+      try {
+        acc.push(recalculateLaunch(normalizeLaunch(lancamento)));
+      } catch (error) {
+        console.error('Falha ao normalizar lançamento do cálculo cível.', error);
+      }
+      return acc;
+    }, []);
   }
 
   function switchTab(tab){
@@ -1126,7 +1137,7 @@
   }
 
   function renderLaunches(){
-    state.lancamentos = state.lancamentos.map(normalizeLaunch).map(recalculateLaunch);
+    state.lancamentos = normalizeLaunchListSafely(state.lancamentos);
     renderLaunchSelector();
     if (!state.lancamentos.length){
       launchesHost.innerHTML = '<div class="empty-state">Nenhum lançamento cadastrado ainda. Informe a verba e o período para gerar a tabela mensal do cálculo.</div>';
@@ -2322,7 +2333,7 @@
 
   const initial = load();
   fill(initial);
-  state.lancamentos = state.lancamentos.map(normalizeLaunch).map(recalculateLaunch);
+  state.lancamentos = normalizeLaunchListSafely(state.lancamentos);
   renderLaunches();
   renderSummaryPanel();
   buildReport(collect());
