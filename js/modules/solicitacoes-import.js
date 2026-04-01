@@ -160,8 +160,12 @@
         else if (column === 'Numero do Processo') raw = extractNumeroProcesso(row);
         else raw = getCell(row, root.ALIASES[column]);
         if (column === 'Entrega em') {
-          var date = parseDateAny(raw, { preferMDY: preferMDY });
-          normalized[column] = date ? dateBR(date) : (raw == null ? '' : raw);
+          if (typeof raw === 'string') {
+            normalized[column] = raw.trim();
+            return;
+          }
+          var date = parseDateAny(raw);
+          normalized[column] = date ? dateBR(date) : (raw == null ? '' : String(raw).trim());
           return;
         }
         if (column === 'Total (Total)') {
