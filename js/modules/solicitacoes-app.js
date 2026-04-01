@@ -110,7 +110,33 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
       } else if (/\.(xlsx|xls)$/i.test(file.name)) {
         if (!window.XLSX) throw new Error('SheetJS não carregado');
         var workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
-        data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '', raw: true });
+        var sheet = workbook.Sheets[workbook.SheetNames[0]];
+        var table = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
+        var headers = (table[0] || []).map(function(value){ return String(value == null ? '' : value); });
+        var entregaIndex = -1;
+        for (var h = 0; h < headers.length; h += 1) {
+          if (root.canonical(headers[h]) === root.canonical('Entrega em')) {
+            entregaIndex = h;
+            break;
+          }
+        }
+        var range = XLSX.utils.decode_range(sheet['!ref'] || 'A1:A1');
+        data = table.slice(1).map(function(values, rowIndex){
+          var row = {};
+          headers.forEach(function(header, colIndex){
+            row[header] = values[colIndex] == null ? '' : values[colIndex];
+          });
+          if (entregaIndex >= 0) {
+            var addr = XLSX.utils.encode_cell({ c: entregaIndex, r: range.s.r + rowIndex + 1 });
+            var cell = sheet[addr];
+            if (cell && String(cell.w == null ? '' : cell.w).trim() !== '') {
+              row[headers[entregaIndex]] = cell.w;
+            } else if (cell && Object.prototype.hasOwnProperty.call(cell, 'v')) {
+              row[headers[entregaIndex]] = cell.v == null ? '' : cell.v;
+            }
+          }
+          return row;
+        });
       } else {
         throw new Error('Formato não suportado');
       }
