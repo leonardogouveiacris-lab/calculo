@@ -941,18 +941,13 @@
     persistAndRefresh();
   }
 
-  function isColumnFixedForReorder(coluna){
-    if (!coluna) return true;
-    return false;
-  }
-
   function canMoveColumnTo(lancamento, fromIndex, toIndex){
     if (!lancamento || !Array.isArray(lancamento.colunas)) return false;
     if (fromIndex < 0 || toIndex < 0 || fromIndex >= lancamento.colunas.length || toIndex >= lancamento.colunas.length) return false;
     const fromCol = lancamento.colunas[fromIndex];
     const toCol = lancamento.colunas[toIndex];
     if (!fromCol || !toCol) return false;
-    if (isColumnFixedForReorder(fromCol) || isColumnFixedForReorder(toCol)) return false;
+    if (fromIndex === toIndex) return false;
     return true;
   }
 
