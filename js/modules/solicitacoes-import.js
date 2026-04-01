@@ -38,11 +38,41 @@
 
   function parseDateAny(value){
     if (value == null || value === '') return null;
-    if (value instanceof Date && !isNaN(value.getTime())) return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()));
+    if (value instanceof Date && !isNaN(value.getTime())) {
+      return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+    }
     if (typeof value === 'number' && Number.isFinite(value)) return new Date(Date.UTC(1899,11,30) + Math.round(value * 86400000));
     var text = String(value).trim();
+    if (/^\d{5,}$/.test(text)) {
+      var serial = Number(text);
+      if (Number.isFinite(serial)) return new Date(Date.UTC(1899,11,30) + Math.round(serial * 86400000));
+    }
+    var isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})T/);
+    if (isoMatch) return new Date(Date.UTC(+isoMatch[1], +isoMatch[2] - 1, +isoMatch[3]));
     var match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
     if (match) return new Date(Date.UTC(+match[3], +match[2] - 1, +match[1]));
+    match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (match) return new Date(Date.UTC(+match[3], +match[2] - 1, +match[1]));
+    match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2})$/);
+    if (match) {
+      var p1 = +match[1];
+      var p2 = +match[2];
+      var year = 2000 + +match[3];
+      var day = p1;
+      var month = p2;
+      if (p1 <= 12 && p2 > 12) { day = p2; month = p1; }
+      return new Date(Date.UTC(year, month - 1, day));
+    }
+    match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+    if (match) {
+      var a = +match[1];
+      var b = +match[2];
+      var yyyy = +match[3];
+      var dd = a;
+      var mm = b;
+      if (a <= 12 && b > 12) { dd = b; mm = a; }
+      return new Date(Date.UTC(yyyy, mm - 1, dd));
+    }
     match = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
     if (match) return new Date(Date.UTC(+match[3], +match[2] - 1, +match[1]));
     match = text.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})$/);
@@ -52,6 +82,32 @@
 
   function dateBR(date){
     return String(date.getUTCDate()).padStart(2, '0') + '/' + String(date.getUTCMonth() + 1).padStart(2, '0') + '/' + date.getUTCFullYear();
+  }
+
+  function formatEntregaDate(value){
+    if (value == null || value === '') return '';
+    if (typeof value === 'string') {
+      var text = value.trim();
+      if (!text) return '';
+      var m = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+      if (m) {
+        var day = String(+m[1]).padStart(2, '0');
+        var month = String(+m[2]).padStart(2, '0');
+        var year = m[3].length === 2 ? String(2000 + +m[3]) : m[3];
+        return day + '/' + month + '/' + year;
+      }
+      m = text.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+      if (m) {
+        return String(+m[3]).padStart(2, '0') + '/' + String(+m[2]).padStart(2, '0') + '/' + m[1];
+      }
+      if (/^\d{5,}$/.test(text)) {
+        var serial = Number(text);
+        if (Number.isFinite(serial)) return dateBR(new Date(Date.UTC(1899,11,30) + Math.round(serial * 86400000)));
+      }
+      return text;
+    }
+    var parsed = parseDateAny(value);
+    return parsed ? dateBR(parsed) : String(value).trim();
   }
 
   function nextRowId(){
@@ -111,8 +167,7 @@
         else if (column === 'Numero do Processo') raw = extractNumeroProcesso(row);
         else raw = getCell(row, root.ALIASES[column]);
         if (column === 'Entrega em') {
-          var date = parseDateAny(raw);
-          normalized[column] = date ? dateBR(date) : (raw == null ? '' : raw);
+          normalized[column] = formatEntregaDate(raw);
           return;
         }
         if (column === 'Total (Total)') {
