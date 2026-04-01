@@ -109,8 +109,11 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
         data = root.parseCSV(await file.text());
       } else if (/\.(xlsx|xls)$/i.test(file.name)) {
         if (!window.XLSX) throw new Error('SheetJS não carregado');
-        var workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-        data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '' });
+        var workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
+        data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {
+          defval: '',
+          raw: true
+        });
       } else {
         throw new Error('Formato não suportado');
       }
