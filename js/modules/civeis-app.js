@@ -1149,54 +1149,68 @@
       launchesHost.innerHTML = '<div class="empty-state">Selecione um lançamento para visualizar a respectiva tabela.</div>';
       return;
     }
-    // Regra de apresentação da verba: alterar somente mapLaunchForView para refletir tela e relatório.
-    const view = mapLaunchForView(lancamento, index);
-    const headCols = ['<th class="col-data">Data</th>'].concat(view.columns.map(function(column, idx){
-      const coluna = column.raw;
-      const indiceMeta = coluna.tipo === 'indice'
-        ? ('<span style="font-size:10px;color:#98a2b3">' + esc(summarizeIndexColumn(coluna).typeLabel + ' • ' + getIndexSourceLabel(coluna)) + '</span>')
-        : '';
-      const metaHtml = '<div class="th-col-meta"><span>' + esc(column.title) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + indiceMeta + '</div>';
-      let actions = '<div class="th-col-actions">';
-      const canMoveLeft = canMoveColumnTo(lancamento, idx, findReorderTargetIndex(lancamento, idx, 'left'));
-      const canMoveRight = canMoveColumnTo(lancamento, idx, findReorderTargetIndex(lancamento, idx, 'right'));
-      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="left" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a esquerda (<)" aria-label="Mover coluna para a esquerda (<)"' + (canMoveLeft ? '' : ' disabled aria-disabled="true"') + '>&lt;</button>';
-      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="right" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a direita (>)" aria-label="Mover coluna para a direita (>)"' + (canMoveRight ? '' : ' disabled aria-disabled="true"') + '>&gt;</button>';
-      actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Editar coluna">✎</button>';
-      if (coluna.tipo !== 'indice' && coluna.id !== 'valor' && coluna.id !== 'valor_correcao' && coluna.id !== 'valor_juros' && coluna.id !== 'valor_devido') {
-        actions += '<button type="button" class="th-icon-btn danger btnDeleteColumn" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Remover coluna">×</button>';
-      }
-      actions += '</div>';
-      return '<th><div class="th-col-head">' + metaHtml + actions + '</div></th>';
-    })).join('');
-    const rows = view.rows.map(function(row){
-      const valueCells = row.cells.map(function(cell){
-        if (cell.tipo === 'formula') return '<td><input type="text" readonly value="' + esc(cell.inputValue) + '" placeholder="Calculado automaticamente"></td>';
-        if (cell.tipo === 'indice') return '<td><input type="text" readonly value="' + esc(cell.inputValue) + '" placeholder="1,0000000"></td>';
-        return '<td><input type="text" inputmode="decimal" data-launch-index="' + index + '" data-row-index="' + cell.rowIndex + '" data-column-id="' + esc(cell.columnId) + '" class="valor-input" value="' + esc(cell.inputValue) + '" placeholder="0,00"></td>';
+    try {
+      // Regra de apresentação da verba: alterar somente mapLaunchForView para refletir tela e relatório.
+      const view = mapLaunchForView(lancamento, index);
+      const headCols = ['<th class="col-data">Data</th>'].concat(view.columns.map(function(column, idx){
+        const coluna = column.raw;
+        const indiceMeta = coluna.tipo === 'indice'
+          ? ('<span style="font-size:10px;color:#98a2b3">' + esc(summarizeIndexColumn(coluna).typeLabel + ' • ' + getIndexSourceLabel(coluna)) + '</span>')
+          : '';
+        const metaHtml = '<div class="th-col-meta"><span>' + esc(column.title) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + indiceMeta + '</div>';
+        let actions = '<div class="th-col-actions">';
+        const canMoveLeft = canMoveColumnTo(lancamento, idx, findReorderTargetIndex(lancamento, idx, 'left'));
+        const canMoveRight = canMoveColumnTo(lancamento, idx, findReorderTargetIndex(lancamento, idx, 'right'));
+        actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="left" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a esquerda (<)" aria-label="Mover coluna para a esquerda (<)"' + (canMoveLeft ? '' : ' disabled aria-disabled="true"') + '>&lt;</button>';
+        actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="right" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a direita (>)" aria-label="Mover coluna para a direita (>)"' + (canMoveRight ? '' : ' disabled aria-disabled="true"') + '>&gt;</button>';
+        actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Editar coluna">✎</button>';
+        if (coluna.tipo !== 'indice' && coluna.id !== 'valor' && coluna.id !== 'valor_correcao' && coluna.id !== 'valor_juros' && coluna.id !== 'valor_devido') {
+          actions += '<button type="button" class="th-icon-btn danger btnDeleteColumn" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Remover coluna">×</button>';
+        }
+        actions += '</div>';
+        return '<th><div class="th-col-head">' + metaHtml + actions + '</div></th>';
+      })).join('');
+      const rows = view.rows.map(function(row){
+        const valueCells = row.cells.map(function(cell){
+          if (cell.tipo === 'formula') return '<td><input type="text" readonly value="' + esc(cell.inputValue) + '" placeholder="Calculado automaticamente"></td>';
+          if (cell.tipo === 'indice') return '<td><input type="text" readonly value="' + esc(cell.inputValue) + '" placeholder="1,0000000"></td>';
+          return '<td><input type="text" inputmode="decimal" data-launch-index="' + index + '" data-row-index="' + cell.rowIndex + '" data-column-id="' + esc(cell.columnId) + '" class="valor-input" value="' + esc(cell.inputValue) + '" placeholder="0,00"></td>';
+        }).join('');
+        return '<tr><td>' + esc(row.periodo) + '</td>' + valueCells + '</tr>';
       }).join('');
-      return '<tr><td>' + esc(row.periodo) + '</td>' + valueCells + '</tr>';
-    }).join('');
-    const badges = view.badges.map(function(label){
-      return '<span class="mini-badge">' + esc(label) + '</span>';
-    }).join('');
-    const hasIndexColumn = (lancamento.colunas || []).some(function(coluna){ return coluna && coluna.tipo === 'indice'; });
-    const indexSummaryRows = view.indexSummary.map(function(summary){
-      return '' +
-        '<div class="index-summary-row">' +
-          '<strong>' + esc(summary.name) + '</strong>' +
-          (summary.columnRef ? '<span class="index-summary-col-ref">Coluna: ' + esc(summary.columnRef) + '</span>' : '') +
-          '<span>Fonte: ' + esc(summary.sourceLabel) + '</span>' +
-          '<span>Limitação: ' + esc(summary.limitLabel) + '</span>' +
-        '</div>';
-    }).join('');
-    const fallbackIndexSummaryRows = hasIndexColumn && !indexSummaryRows
-      ? '<div class="index-summary-row"><strong>Índice</strong><span>Coluna: identificador indisponível</span><span>Fonte: não informada</span><span>Limitação: sem limite</span></div>'
-      : '';
-    const indexSummaryBlock = hasIndexColumn
-      ? '<div class="index-summary" role="note" aria-label="Resumo dos índices aplicados">' + (indexSummaryRows || fallbackIndexSummaryRows) + '</div>'
-      : '';
-    launchesHost.innerHTML = '' +
+      const badges = view.badges.map(function(label){
+        return '<span class="mini-badge">' + esc(label) + '</span>';
+      }).join('');
+      const hasIndexColumn = (lancamento.colunas || []).some(function(coluna){ return coluna && coluna.tipo === 'indice'; });
+      const indexSummaryRows = view.indexSummary.map(function(summary){
+        return '' +
+          '<div class="index-summary-row">' +
+            '<strong>' + esc(summary.name) + '</strong>' +
+            (summary.columnRef ? '<span class="index-summary-col-ref">Coluna: ' + esc(summary.columnRef) + '</span>' : '') +
+            '<span>Fonte: ' + esc(summary.sourceLabel) + '</span>' +
+            '<span>Limitação: ' + esc(summary.limitLabel) + '</span>' +
+          '</div>';
+      }).join('');
+      const fallbackIndexSummaryRows = hasIndexColumn && !indexSummaryRows
+        ? '<div class="index-summary-row"><strong>Índice</strong><span>Coluna: identificador indisponível</span><span>Fonte: não informada</span><span>Limitação: sem limite</span></div>'
+        : '';
+      const indexSummaryBlock = hasIndexColumn
+        ? '<div class="index-summary" role="note" aria-label="Resumo dos índices aplicados">' + (indexSummaryRows || fallbackIndexSummaryRows) + '</div>'
+        : '';
+      launchesHost.innerHTML = buildLaunchEditorHtml(view, lancamento, index, headCols, rows, badges, indexSummaryBlock);
+    } catch (error) {
+      const launchContext = {
+        launchIndex: index,
+        lancamentoId: lancamento && lancamento.id,
+        lancamentoVerba: lancamento && lancamento.verba
+      };
+      console.error('Falha ao renderizar lançamento em renderLaunches.', launchContext, error);
+      launchesHost.innerHTML = '<div class="empty-state">Não foi possível renderizar a tabela mensal deste lançamento. Revise os dados ou recrie a verba.</div>';
+    }
+  }
+
+  function buildLaunchEditorHtml(view, lancamento, index, headCols, rows, badges, indexSummaryBlock){
+    return '' +
       '<div class="launch-card">' +
         '<div class="launch-head">' +
           '<div>' +
