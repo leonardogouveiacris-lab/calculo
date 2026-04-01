@@ -36,7 +36,9 @@
     return Number(number || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
-  function parseDateAny(value){
+  function parseDateAny(value, options){
+    var opts = options || {};
+    var preferMDY = !!opts.preferMDY;
     if (value == null || value === '') return null;
     if (value instanceof Date && !isNaN(value.getTime())) {
       return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
@@ -51,6 +53,28 @@
     if (isoMatch) return new Date(Date.UTC(+isoMatch[1], +isoMatch[2] - 1, +isoMatch[3]));
     var match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
     if (match) return new Date(Date.UTC(+match[3], +match[2] - 1, +match[1]));
+    match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (match) return new Date(Date.UTC(+match[3], +match[2] - 1, +match[1]));
+    match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2})$/);
+    if (match) {
+      var p1 = +match[1];
+      var p2 = +match[2];
+      var year = 2000 + +match[3];
+      var day = p1;
+      var month = p2;
+      if (p1 <= 12 && p2 > 12) { day = p2; month = p1; }
+      return new Date(Date.UTC(year, month - 1, day));
+    }
+    match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+    if (match) {
+      var a = +match[1];
+      var b = +match[2];
+      var yyyy = +match[3];
+      var dd = a;
+      var mm = b;
+      if (a <= 12 && b > 12) { dd = b; mm = a; }
+      return new Date(Date.UTC(yyyy, mm - 1, dd));
+    }
     match = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
     if (match) return new Date(Date.UTC(+match[3], +match[2] - 1, +match[1]));
     return null;
@@ -140,6 +164,23 @@
   }
 
   function normalizeAndFormat(data){
+    function detectDatePreference(rows){
+      var dmyScore = 0;
+      var mdyScore = 0;
+      (rows || []).forEach(function(row){
+        var raw = getCell(row, root.ALIASES['Entrega em']);
+        var text = String(raw == null ? '' : raw).trim();
+        var m = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+        if (!m) return;
+        var a = +m[1];
+        var b = +m[2];
+        if (a > 12 && b <= 12) dmyScore += 1;
+        else if (b > 12 && a <= 12) mdyScore += 1;
+      });
+      return mdyScore > dmyScore;
+    }
+
+    var preferMDY = detectDatePreference(data);
     var rows = (data || []).map(function(row){
       var normalized = {};
       root.COLUMNS.forEach(function(column){
