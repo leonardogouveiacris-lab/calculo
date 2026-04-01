@@ -36,7 +36,9 @@
     return Number(number || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
-  function parseDateAny(value){
+  function parseDateAny(value, options){
+    var opts = options || {};
+    var preferMDY = !!opts.preferMDY;
     if (value == null || value === '') return null;
     if (value instanceof Date && !isNaN(value.getTime())) {
       return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
@@ -130,6 +132,23 @@
   }
 
   function normalizeAndFormat(data){
+    function detectDatePreference(rows){
+      var dmyScore = 0;
+      var mdyScore = 0;
+      (rows || []).forEach(function(row){
+        var raw = getCell(row, root.ALIASES['Entrega em']);
+        var text = String(raw == null ? '' : raw).trim();
+        var m = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+        if (!m) return;
+        var a = +m[1];
+        var b = +m[2];
+        if (a > 12 && b <= 12) dmyScore += 1;
+        else if (b > 12 && a <= 12) mdyScore += 1;
+      });
+      return mdyScore > dmyScore;
+    }
+
+    var preferMDY = detectDatePreference(data);
     var rows = (data || []).map(function(row){
       var normalized = {};
       root.COLUMNS.forEach(function(column){
