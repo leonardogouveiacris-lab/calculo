@@ -896,7 +896,7 @@
     let cursor = fromIndex + step;
     while (cursor >= 0 && cursor < lancamento.colunas.length) {
       const candidate = lancamento.colunas[cursor];
-      if (candidate) return cursor;
+      if (candidate && !isColumnFixedForReorder(candidate)) return cursor;
       cursor += step;
     }
     return -1;
@@ -1087,8 +1087,10 @@
           : '';
         const metaHtml = '<div class="th-col-meta"><span>' + esc(column.title) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + indiceMeta + '</div>';
         let actions = '<div class="th-col-actions">';
-        const canMoveLeft = canMoveColumnTo(lancamento, idx, findReorderTargetIndex(lancamento, idx, 'left'));
-        const canMoveRight = canMoveColumnTo(lancamento, idx, findReorderTargetIndex(lancamento, idx, 'right'));
+        const leftTargetIndex = findReorderTargetIndex(lancamento, idx, 'left');
+        const rightTargetIndex = findReorderTargetIndex(lancamento, idx, 'right');
+        const canMoveLeft = canMoveColumnTo(lancamento, idx, leftTargetIndex);
+        const canMoveRight = canMoveColumnTo(lancamento, idx, rightTargetIndex);
         actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="left" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a esquerda (<)" aria-label="Mover coluna para a esquerda (<)"' + (canMoveLeft ? '' : ' disabled aria-disabled="true"') + '>&lt;</button>';
         actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="right" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a direita (>)" aria-label="Mover coluna para a direita (>)"' + (canMoveRight ? '' : ' disabled aria-disabled="true"') + '>&gt;</button>';
         actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Editar coluna">✎</button>';
