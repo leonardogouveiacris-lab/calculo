@@ -943,8 +943,7 @@
 
   function isColumnFixedForReorder(coluna){
     if (!coluna) return true;
-    if (coluna.locked) return true;
-    return coluna.id === 'valor' || coluna.id === 'correcao_monetaria' || coluna.id === 'juros' || coluna.id === 'valor_correcao' || coluna.id === 'valor_juros' || coluna.id === 'valor_devido';
+    return false;
   }
 
   function canMoveColumnTo(lancamento, fromIndex, toIndex){
@@ -1206,8 +1205,6 @@
           '<button type="button" class="btn btn-ghost btnAddIndexCol" data-launch-index="' + index + '">Adicionar coluna de índice</button>' +
         '</div>' +
         '<div>' + badges + '</div>' +
-        '<div class="formula-note">Nas fórmulas, prefira tokens estáveis por coluna (ex.: {valor}, {correcao_monetaria}, {valor_correcao}). Fórmulas legadas com letras (B, C, D...) continuam sendo aceitas e são convertidas automaticamente. As colunas padrão iniciam com estas fórmulas: Valor da Correção = ' + esc(defaultValorCorrecaoFormula()) + '; Valor dos Juros = ' + esc(defaultValorJurosFormula()) + '; Valor Devido = ' + esc(defaultValorDevidoFormula()) + '.</div>' +
-        '<div class="readonly-note">A fonte e o limite de cada índice são definidos no editor da própria coluna. Use "Atualizar índices" para recalcular os fatores com esses metadados por coluna. A coluna Valor fica fixa no início e Valor Devido no final; use ←/→ para reordenar apenas colunas não essenciais.</div>' +
         indexSummaryBlock +
         '<div class="table-wrap"><table class="editor-table"><thead><tr>' + headCols + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
       '</div>';
@@ -1703,10 +1700,10 @@
         const indexSummaryRows = view.indexSummary.map(function(summary){
           return '' +
             '<div class="report-index-summary-row">' +
-              '<b>' + esc(summary.name) + '</b> — ' +
-              'Tipo: ' + esc(summary.typeLabel) + ' • ' +
+              '<b>' + esc(summary.name) + '</b>' +
+              (summary.columnRef ? '  Coluna: ' + esc(summary.columnRef) + '  ' : '  ') +
               'Fonte: ' + esc(summary.sourceLabel) + ' • ' +
-              'Limite: ' + esc(summary.limitLabel) +
+              'Limitação: ' + esc(summary.limitLabel) +
             '</div>';
         }).join('');
         const headers = ['Data'].concat(view.columns.map(function(coluna){ return coluna.title; }));
@@ -2214,6 +2211,55 @@
     state.honorarios = defaultHonorariosConfig();
     state.custas = [];
     persistAndRefresh();
+  });
+
+  function downloadJsonFile(filename, content){
+    const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  function exportCalculationToJson(){
+    const data = collect();
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    downloadJsonFile('calculo-civel-' + stamp + '.json', JSON.stringify(data, null, 2));
+  }
+
+  function importCalculationFromJson(file){
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(){
+      try {
+        const parsed = JSON.parse(String(reader.result || '{}'));
+        fill(parsed);
+        persistAndRefresh();
+        alert('Arquivo importado com sucesso.');
+      } catch (error) {
+        alert('Não foi possível importar o arquivo JSON informado.');
+      }
+    };
+    reader.onerror = function(){
+      alert('Falha ao ler o arquivo JSON selecionado.');
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  const btnExportJson = $('btnExportJson');
+  const btnImportJson = $('btnImportJson');
+  const importJsonInput = $('importJsonInput');
+
+  if (btnExportJson) btnExportJson.addEventListener('click', exportCalculationToJson);
+  if (btnImportJson && importJsonInput) btnImportJson.addEventListener('click', function(){ importJsonInput.click(); });
+  if (importJsonInput) importJsonInput.addEventListener('change', function(){
+    const file = this.files && this.files[0] ? this.files[0] : null;
+    if (file) importCalculationFromJson(file);
+    this.value = '';
   });
 
   $('btnCloseColumnModal').addEventListener('click', closeColumnModal);
