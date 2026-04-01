@@ -128,6 +128,14 @@
     });
   }
 
+  function safeStringify(value){
+    try {
+      return JSON.stringify(value);
+    } catch (error) {
+      return '[unserializable: ' + String(error && error.message || error || 'erro desconhecido') + ']';
+    }
+  }
+
   function formatDateBR(value){
     if (!value) return '—';
     const parts = String(value).split('-');
@@ -959,6 +967,7 @@
     const toCol = lancamento.colunas[toIndex];
     if (!fromCol || !toCol) return false;
     if (fromIndex === toIndex) return false;
+    if (isColumnFixedForReorder(fromCol) || isColumnFixedForReorder(toCol)) return false;
     return true;
   }
 
@@ -1210,7 +1219,19 @@
         lancamentoVerba: lancamento && lancamento.verba
       };
       console.error('Falha ao renderizar lançamento em renderLaunches.', launchContext, error);
-      launchesHost.innerHTML = '<div class="empty-state">Não foi possível renderizar a tabela mensal deste lançamento. Revise os dados ou recrie a verba.</div>';
+      const errorMessage = error && error.message ? error.message : String(error || '');
+      const firstStackLine = error && error.stack ? String(error.stack).split('\n')[0] : '';
+      const columnsJson = safeStringify(lancamento && lancamento.colunas);
+      const rowLengthJson = safeStringify(lancamento && Array.isArray(lancamento.linhas) ? lancamento.linhas.length : null);
+      launchesHost.innerHTML = '' +
+        '<div class="empty-state">Não foi possível renderizar a tabela mensal deste lançamento. Revise os dados ou recrie a verba.</div>' +
+        '<details class="empty-state" style="margin-top:8px">' +
+          '<summary>Detalhes técnicos (diagnóstico temporário)</summary>' +
+          '<div><strong>error.message:</strong> ' + esc(errorMessage) + '</div>' +
+          '<div><strong>error.stack[0]:</strong> ' + esc(firstStackLine) + '</div>' +
+          '<div><strong>lancamento.colunas:</strong> ' + esc(columnsJson) + '</div>' +
+          '<div><strong>lancamento.linhas.length:</strong> ' + esc(rowLengthJson) + '</div>' +
+        '</details>';
     }
   }
 
