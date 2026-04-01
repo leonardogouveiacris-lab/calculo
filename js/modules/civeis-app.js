@@ -962,6 +962,11 @@
     return true;
   }
 
+  function isColumnFixedForReorder(coluna){
+    if (!coluna) return true;
+    return !!coluna.locked;
+  }
+
   function findReorderTargetIndex(lancamento, fromIndex, direction){
     if (!lancamento || !Array.isArray(lancamento.colunas)) return -1;
     const step = direction === 'left' ? -1 : 1;
