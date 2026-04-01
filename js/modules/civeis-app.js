@@ -1144,61 +1144,39 @@
       return;
     }
     const index = getSelectedLaunchIndex();
-    let lancamento = state.lancamentos[index];
+    const lancamento = state.lancamentos[index];
     if (!lancamento){
       launchesHost.innerHTML = '<div class="empty-state">Selecione um lançamento para visualizar a respectiva tabela.</div>';
       return;
     }
-    const lancamentoOriginalId = String(lancamento.id || ('idx_' + index));
-    lancamento = normalizeLaunch(Object.assign({}, lancamento));
-    lancamento.colunas = Array.isArray(lancamento.colunas) ? lancamento.colunas : [];
-    lancamento.linhas = Array.isArray(lancamento.linhas) ? lancamento.linhas : [];
-    let sanitizedInvalidData = false;
-    const validColumns = lancamento.colunas.filter(function(coluna){
-      const isValid = !!(coluna && typeof coluna === 'object' && !Array.isArray(coluna) && String(coluna.id || '').trim() && String(coluna.tipo || '').trim());
-      if (!isValid) sanitizedInvalidData = true;
-      return isValid;
-    });
-    lancamento.colunas = validColumns;
-    lancamento.linhas = lancamento.linhas.map(function(linha){
-      if (!linha || typeof linha !== 'object' || Array.isArray(linha)) {
-        sanitizedInvalidData = true;
-        return { periodo: '' };
-      }
-      const safeLinha = Object.assign({}, linha);
-      if (typeof safeLinha.periodo !== 'string') {
-        sanitizedInvalidData = true;
-        safeLinha.periodo = safeLinha.periodo == null ? '' : String(safeLinha.periodo);
-      }
-      return safeLinha;
-    });
-    if (sanitizedInvalidData) console.warn('[civeis-app] Dados inválidos removidos no saneamento do lançamento:', lancamentoOriginalId);
-    state.lancamentos[index] = lancamento;
-    // Regra de apresentação da verba: alterar somente mapLaunchForView para refletir tela e relatório.
-    const view = mapLaunchForView(lancamento, index);
-    const headCols = ['<th class="col-data">Data</th>'].concat(view.columns.map(function(column, idx){
-      const coluna = column.raw;
-      const indiceMeta = coluna.tipo === 'indice'
-        ? ('<span style="font-size:10px;color:#98a2b3">' + esc(summarizeIndexColumn(coluna).typeLabel + ' • ' + getIndexSourceLabel(coluna)) + '</span>')
-        : '';
-      const metaHtml = '<div class="th-col-meta"><span>' + esc(column.title) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + indiceMeta + '</div>';
-      let actions = '<div class="th-col-actions">';
-      const canMoveLeft = canMoveColumnTo(lancamento, idx, findReorderTargetIndex(lancamento, idx, 'left'));
-      const canMoveRight = canMoveColumnTo(lancamento, idx, findReorderTargetIndex(lancamento, idx, 'right'));
-      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="left" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a esquerda (<)" aria-label="Mover coluna para a esquerda (<)"' + (canMoveLeft ? '' : ' disabled aria-disabled="true"') + '>&lt;</button>';
-      actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="right" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a direita (>)" aria-label="Mover coluna para a direita (>)"' + (canMoveRight ? '' : ' disabled aria-disabled="true"') + '>&gt;</button>';
-      actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Editar coluna">✎</button>';
-      if (coluna.tipo !== 'indice' && coluna.id !== 'valor' && coluna.id !== 'valor_correcao' && coluna.id !== 'valor_juros' && coluna.id !== 'valor_devido') {
-        actions += '<button type="button" class="th-icon-btn danger btnDeleteColumn" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Remover coluna">×</button>';
-      }
-      actions += '</div>';
-      return '<th><div class="th-col-head">' + metaHtml + actions + '</div></th>';
-    })).join('');
-    const rows = view.rows.map(function(row){
-      const valueCells = row.cells.map(function(cell){
-        if (cell.tipo === 'formula') return '<td><input type="text" readonly value="' + esc(cell.inputValue) + '" placeholder="Calculado automaticamente"></td>';
-        if (cell.tipo === 'indice') return '<td><input type="text" readonly value="' + esc(cell.inputValue) + '" placeholder="1,0000000"></td>';
-        return '<td><input type="text" inputmode="decimal" data-launch-index="' + index + '" data-row-index="' + cell.rowIndex + '" data-column-id="' + esc(cell.columnId) + '" class="valor-input" value="' + esc(cell.inputValue) + '" placeholder="0,00"></td>';
+    try {
+      // Regra de apresentação da verba: alterar somente mapLaunchForView para refletir tela e relatório.
+      const view = mapLaunchForView(lancamento, index);
+      const headCols = ['<th class="col-data">Data</th>'].concat(view.columns.map(function(column, idx){
+        const coluna = column.raw;
+        const indiceMeta = coluna.tipo === 'indice'
+          ? ('<span style="font-size:10px;color:#98a2b3">' + esc(summarizeIndexColumn(coluna).typeLabel + ' • ' + getIndexSourceLabel(coluna)) + '</span>')
+          : '';
+        const metaHtml = '<div class="th-col-meta"><span>' + esc(column.title) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + indiceMeta + '</div>';
+        let actions = '<div class="th-col-actions">';
+        const canMoveLeft = canMoveColumnTo(lancamento, idx, findReorderTargetIndex(lancamento, idx, 'left'));
+        const canMoveRight = canMoveColumnTo(lancamento, idx, findReorderTargetIndex(lancamento, idx, 'right'));
+        actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="left" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a esquerda (<)" aria-label="Mover coluna para a esquerda (<)"' + (canMoveLeft ? '' : ' disabled aria-disabled="true"') + '>&lt;</button>';
+        actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="right" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a direita (>)" aria-label="Mover coluna para a direita (>)"' + (canMoveRight ? '' : ' disabled aria-disabled="true"') + '>&gt;</button>';
+        actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Editar coluna">✎</button>';
+        if (coluna.tipo !== 'indice' && coluna.id !== 'valor' && coluna.id !== 'valor_correcao' && coluna.id !== 'valor_juros' && coluna.id !== 'valor_devido') {
+          actions += '<button type="button" class="th-icon-btn danger btnDeleteColumn" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Remover coluna">×</button>';
+        }
+        actions += '</div>';
+        return '<th><div class="th-col-head">' + metaHtml + actions + '</div></th>';
+      })).join('');
+      const rows = view.rows.map(function(row){
+        const valueCells = row.cells.map(function(cell){
+          if (cell.tipo === 'formula') return '<td><input type="text" readonly value="' + esc(cell.inputValue) + '" placeholder="Calculado automaticamente"></td>';
+          if (cell.tipo === 'indice') return '<td><input type="text" readonly value="' + esc(cell.inputValue) + '" placeholder="1,0000000"></td>';
+          return '<td><input type="text" inputmode="decimal" data-launch-index="' + index + '" data-row-index="' + cell.rowIndex + '" data-column-id="' + esc(cell.columnId) + '" class="valor-input" value="' + esc(cell.inputValue) + '" placeholder="0,00"></td>';
+        }).join('');
+        return '<tr><td>' + esc(row.periodo) + '</td>' + valueCells + '</tr>';
       }).join('');
       const badges = view.badges.map(function(label){
         return '<span class="mini-badge">' + esc(label) + '</span>';
