@@ -967,7 +967,14 @@
     const toCol = lancamento.colunas[toIndex];
     if (!fromCol || !toCol) return false;
     if (fromIndex === toIndex) return false;
+    if (isColumnFixedForReorder(fromCol) || isColumnFixedForReorder(toCol)) return false;
     return true;
+  }
+
+  function isColumnFixedForReorder(coluna){
+    if (!coluna) return true;
+    if (coluna.locked) return true;
+    return coluna.id === 'valor' || coluna.id === 'valor_correcao' || coluna.id === 'valor_juros' || coluna.id === 'valor_devido';
   }
 
   function findReorderTargetIndex(lancamento, fromIndex, direction){
