@@ -347,12 +347,7 @@
 
   function buildDefaultColumns(){
     const valor = { id:'valor', nome:'Valor', tipo:'manual' };
-    const correcao = normalizeIndexColumn(DEFAULT_INDEX_COLUMNS[0]);
-    const juros = normalizeIndexColumn(DEFAULT_INDEX_COLUMNS[1]);
-    const valorCorrecao = Object.assign({}, DEFAULT_RESULT_COLUMNS[0], { formula: defaultValorCorrecaoFormula() });
-    const valorJuros = Object.assign({}, DEFAULT_RESULT_COLUMNS[1], { formula: defaultValorJurosFormula() });
-    const valorDevido = Object.assign({}, DEFAULT_RESULT_COLUMNS[2], { formula: defaultValorDevidoFormula() });
-    return [valor, correcao, valorCorrecao, juros, valorJuros, valorDevido];
+    return [valor];
   }
   function defaultIndexConfig(){ return { mode: 'factor_v9', lastAutoRefresh: '' }; }
 
@@ -666,94 +661,14 @@
     lancamento.indexConfig = Object.assign(defaultIndexConfig(), lancamento.indexConfig || {});
     const existing = Array.isArray(lancamento.colunas) ? lancamento.colunas.slice() : [];
     const valor = existing.find(function(item){ return item && item.id === 'valor'; }) || { id:'valor', nome:'Valor', tipo:'manual' };
-    const preserved = existing.filter(function(item){
-      return item && item.id !== 'valor' && item.id !== 'valor_correcao' && item.id !== 'valor_juros' && item.id !== 'valor_devido';
-    });
-    const indexConfig = lancamento.indexConfig || {};
-    const legacyLimits = indexConfig.limits || {};
-    const indexColumns = [];
-    preserved.forEach(function(item){
-      if (!item || item.tipo !== 'indice') return;
-      const legacyKind = item.indexKind || (item.id === 'juros' ? 'juros' : (item.id === 'correcao_monetaria' ? 'correcao' : ''));
-      const legacySource = item.indexSource || item.defaultSource || (legacyKind ? indexConfig[legacyKind] : '');
-      const legacyLimit = item.indexLimit || (legacyKind ? legacyLimits[legacyKind] : null) || {};
-      indexColumns.push(normalizeIndexColumn(item, {
-        indexKind: legacyKind || 'correcao',
-        indexSource: legacySource,
-        indexLimit: legacyLimit
-      }));
-    });
-    if (!indexColumns.some(function(col){ return col.id === 'correcao_monetaria'; })) {
-      indexColumns.push(normalizeIndexColumn(existing.find(function(item){ return item && item.id === 'correcao_monetaria'; }) || DEFAULT_INDEX_COLUMNS[0], DEFAULT_INDEX_COLUMNS[0]));
-    }
-    if (!indexColumns.some(function(col){ return col.id === 'juros'; })) {
-      indexColumns.push(normalizeIndexColumn(existing.find(function(item){ return item && item.id === 'juros'; }) || DEFAULT_INDEX_COLUMNS[1], DEFAULT_INDEX_COLUMNS[1]));
-    }
-    const indexById = new Map(indexColumns.map(function(col){ return [col.id, col]; }));
-    const orderedDynamic = preserved.map(function(item){
-      if (!item) return null;
-      if (item.tipo === 'indice') return indexById.get(item.id) || null;
-      return item;
-    }).filter(function(item){
-      return item && item.id !== 'correcao_monetaria' && item.id !== 'juros';
-    });
-    indexColumns.forEach(function(item){
-      if (!item || item.id === 'correcao_monetaria' || item.id === 'juros') return;
-      if (!orderedDynamic.some(function(existingCol){ return existingCol.id === item.id; })) orderedDynamic.push(item);
-    });
-    const correcaoBase = indexColumns.find(function(col){ return col.id === 'correcao_monetaria'; }) || normalizeIndexColumn(DEFAULT_INDEX_COLUMNS[0]);
-    const jurosBase = indexColumns.find(function(col){ return col.id === 'juros'; }) || normalizeIndexColumn(DEFAULT_INDEX_COLUMNS[1]);
-
-    const leadingCols = [Object.assign({ id:'valor', nome:'Valor', tipo:'manual' }, valor)].concat(orderedDynamic);
-    const valorCorrecaoAtual = existing.find(function(item){ return item && item.id === 'valor_correcao'; });
-    const valorCorrecaoCol = Object.assign({
-      id:'valor_correcao',
-      nome:'Valor da Correção',
-      tipo:'formula',
-      formato:'moeda',
-      formula: defaultValorCorrecaoFormula()
-    }, valorCorrecaoAtual || {}, {
-      id:'valor_correcao',
-      tipo:'formula',
-      formato:'moeda',
-      formula: (valorCorrecaoAtual && valorCorrecaoAtual.formula) || defaultValorCorrecaoFormula()
-    });
-
-    const valorJurosAtual = existing.find(function(item){ return item && item.id === 'valor_juros'; });
-    const valorJurosCol = Object.assign({
-      id:'valor_juros',
-      nome:'Valor dos Juros',
-      tipo:'formula',
-      formato:'moeda',
-      formula: defaultValorJurosFormula()
-    }, valorJurosAtual || {}, {
-      id:'valor_juros',
-      tipo:'formula',
-      formato:'moeda',
-      formula: (valorJurosAtual && valorJurosAtual.formula) || defaultValorJurosFormula()
-    });
-
-    const valorDevidoAtual = existing.find(function(item){ return item && item.id === 'valor_devido'; });
-    const valorDevidoDefaultFormula = defaultValorDevidoFormula();
-    const valorDevidoFormula = (valorDevidoAtual && valorDevidoAtual.formula && !isLegacyValorDevidoFormula(valorDevidoAtual.formula))
-      ? valorDevidoAtual.formula
-      : valorDevidoDefaultFormula;
-    const valorDevidoCol = Object.assign({
-      id:'valor_devido',
-      nome:'Valor Devido',
-      tipo:'formula',
-      formato:'moeda',
-      formula: valorDevidoDefaultFormula
-    }, valorDevidoAtual || {}, {
-      id:'valor_devido',
-      tipo:'formula',
-      formato:'moeda',
-      formula: valorDevidoFormula
-    });
-
-    lancamento.colunas = leadingCols.concat([correcaoBase, valorCorrecaoCol, jurosBase, valorJurosCol, valorDevidoCol]).map(function(coluna){
+    const fixedColumnIds = new Set(['correcao_monetaria', 'juros', 'valor_correcao', 'valor_juros', 'valor_devido']);
+    const dynamicColumns = existing.filter(function(item){
+      return item && item.id !== 'valor' && !fixedColumnIds.has(String(item.id || ''));
+    }).map(function(coluna){
       return coluna && coluna.tipo === 'indice' ? normalizeIndexColumn(coluna) : coluna;
     });
+
+    lancamento.colunas = [Object.assign({ id:'valor', nome:'Valor', tipo:'manual' }, valor)].concat(dynamicColumns);
     lancamento.colunas.forEach(function(coluna){
       if (coluna && coluna.tipo === 'formula') coluna.formula = convertFormulaToStableTokens(coluna.formula, lancamento);
     });
@@ -873,7 +788,6 @@
     editIndexFieldWrap.style.display = coluna.tipo === 'indice' ? 'block' : 'none';
     editModalColumnName.readOnly = !!coluna.locked;
     editModalColumnName.placeholder = coluna.locked ? 'Nome fixo da coluna padrão' : 'Ex.: Índice, Percentual, Resultado';
-    if (coluna.id === 'valor_devido' && !editModalColumnFormula.value) editModalColumnFormula.value = coluna.formula || defaultValorDevidoFormula();
     if (coluna.tipo === 'indice') {
       const opts = INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || [];
       const current = coluna.indexSource || defaultIndexSourceByKind(coluna.indexKind || 'correcao');
@@ -945,7 +859,7 @@
     const pos = lancamento.colunas.findIndex(function(item){ return item.id === columnId; });
     if (pos === -1) return;
     const coluna = lancamento.colunas[pos];
-    if (coluna.id === 'valor' || coluna.id === 'valor_correcao' || coluna.id === 'valor_juros' || coluna.id === 'valor_devido' || coluna.locked){ alert('Esta coluna é obrigatória e não pode ser removida.'); return; }
+    if (coluna.id === 'valor'){ alert('A coluna Valor é obrigatória e não pode ser removida.'); return; }
     lancamento.colunas.splice(pos, 1);
     lancamento.linhas.forEach(function(linha){ delete linha[columnId]; });
     recalculateLaunch(lancamento);
@@ -968,7 +882,7 @@
     let cursor = fromIndex + step;
     while (cursor >= 0 && cursor < lancamento.colunas.length) {
       const candidate = lancamento.colunas[cursor];
-      if (!isColumnFixedForReorder(candidate)) return cursor;
+      if (candidate) return cursor;
       cursor += step;
     }
     return -1;
@@ -1164,7 +1078,7 @@
         actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="left" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a esquerda (<)" aria-label="Mover coluna para a esquerda (<)"' + (canMoveLeft ? '' : ' disabled aria-disabled="true"') + '>&lt;</button>';
         actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="right" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a direita (>)" aria-label="Mover coluna para a direita (>)"' + (canMoveRight ? '' : ' disabled aria-disabled="true"') + '>&gt;</button>';
         actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Editar coluna">✎</button>';
-        if (coluna.tipo !== 'indice' && coluna.id !== 'valor' && coluna.id !== 'valor_correcao' && coluna.id !== 'valor_juros' && coluna.id !== 'valor_devido') {
+        if (coluna.id !== 'valor') {
           actions += '<button type="button" class="th-icon-btn danger btnDeleteColumn" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Remover coluna">×</button>';
         }
         actions += '</div>';
