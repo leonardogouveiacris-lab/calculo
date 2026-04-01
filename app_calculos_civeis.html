@@ -117,6 +117,11 @@ textarea{min-height:92px;resize:vertical}
           <div class="col-4"><label for="dataAtualizacao">Data de atualização do cálculo</label><input id="dataAtualizacao" type="date"></div>
           <div class="col-12"><label for="observacoes">Observações iniciais</label><textarea id="observacoes" placeholder="Campo inicial para registrar o objeto do cálculo, critérios e observações gerais."></textarea></div>
         </div>
+        <div class="btn-row">
+          <button class="btn-ghost" id="btnExportJson" type="button">Exportar cálculo (.json)</button>
+          <button class="btn-ghost" id="btnImportJson" type="button">Importar cálculo (.json)</button>
+          <input id="importJsonInput" type="file" accept=".json,application/json" style="display:none">
+        </div>
       </section>
     </section>
 
@@ -234,9 +239,6 @@ textarea{min-height:92px;resize:vertical}
         <div class="btn-row">
           <button class="btn-primary" id="btnCriarLancamento" type="button">Lançar cálculo</button>
           <button class="btn-ghost" id="btnAtualizar" type="button">Atualizar relatório</button>
-          <button class="btn-ghost" id="btnExportJson" type="button">Exportar .json</button>
-          <button class="btn-ghost" id="btnImportJson" type="button">Importar .json</button>
-          <input id="importJsonInput" type="file" accept=".json,application/json" style="display:none">
           <button class="btn-ghost" id="btnLimpar" type="button">Limpar tudo</button>
         </div>
         <div class="launch-selector">
