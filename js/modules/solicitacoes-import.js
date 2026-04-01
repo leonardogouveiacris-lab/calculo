@@ -62,22 +62,7 @@
 
   function normalizeEntregaText(raw){
     if (raw == null || raw === '') return '';
-    if (typeof raw === 'number' && Number.isFinite(raw)) {
-      return dateBR(new Date(Date.UTC(1899,11,30) + Math.round(raw * 86400000)));
-    }
-    if (raw instanceof Date && !isNaN(raw.getTime())) {
-      return dateBR(new Date(Date.UTC(raw.getUTCFullYear(), raw.getUTCMonth(), raw.getUTCDate())));
-    }
-    var text = String(raw).trim();
-    if (!text) return '';
-    if (/^\d{2}\/\d{2}\/\d{4}$/.test(text)) return text;
-    var isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
-    if (isoMatch) return isoMatch[3] + '/' + isoMatch[2] + '/' + isoMatch[1];
-    if (/^\d{5,}(?:\.\d+)?$/.test(text)) {
-      var serial = Number(text);
-      if (Number.isFinite(serial)) return dateBR(new Date(Date.UTC(1899,11,30) + Math.round(serial * 86400000)));
-    }
-    return text;
+    return String(raw).trim();
   }
 
   function nextRowId(){
