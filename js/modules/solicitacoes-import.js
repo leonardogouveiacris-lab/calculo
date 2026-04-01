@@ -45,11 +45,11 @@
     }
     if (typeof value === 'number' && Number.isFinite(value)) return new Date(Date.UTC(1899,11,30) + Math.round(value * 86400000));
     var text = String(value).trim();
-    if (/^\d{5,}$/.test(text)) {
+    if (/^\d{5,}(?:\.\d+)?$/.test(text)) {
       var serial = Number(text);
       if (Number.isFinite(serial)) return new Date(Date.UTC(1899,11,30) + Math.round(serial * 86400000));
     }
-    var isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})T/);
+    var isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
     if (isoMatch) return new Date(Date.UTC(+isoMatch[1], +isoMatch[2] - 1, +isoMatch[3]));
     var match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
     if (match) return new Date(Date.UTC(+match[3], +match[2] - 1, +match[1]));
@@ -77,8 +77,6 @@
     }
     match = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
     if (match) return new Date(Date.UTC(+match[3], +match[2] - 1, +match[1]));
-    match = text.match(/^(\d{4})[-\/](\d{2})[-\/](\d{2})$/);
-    if (match) return new Date(Date.UTC(+match[1], +match[2] - 1, +match[3]));
     return null;
   }
 
@@ -91,18 +89,23 @@
     if (typeof value === 'string') {
       var text = value.trim();
       if (!text) return '';
-      var m = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+      var m = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
       if (m) {
-        var day = String(+m[1]).padStart(2, '0');
-        var month = String(+m[2]).padStart(2, '0');
-        var year = m[3].length === 2 ? String(2000 + +m[3]) : m[3];
-        return day + '/' + month + '/' + year;
+        return m[1] + '/' + m[2] + '/' + m[3];
       }
-      m = text.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+      m = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
       if (m) {
-        return String(+m[3]).padStart(2, '0') + '/' + String(+m[2]).padStart(2, '0') + '/' + m[1];
+        return String(+m[1]).padStart(2, '0') + '/' + String(+m[2]).padStart(2, '0') + '/' + m[3];
       }
-      if (/^\d{5,}$/.test(text)) {
+      m = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+      if (m) {
+        return m[1] + '/' + m[2] + '/' + m[3];
+      }
+      m = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
+      if (m) {
+        return m[3] + '/' + m[2] + '/' + m[1];
+      }
+      if (/^\d{5,}(?:\.\d+)?$/.test(text)) {
         var serial = Number(text);
         if (Number.isFinite(serial)) return dateBR(new Date(Date.UTC(1899,11,30) + Math.round(serial * 86400000)));
       }
