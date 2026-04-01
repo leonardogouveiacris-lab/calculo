@@ -957,12 +957,24 @@
     return true;
   }
 
+  function findReorderTargetIndex(lancamento, fromIndex, direction){
+    if (!lancamento || !Array.isArray(lancamento.colunas)) return -1;
+    const step = direction === 'left' ? -1 : 1;
+    let cursor = fromIndex + step;
+    while (cursor >= 0 && cursor < lancamento.colunas.length) {
+      const candidate = lancamento.colunas[cursor];
+      if (!isColumnFixedForReorder(candidate)) return cursor;
+      cursor += step;
+    }
+    return -1;
+  }
+
   function moveColumn(launchIndex, columnId, direction){
     const lancamento = state.lancamentos[launchIndex];
     if (!lancamento || !Array.isArray(lancamento.colunas)) return;
     const fromIndex = lancamento.colunas.findIndex(function(item){ return item.id === columnId; });
     if (fromIndex === -1) return;
-    const toIndex = direction === 'left' ? fromIndex - 1 : fromIndex + 1;
+    const toIndex = findReorderTargetIndex(lancamento, fromIndex, direction);
     if (!canMoveColumnTo(lancamento, fromIndex, toIndex)) return;
     const col = lancamento.colunas.splice(fromIndex, 1)[0];
     lancamento.colunas.splice(toIndex, 0, col);
@@ -1141,8 +1153,8 @@
         : '';
       const metaHtml = '<div class="th-col-meta"><span>' + esc(column.title) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + indiceMeta + '</div>';
       let actions = '<div class="th-col-actions">';
-      const canMoveLeft = canMoveColumnTo(lancamento, idx, idx - 1);
-      const canMoveRight = canMoveColumnTo(lancamento, idx, idx + 1);
+      const canMoveLeft = canMoveColumnTo(lancamento, idx, findReorderTargetIndex(lancamento, idx, 'left'));
+      const canMoveRight = canMoveColumnTo(lancamento, idx, findReorderTargetIndex(lancamento, idx, 'right'));
       actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="left" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a esquerda (<)" aria-label="Mover coluna para a esquerda (<)"' + (canMoveLeft ? '' : ' disabled aria-disabled="true"') + '>&lt;</button>';
       actions += '<button type="button" class="th-icon-btn btnMoveColumn" data-direction="right" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Mover coluna para a direita (>)" aria-label="Mover coluna para a direita (>)"' + (canMoveRight ? '' : ' disabled aria-disabled="true"') + '>&gt;</button>';
       actions += '<button type="button" class="th-icon-btn btnEditColumn" data-launch-index="' + index + '" data-column-id="' + esc(column.id) + '" title="Editar coluna">✎</button>';
@@ -1642,13 +1654,13 @@
 
     CPPrintLayout.appendSection(layout, {
       title: 'Identificação do cálculo',
-      html: '<div class="kv-grid">' +
-        '<div class="kv-item"><div class="kv-label">Requerente</div><div class="kv-value">' + esc(data.requerente || '—') + '</div></div>' +
-        '<div class="kv-item"><div class="kv-label">Requerido</div><div class="kv-value">' + esc(data.requerido || '—') + '</div></div>' +
-        '<div class="kv-item"><div class="kv-label">Número do processo</div><div class="kv-value">' + esc(data.processo || '—') + '</div></div>' +
-        '<div class="kv-item"><div class="kv-label">Data do ajuizamento</div><div class="kv-value">' + esc(formatDateBR(data.ajuizamento)) + '</div></div>' +
-        '<div class="kv-item full"><div class="kv-label">Observações iniciais</div><div class="kv-value">' + esc(data.observacoes || 'Sem observações iniciais registradas.') + '</div></div>' +
-      '</div>'
+      html: '<table class="report-table"><tbody>' +
+        '<tr><td class="bold" style="width:34%">Requerente</td><td>' + esc(data.requerente || '—') + '</td></tr>' +
+        '<tr><td class="bold">Requerido</td><td>' + esc(data.requerido || '—') + '</td></tr>' +
+        '<tr><td class="bold">Número do processo</td><td>' + esc(data.processo || '—') + '</td></tr>' +
+        '<tr><td class="bold">Data do ajuizamento</td><td>' + esc(formatDateBR(data.ajuizamento)) + '</td></tr>' +
+        '<tr><td class="bold">Observações iniciais</td><td>' + esc(data.observacoes || 'Sem observações iniciais registradas.') + '</td></tr>' +
+      '</tbody></table>'
     });
 
     CPPrintLayout.appendSection(layout, {
@@ -2281,4 +2293,3 @@
     });
   }, 0);
 })();
-
