@@ -60,27 +60,24 @@
     return String(date.getUTCDate()).padStart(2, '0') + '/' + String(date.getUTCMonth() + 1).padStart(2, '0') + '/' + date.getUTCFullYear();
   }
 
-  function formatEntregaDate(value){
-    if (value == null || value === '') return '';
-    if (typeof value === 'string') {
-      var text = value.trim();
-      if (!text) return '';
-      var m = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-      if (m) {
-        return text;
-      }
-      m = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
-      if (m) {
-        return m[3] + '/' + m[2] + '/' + m[1];
-      }
-      if (/^\d{5,}(?:\.\d+)?$/.test(text)) {
-        var serial = Number(text);
-        if (Number.isFinite(serial)) return dateBR(new Date(Date.UTC(1899,11,30) + Math.round(serial * 86400000)));
-      }
-      return text;
+  function normalizeEntregaText(raw){
+    if (raw == null || raw === '') return '';
+    if (typeof raw === 'number' && Number.isFinite(raw)) {
+      return dateBR(new Date(Date.UTC(1899,11,30) + Math.round(raw * 86400000)));
     }
-    var parsed = parseDateAny(value);
-    return parsed ? dateBR(parsed) : String(value).trim();
+    if (raw instanceof Date && !isNaN(raw.getTime())) {
+      return dateBR(new Date(Date.UTC(raw.getUTCFullYear(), raw.getUTCMonth(), raw.getUTCDate())));
+    }
+    var text = String(raw).trim();
+    if (!text) return '';
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(text)) return text;
+    var isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
+    if (isoMatch) return isoMatch[3] + '/' + isoMatch[2] + '/' + isoMatch[1];
+    if (/^\d{5,}(?:\.\d+)?$/.test(text)) {
+      var serial = Number(text);
+      if (Number.isFinite(serial)) return dateBR(new Date(Date.UTC(1899,11,30) + Math.round(serial * 86400000)));
+    }
+    return text;
   }
 
   function nextRowId(){
@@ -157,7 +154,7 @@
         else if (column === 'Numero do Processo') raw = extractNumeroProcesso(row);
         else raw = getCell(row, root.ALIASES[column]);
         if (column === 'Entrega em') {
-          normalized[column] = String(raw == null ? '' : raw).trim();
+          normalized[column] = normalizeEntregaText(raw);
           return;
         }
         if (column === 'Total (Total)') {
