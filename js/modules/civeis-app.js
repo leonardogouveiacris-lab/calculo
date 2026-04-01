@@ -1200,28 +1200,39 @@
         if (cell.tipo === 'indice') return '<td><input type="text" readonly value="' + esc(cell.inputValue) + '" placeholder="1,0000000"></td>';
         return '<td><input type="text" inputmode="decimal" data-launch-index="' + index + '" data-row-index="' + cell.rowIndex + '" data-column-id="' + esc(cell.columnId) + '" class="valor-input" value="' + esc(cell.inputValue) + '" placeholder="0,00"></td>';
       }).join('');
-      return '<tr><td>' + esc(row.periodo) + '</td>' + valueCells + '</tr>';
-    }).join('');
-    const badges = view.badges.map(function(label){
-      return '<span class="mini-badge">' + esc(label) + '</span>';
-    }).join('');
-    const hasIndexColumn = (lancamento.colunas || []).some(function(coluna){ return coluna && coluna.tipo === 'indice'; });
-    const indexSummaryRows = view.indexSummary.map(function(summary){
-      return '' +
-        '<div class="index-summary-row">' +
-          '<strong>' + esc(summary.name) + '</strong>' +
-          (summary.columnRef ? '<span class="index-summary-col-ref">Coluna: ' + esc(summary.columnRef) + '</span>' : '') +
-          '<span>Fonte: ' + esc(summary.sourceLabel) + '</span>' +
-          '<span>Limitação: ' + esc(summary.limitLabel) + '</span>' +
-        '</div>';
-    }).join('');
-    const fallbackIndexSummaryRows = hasIndexColumn && !indexSummaryRows
-      ? '<div class="index-summary-row"><strong>Índice</strong><span>Coluna: identificador indisponível</span><span>Fonte: não informada</span><span>Limitação: sem limite</span></div>'
-      : '';
-    const indexSummaryBlock = hasIndexColumn
-      ? '<div class="index-summary" role="note" aria-label="Resumo dos índices aplicados">' + (indexSummaryRows || fallbackIndexSummaryRows) + '</div>'
-      : '';
-    launchesHost.innerHTML = '' +
+      const badges = view.badges.map(function(label){
+        return '<span class="mini-badge">' + esc(label) + '</span>';
+      }).join('');
+      const hasIndexColumn = (lancamento.colunas || []).some(function(coluna){ return coluna && coluna.tipo === 'indice'; });
+      const indexSummaryRows = view.indexSummary.map(function(summary){
+        return '' +
+          '<div class="index-summary-row">' +
+            '<strong>' + esc(summary.name) + '</strong>' +
+            (summary.columnRef ? '<span class="index-summary-col-ref">Coluna: ' + esc(summary.columnRef) + '</span>' : '') +
+            '<span>Fonte: ' + esc(summary.sourceLabel) + '</span>' +
+            '<span>Limitação: ' + esc(summary.limitLabel) + '</span>' +
+          '</div>';
+      }).join('');
+      const fallbackIndexSummaryRows = hasIndexColumn && !indexSummaryRows
+        ? '<div class="index-summary-row"><strong>Índice</strong><span>Coluna: identificador indisponível</span><span>Fonte: não informada</span><span>Limitação: sem limite</span></div>'
+        : '';
+      const indexSummaryBlock = hasIndexColumn
+        ? '<div class="index-summary" role="note" aria-label="Resumo dos índices aplicados">' + (indexSummaryRows || fallbackIndexSummaryRows) + '</div>'
+        : '';
+      launchesHost.innerHTML = buildLaunchEditorHtml(view, lancamento, index, headCols, rows, badges, indexSummaryBlock);
+    } catch (error) {
+      const launchContext = {
+        launchIndex: index,
+        lancamentoId: lancamento && lancamento.id,
+        lancamentoVerba: lancamento && lancamento.verba
+      };
+      console.error('Falha ao renderizar lançamento em renderLaunches.', launchContext, error);
+      launchesHost.innerHTML = '<div class="empty-state">Não foi possível renderizar a tabela mensal deste lançamento. Revise os dados ou recrie a verba.</div>';
+    }
+  }
+
+  function buildLaunchEditorHtml(view, lancamento, index, headCols, rows, badges, indexSummaryBlock){
+    return '' +
       '<div class="launch-card">' +
         '<div class="launch-head">' +
           '<div>' +
