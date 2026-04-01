@@ -27,7 +27,7 @@
     }
     var parts = winner.split('-').map(Number);
     var date = new Date(Date.UTC(parts[0], parts[1] - 1, 1));
-    var mes = date.toLocaleDateString('pt-BR', { month: 'long' });
+    var mes = date.toLocaleDateString('pt-BR', { month: 'long', timeZone: 'UTC' });
     root.store.competenciaAtual = mes.charAt(0).toUpperCase() + mes.slice(1) + ' de ' + parts[0];
     E('solicitacoesCompetencia').textContent = 'Competência: ' + root.store.competenciaAtual;
   }
