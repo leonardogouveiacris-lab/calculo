@@ -58,29 +58,6 @@
     return String(date.getUTCDate()).padStart(2, '0') + '/' + String(date.getUTCMonth() + 1).padStart(2, '0') + '/' + date.getUTCFullYear();
   }
 
-  function formatEntregaDate(value){
-    if (value == null || value === '') return '';
-    if (typeof value === 'string') {
-      var text = value.trim();
-      if (!text) return '';
-      var m = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-      if (m) {
-        return text;
-      }
-      m = text.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
-      if (m) {
-        return m[3] + '/' + m[2] + '/' + m[1];
-      }
-      if (/^\d{5,}(?:\.\d+)?$/.test(text)) {
-        var serial = Number(text);
-        if (Number.isFinite(serial)) return dateBR(new Date(Date.UTC(1899,11,30) + Math.round(serial * 86400000)));
-      }
-      return text;
-    }
-    var parsed = parseDateAny(value);
-    return parsed ? dateBR(parsed) : String(value).trim();
-  }
-
   function nextRowId(){
     root._rowSeq = (root._rowSeq || 0) + 1;
     return 'row_' + root._rowSeq;
@@ -138,7 +115,7 @@
         else if (column === 'Numero do Processo') raw = extractNumeroProcesso(row);
         else raw = getCell(row, root.ALIASES[column]);
         if (column === 'Entrega em') {
-          normalized[column] = formatEntregaDate(raw);
+          normalized[column] = String(raw == null ? '' : raw).trim();
           return;
         }
         if (column === 'Total (Total)') {
