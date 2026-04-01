@@ -38,10 +38,16 @@
 
   function parseDateAny(value){
     if (value == null || value === '') return null;
-    if (value instanceof Date && !isNaN(value.getTime())) return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()));
+    if (value instanceof Date && !isNaN(value.getTime())) {
+      return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
+    }
     if (typeof value === 'number' && Number.isFinite(value)) return new Date(Date.UTC(1899,11,30) + Math.round(value * 86400000));
     var text = String(value).trim();
+    var isoMatch = text.match(/^(\d{4})-(\d{2})-(\d{2})T/);
+    if (isoMatch) return new Date(Date.UTC(+isoMatch[1], +isoMatch[2] - 1, +isoMatch[3]));
     var match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (match) return new Date(Date.UTC(+match[3], +match[2] - 1, +match[1]));
+    match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if (match) return new Date(Date.UTC(+match[3], +match[2] - 1, +match[1]));
     match = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
     if (match) return new Date(Date.UTC(+match[3], +match[2] - 1, +match[1]));
