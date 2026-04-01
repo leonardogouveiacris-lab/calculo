@@ -54,12 +54,7 @@
     var match = text.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
     if (match) return new Date(Date.UTC(+match[3], +match[2] - 1, +match[1]));
     match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (match) {
-      var d1 = +match[1];
-      var m1 = +match[2];
-      if (d1 <= 12 && m1 <= 12 && preferMDY) return new Date(Date.UTC(+match[3], d1 - 1, m1));
-      return new Date(Date.UTC(+match[3], m1 - 1, d1));
-    }
+    if (match) return new Date(Date.UTC(+match[3], +match[2] - 1, +match[1]));
     match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2})$/);
     if (match) {
       var p1 = +match[1];
@@ -68,7 +63,6 @@
       var day = p1;
       var month = p2;
       if (p1 <= 12 && p2 > 12) { day = p2; month = p1; }
-      else if (p1 <= 12 && p2 <= 12 && preferMDY) { day = p2; month = p1; }
       return new Date(Date.UTC(year, month - 1, day));
     }
     match = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
@@ -79,7 +73,6 @@
       var dd = a;
       var mm = b;
       if (a <= 12 && b > 12) { dd = b; mm = a; }
-      else if (a <= 12 && b <= 12 && preferMDY) { dd = b; mm = a; }
       return new Date(Date.UTC(yyyy, mm - 1, dd));
     }
     match = text.match(/^(\d{2})-(\d{2})-(\d{4})$/);
