@@ -968,7 +968,7 @@
     let cursor = fromIndex + step;
     while (cursor >= 0 && cursor < lancamento.colunas.length) {
       const candidate = lancamento.colunas[cursor];
-      if (!isColumnFixedForReorder(candidate)) return cursor;
+      if (candidate) return cursor;
       cursor += step;
     }
     return -1;
