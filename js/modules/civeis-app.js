@@ -1144,11 +1144,36 @@
       return;
     }
     const index = getSelectedLaunchIndex();
-    const lancamento = state.lancamentos[index];
+    let lancamento = state.lancamentos[index];
     if (!lancamento){
       launchesHost.innerHTML = '<div class="empty-state">Selecione um lançamento para visualizar a respectiva tabela.</div>';
       return;
     }
+    const lancamentoOriginalId = String(lancamento.id || ('idx_' + index));
+    lancamento = normalizeLaunch(Object.assign({}, lancamento));
+    lancamento.colunas = Array.isArray(lancamento.colunas) ? lancamento.colunas : [];
+    lancamento.linhas = Array.isArray(lancamento.linhas) ? lancamento.linhas : [];
+    let sanitizedInvalidData = false;
+    const validColumns = lancamento.colunas.filter(function(coluna){
+      const isValid = !!(coluna && typeof coluna === 'object' && !Array.isArray(coluna) && String(coluna.id || '').trim() && String(coluna.tipo || '').trim());
+      if (!isValid) sanitizedInvalidData = true;
+      return isValid;
+    });
+    lancamento.colunas = validColumns;
+    lancamento.linhas = lancamento.linhas.map(function(linha){
+      if (!linha || typeof linha !== 'object' || Array.isArray(linha)) {
+        sanitizedInvalidData = true;
+        return { periodo: '' };
+      }
+      const safeLinha = Object.assign({}, linha);
+      if (typeof safeLinha.periodo !== 'string') {
+        sanitizedInvalidData = true;
+        safeLinha.periodo = safeLinha.periodo == null ? '' : String(safeLinha.periodo);
+      }
+      return safeLinha;
+    });
+    if (sanitizedInvalidData) console.warn('[civeis-app] Dados inválidos removidos no saneamento do lançamento:', lancamentoOriginalId);
+    state.lancamentos[index] = lancamento;
     // Regra de apresentação da verba: alterar somente mapLaunchForView para refletir tela e relatório.
     const view = mapLaunchForView(lancamento, index);
     const headCols = ['<th class="col-data">Data</th>'].concat(view.columns.map(function(column, idx){
