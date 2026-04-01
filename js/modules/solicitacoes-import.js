@@ -157,7 +157,7 @@
         else if (column === 'Numero do Processo') raw = extractNumeroProcesso(row);
         else raw = getCell(row, root.ALIASES[column]);
         if (column === 'Entrega em') {
-          normalized[column] = formatEntregaDate(raw);
+          normalized[column] = String(raw == null ? '' : raw).trim();
           return;
         }
         if (column === 'Total (Total)') {
