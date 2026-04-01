@@ -110,10 +110,31 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
       } else if (/\.(xlsx|xls)$/i.test(file.name)) {
         if (!window.XLSX) throw new Error('SheetJS não carregado');
         var workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
-        data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {
-          defval: '',
-          raw: true
-        });
+        var sheet = workbook.Sheets[workbook.SheetNames[0]];
+        var matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
+        if (!matrix.length) data = [];
+        else {
+          var headers = matrix[0].map(function(h){ return String(h == null ? '' : h).trim(); });
+          var entregaIdx = headers.findIndex(function(h){ return root.canonical(h) === root.canonical('Entrega em'); });
+          data = [];
+          for (var r = 1; r < matrix.length; r += 1) {
+            var rowValues = matrix[r] || [];
+            var hasValue = rowValues.some(function(cell){ return String(cell == null ? '' : cell).trim() !== ''; });
+            if (!hasValue) continue;
+            var row = {};
+            headers.forEach(function(header, c){
+              row[header] = rowValues[c] == null ? '' : rowValues[c];
+            });
+            if (entregaIdx >= 0) {
+              var ref = XLSX.utils.encode_cell({ r: r, c: entregaIdx });
+              var cell = sheet[ref];
+              if (cell && cell.w != null && String(cell.w).trim() !== '') {
+                row[headers[entregaIdx]] = String(cell.w).trim();
+              }
+            }
+            data.push(row);
+          }
+        }
       } else {
         throw new Error('Formato não suportado');
       }
