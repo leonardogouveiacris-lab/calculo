@@ -112,8 +112,7 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
         var workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
         data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {
           defval: '',
-          raw: false,
-          dateNF: 'dd/mm/yyyy'
+          raw: true
         });
       } else {
         throw new Error('Formato não suportado');
