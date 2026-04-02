@@ -29,7 +29,7 @@
   function createModule(userConfig){
     const config = Object.assign({}, defaults, userConfig || {});
     const state = {
-      deposits: [], indices: [], lastCalc: null,
+      deposits: [], indices: [], autoIndexPayload: null, lastCalc: null,
       header: { ...DEFAULT_HEADER }, footer: { ...DEFAULT_FOOTER }, info: { reclamante:'', reclamada:'', processo:'' }, logoDataUrl: '',
       editingDepIndex: -1, editingIdxIndex: -1
     };

@@ -66,6 +66,24 @@
       .sort(compareMonth);
   }
 
+  function bcbDateToISO(brDate){
+    var parts = String(brDate || '').split('/');
+    if (parts.length !== 3) return '';
+    return parts[2] + '-' + parts[1] + '-' + parts[0];
+  }
+
+  function dailyCompoundExactFactor(bcbDailyList, seriesCode, startISO, endISO){
+    var start = String(startISO || '');
+    var end = String(endISO || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end) || start > end) return 1;
+    return (bcbDailyList || []).reduce(function(factor, item){
+      var iso = bcbDateToISO(item && item.data);
+      var dailyRate = dailyRateFromBCBValue(seriesCode, item && item.valor);
+      if (!iso || iso < start || iso > end || !Number.isFinite(dailyRate)) return factor;
+      return factor * (1 + dailyRate);
+    }, 1);
+  }
+
   function almostEqual(a, b, eps){
     return Math.abs(Number(a) - Number(b)) <= Number(eps || 1e-12);
   }
@@ -287,6 +305,62 @@
     });
   }
 
+  function validateDailyCompoundExactFixtures(compoundFn, epsilon){
+    var calculator = typeof compoundFn === 'function' ? compoundFn : dailyCompoundExactFactor;
+    var eps = Number(epsilon || 1e-12);
+    var fixtures = [
+      {
+        name: 'SELIC diário exato no intervalo fechado dentro do mês (SGS 11)',
+        seriesCode: SELIC_DAILY_SERIES,
+        raw: [
+          { data: '02/01/2025', valor: '0,0402' },
+          { data: '03/01/2025', valor: '0,0402' },
+          { data: '06/01/2025', valor: '0,0402' }
+        ],
+        startISO: '2025-01-03',
+        endISO: '2025-01-06',
+        expectedFactor: 1.0008041616040001
+      },
+      {
+        name: 'CDI diário exato com início/fim dentro do mês (SGS 4389)',
+        seriesCode: CDI_DAILY_SERIES,
+        raw: [
+          { data: '02/01/2025', valor: '10,65' },
+          { data: '03/01/2025', valor: '10,65' },
+          { data: '06/01/2025', valor: '10,65' }
+        ],
+        startISO: '2025-01-03',
+        endISO: '2025-01-06',
+        expectedFactor: 1.0008035121709333
+      },
+      {
+        name: 'SELIC diário exato cruzando mês com bordas internas (SGS 11)',
+        seriesCode: SELIC_DAILY_SERIES,
+        raw: [
+          { data: '30/01/2025', valor: '0,0402' },
+          { data: '31/01/2025', valor: '0,0402' },
+          { data: '03/02/2025', valor: '0,0402' },
+          { data: '04/02/2025', valor: '0,0402' }
+        ],
+        startISO: '2025-01-31',
+        endISO: '2025-02-03',
+        expectedFactor: 1.0008041616040001
+      }
+    ];
+    return fixtures.map(function(fixture){
+      var actual = calculator(fixture.raw, fixture.seriesCode, fixture.startISO, fixture.endISO);
+      var passed = almostEqual(actual, fixture.expectedFactor, eps);
+      return {
+        fixture: fixture.name,
+        passed: passed,
+        epsilon: eps,
+        expected: fixture.expectedFactor,
+        actual: actual,
+        error: passed ? null : buildDiffMessage('Fator diário exato divergente', fixture.expectedFactor, actual, eps)
+      };
+    });
+  }
+
   global.CPBCBRates = {
     SELIC_DAILY_SERIES: SELIC_DAILY_SERIES,
     CDI_DAILY_SERIES: CDI_DAILY_SERIES,
@@ -294,9 +368,11 @@
     seriesMeta: seriesMeta,
     dailyRateFromBCBValue: dailyRateFromBCBValue,
     dailyToMonthlyEffective: dailyToMonthlyEffective,
+    dailyCompoundExactFactor: dailyCompoundExactFactor,
     proportionalMonthlyEffectiveByDays: proportionalMonthlyEffectiveByDays,
     applyMonthlyRates: applyMonthlyRates,
     validateDailyToMonthlyFixtures: validateDailyToMonthlyFixtures,
+    validateDailyCompoundExactFixtures: validateDailyCompoundExactFixtures,
     validateProportionalFixtures: validateProportionalFixtures,
     validateCompoundApplicationFixtures: validateCompoundApplicationFixtures
   };
