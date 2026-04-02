@@ -363,7 +363,7 @@ body[data-report-context] #cpPrintHost .print-header .logo{
 <option value="igpm">IGP-M automático (BCB)</option>
 <option value="igpdi">IGP-DI automático (BCB)</option>
 <option value="cdi">CDI automático (SGS 4389 anual base 252 → diária efetiva → mensal composta)</option>
-<option value="selic">SELIC automática (SGS 11 anualizada base 252 → diária efetiva → mensal composta)</option>
+<option value="selic">SELIC automática (SGS 11 diária → composição exata)</option>
 <option value="manual">Manual mensal (Juízo)</option>
 </select>
 </div>
@@ -372,6 +372,9 @@ body[data-report-context] #cpPrintHost .print-header .logo{
 </div>
 <div class="meta" id="indexHint" style="margin-top:8px"></div>
 <div class="meta" id="autoStatus" style="margin-top:6px"></div>
+<div style="margin-top:8px">
+<label style="display:flex;gap:8px;align-items:center;font-size:13px;color:#344054"><input id="enableAuditLog" type="checkbox"/> Exibir log técnico (fatores mensais/diários por depósito)</label>
+</div>
 <div id="manualWrap" style="margin-top:12px">
 <div class="row">
 <div class="col-3"><label for="idxMonth">Mês</label><input id="idxMonth" type="month"/></div>

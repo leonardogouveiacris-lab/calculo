@@ -6,6 +6,7 @@
   ns.attachCalc = function(ctx){
     const { state, el, compareMonth, monthKeyFromDate, minDepositDate, monthsBetweenInclusive } = ctx;
     const AUTO_CODE_MAP = { ipca: 433, inpc: 188, igpm: 189, igpdi: 190, tr: 7811, meta_selic: 432, cdi: 4389, selic: 11 };
+    const rates = global.CPBCBRates || {};
 
     function getManualIndex(month){ const found = state.indices.find((i)=>i.month===month); return found ? Number(found.value)/100 : 0; }
 
@@ -88,6 +89,20 @@
       return { calculationPath: path || 'monthly', monthlyRates: Array.isArray(monthlyRates) ? monthlyRates : [], dailyRates: Array.isArray(dailyRates) ? dailyRates : [], dailySeriesCode: dailySeriesCode || null };
     }
 
+    function buildAuditRule(indexType, startISO, endISO, finalFactor){
+      if (indexType === 'manual') {
+        return { series: 'Manual', unidade: '% a.m.', formula: 'fator = Π(1 + taxa_mensal_proporcional)', intervalo: startISO + ' até ' + endISO, fatorFinal: finalFactor };
+      }
+      const summary = rates.describeSourceRule && rates.describeSourceRule(indexType);
+      return {
+        series: summary ? summary.seriesLabel : '—',
+        unidade: summary ? summary.unitLabel : '—',
+        formula: summary ? ((summary.formulaLabel || '-') + ' • ' + (summary.ruleLabel || '-')) : '—',
+        intervalo: summary ? (summary.intervalLabel + ' (' + startISO + ' até ' + endISO + ')') : (startISO + ' até ' + endISO),
+        fatorFinal: finalFactor
+      };
+    }
+
     async function loadIndicesAuto(indexType, start, end){
       if (/^(ipca|inpc|igpm|igpdi)$/.test(indexType)) {
         const raw = await fetchBCBSeries(AUTO_CODE_MAP[indexType], start, end);
@@ -160,12 +175,28 @@
           const saldoAnterior = saldo;
           const jurosMes = saldoAnterior * idxPercent;
           saldo = saldoAnterior + jurosMes;
-          lines.push({ i, mk, idxMes: idxPercent, saldoAnterior, jurosMes, saldo });
+          lines.push({
+            i, mk, idxMes: idxPercent, saldoAnterior, jurosMes, saldo,
+            debug: {
+              diasAplicados, baseDias, effectiveStartISO, effectiveEndISO,
+              monthlyPercent,
+              fatorMes: 1 + idxPercent,
+              fatorAcumulado: dep.value ? (saldo / Number(dep.value || 1)) : 1
+            }
+          });
         });
-        const pow = Math.pow(10, rounding); saldo = Math.round(saldo * pow) / pow; totalUpdated += saldo; depBlocks.push({ dep, lines, subtotal: saldo });
+        const pow = Math.pow(10, rounding);
+        saldo = Math.round(saldo * pow) / pow;
+        totalUpdated += saldo;
+        depBlocks.push({
+          dep,
+          lines,
+          subtotal: saldo,
+          auditRule: buildAuditRule(indexType, dep.date, end, dep.value ? (saldo / Number(dep.value || 1)) : 1)
+        });
       });
       const indexLabel = el.indexType ? ((el.indexType.options[el.indexType.selectedIndex] || {}).text || '') : indexType;
-      const result = { end, totalUpdated, indexLabel, depBlocks, indexType, rounding };
+      const result = { end, totalUpdated, indexLabel, depBlocks, indexType, rounding, enableAuditLog: !!(el.enableAuditLog && el.enableAuditLog.checked) };
       state.lastCalc = result; return result;
     }
 

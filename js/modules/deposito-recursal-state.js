@@ -17,7 +17,7 @@
   const defaults = {
     depDate: 'depDate', depValue: 'depValue', depObs: 'depObs', btnAddDep: 'btnAddDep', depTable: 'depTable',
     indexType: 'indexType', manualWrap: 'manualWrap', idxMonth: 'idxMonth', idxValue: 'idxValue', btnAddIdx: 'btnAddIdx', idxTable: 'idxTable', btnSortIdx: 'btnSortIdx', btnClearIdx: 'btnClearIdx',
-    endDate: 'endDate', roundingEl: 'roundingEl', btnCalc: 'btnCalc', btnShowReport: 'btnShowReport', btnPrint: 'btnPrint', autoStatus: 'autoStatus', indexHint: 'indexHint',
+    endDate: 'endDate', roundingEl: 'roundingEl', btnCalc: 'btnCalc', btnShowReport: 'btnShowReport', btnPrint: 'btnPrint', autoStatus: 'autoStatus', indexHint: 'indexHint', enableAuditLog: 'enableAuditLog',
     infoReclamante: 'infoReclamante', infoReclamada: 'infoReclamada', infoProcesso: 'infoProcesso',
     tabBtnEditor: 'tabBtnEditor', tabBtnReport: 'tabBtnReport', tabEditor: 'tab-editor', tabReport: 'tab-report', btnBackToData: 'btnBackToData', btnPrint2: 'btnPrint2',
     btnExportJson: 'btnExportJson', btnImportJson: 'btnImportJson', fileImportJson: 'fileImportJson',

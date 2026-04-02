@@ -5,6 +5,7 @@
 
   ns.attachRender = function(ctx){
     const { state, el, fmtBRL, toDateBR, monthLabel, esc, compareMonth } = ctx;
+    const rates = global.CPBCBRates || {};
 
     function toast(title, message, kind){
       const wrap = document.getElementById('toastWrap');
@@ -25,23 +26,12 @@
       const t = el.indexType ? el.indexType.value : 'manual';
       if (el.manualWrap) el.manualWrap.style.display = t === 'manual' ? '' : 'none';
       if (!el.indexHint) return;
-      el.indexHint.textContent = t === 'poupanca_auto'
-        ? 'Busca automática no BCB: TR mensal (SGS 7811) + adicional pela Meta Selic (SGS 432).'
-        : t === 'jam_auto'
-          ? 'Busca automática no BCB: TR mensal (SGS 7811) + juros fixos de 3% a.a. (0,25% a.m.).'
-          : t === 'ipca'
-            ? 'Busca automática no BCB: IPCA mensal (SGS 433).'
-            : t === 'inpc'
-              ? 'Busca automática no BCB: INPC mensal (SGS 188).'
-              : t === 'igpm'
-                ? 'Busca automática no BCB: IGP-M mensal (SGS 189).'
-                : t === 'igpdi'
-                  ? 'Busca automática no BCB: IGP-DI mensal (SGS 190).'
-                  : t === 'cdi'
-                    ? 'Busca automática no BCB: CDI (SGS 4389, % a.a. base 252) convertido para taxa diária efetiva e acumulado por composição diária exata no intervalo de cada depósito.'
-                    : t === 'selic'
-                      ? 'Busca automática no BCB: Selic (SGS 11, % a.d.) usada diretamente e acumulada por composição diária exata no intervalo de cada depósito.'
-                  : '';
+      const summary = rates.describeSourceRule && rates.describeSourceRule(t);
+      if (!summary) {
+        el.indexHint.textContent = t === 'manual' ? 'Índices inseridos manualmente com base na tabela do Juízo/Tribunal.' : '';
+        return;
+      }
+      el.indexHint.textContent = 'Busca automática no BCB/SGS: ' + summary.seriesLabel + '. Regra: ' + summary.ruleLabel + '.';
     }
 
     function closeConfirm(){
@@ -139,14 +129,14 @@
     }
 
     function fontesHTML(tipo){
-      if (tipo === 'poupanca_auto') return '<ul><li>API SGS/BCB: séries automáticas por período.</li><li>TR mensal (SGS 7811): <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.7811/dados?formato=json" target="_blank" rel="noopener">Série 7811</a></li><li>Meta Selic (SGS 432): <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados?formato=json" target="_blank" rel="noopener">Série 432</a></li><li>Regra da poupança (BCB): <a href="https://www.bcb.gov.br/meubc/faqs/p/como-e-definida-a-remuneracao-da-poupanca" target="_blank" rel="noopener">Como é definida a remuneração da poupança</a></li></ul>';
-      if (tipo === 'jam_auto') return '<ul><li>API SGS/BCB: séries automáticas por período.</li><li>TR mensal (SGS 7811): <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.7811/dados?formato=json" target="_blank" rel="noopener">Série 7811</a></li><li>Juros fixos aplicados: 3% a.a. (0,25% a.m.).</li></ul>';
-      if (tipo === 'ipca') return '<ul><li>API SGS/BCB: IPCA mensal (SGS 433): <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json" target="_blank" rel="noopener">Série 433</a></li></ul>';
-      if (tipo === 'inpc') return '<ul><li>API SGS/BCB: INPC mensal (SGS 188): <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.188/dados?formato=json" target="_blank" rel="noopener">Série 188</a></li></ul>';
-      if (tipo === 'igpm') return '<ul><li>API SGS/BCB: IGP-M mensal (SGS 189): <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.189/dados?formato=json" target="_blank" rel="noopener">Série 189</a></li></ul>';
-      if (tipo === 'igpdi') return '<ul><li>API SGS/BCB: IGP-DI mensal (SGS 190): <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.190/dados?formato=json" target="_blank" rel="noopener">Série 190</a></li></ul>';
-      if (tipo === 'cdi') return '<ul><li>API SGS/BCB: CDI (SGS 4389, % a.a. base 252) convertido para taxa diária efetiva (<code>(1+v/100)^(1/252)-1</code>) e acumulado por composição diária exata no intervalo de cada depósito: <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados?formato=json" target="_blank" rel="noopener">Série 4389</a></li></ul>';
-      if (tipo === 'selic') return '<ul><li>API SGS/BCB: Selic (SGS 11, % a.d.) usada diretamente como taxa diária efetiva (<code>v/100</code>) e acumulada por composição diária exata no intervalo de cada depósito: <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados?formato=json" target="_blank" rel="noopener">Série 11</a></li></ul>';
+      const summary = rates.describeSourceRule && rates.describeSourceRule(tipo);
+      if (summary && summary.seriesCodes && summary.seriesCodes.length) {
+        const links = summary.seriesCodes.map(function(code){
+          const label = rates.formatSeriesLabel ? rates.formatSeriesLabel(code) : ('Série ' + code);
+          return '<li>' + esc(label) + ': <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.' + esc(code) + '/dados?formato=json" target="_blank" rel="noopener">Série ' + esc(code) + '</a></li>';
+        }).join('');
+        return '<ul><li>API SGS/BCB: séries automáticas por período.</li>' + links + '<li>Unidade: ' + esc(summary.unitLabel || '-') + '.</li><li>Fórmula: <code>' + esc(summary.formulaLabel || '-') + '</code>.</li><li>Regra: ' + esc(summary.ruleLabel || '-') + '.</li><li>Intervalo: ' + esc(summary.intervalLabel || '-') + '.</li></ul>';
+      }
       return '<p>Índices inseridos manualmente com base na tabela do Juízo/Tribunal.</p>';
     }
 
