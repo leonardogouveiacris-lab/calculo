@@ -665,6 +665,7 @@
   function getSummaryRoleTotals(lancamento){
     return (lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : []).reduce(function(acc, coluna){
       if (!coluna || !canColumnUseSummaryRole(coluna)) return acc;
+      if (String(coluna.id || '') === 'valor') return acc;
       const role = coluna.summaryRole === 'correcao' || coluna.summaryRole === 'juros' ? coluna.summaryRole : 'none';
       if (role === 'none') return acc;
       acc[role] += roundMoney(totalLancamento(lancamento, coluna.id));
