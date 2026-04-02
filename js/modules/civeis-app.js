@@ -24,6 +24,7 @@
   const modalColumnType = $('modalColumnType');
   const modalColumnName = $('modalColumnName');
   const modalColumnFormula = $('modalColumnFormula');
+  const modalColumnIncludeInSummary = $('modalColumnIncludeInSummary');
   const formulaFieldWrap = $('formulaFieldWrap');
   let indexFieldWrap = $('indexFieldWrap');
   let modalIndexKind = $('modalIndexKind');
@@ -38,6 +39,7 @@
   const editModalColumnId = $('editModalColumnId');
   const editModalColumnName = $('editModalColumnName');
   const editModalColumnFormula = $('editModalColumnFormula');
+  const editModalColumnIncludeInSummary = $('editModalColumnIncludeInSummary');
   const editFormulaFieldWrap = $('editFormulaFieldWrap');
   const editIndexFieldWrap = $('editIndexFieldWrap');
   const editModalIndexSource = $('editModalIndexSource');
@@ -647,6 +649,13 @@
     return true;
   }
 
+  function canColumnBeIncludedInSummary(coluna){
+    if (!coluna) return false;
+    if (coluna.tipo === 'indice') return false;
+    if (coluna.formato === 'indice' || coluna.formato === 'percentual') return false;
+    return true;
+  }
+
   function hasExplicitSummarySelection(lancamento){
     return (lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : []).some(function(coluna){
       return coluna && coluna.includeInSummary === true;
@@ -852,6 +861,11 @@
     editIndexFieldWrap.style.display = coluna.tipo === 'indice' ? 'block' : 'none';
     editModalColumnName.readOnly = !!coluna.locked;
     editModalColumnName.placeholder = coluna.locked ? 'Nome fixo da coluna padrão' : 'Ex.: Índice, Percentual, Resultado';
+    const canIncludeInSummary = canColumnBeIncludedInSummary(coluna);
+    if (editModalColumnIncludeInSummary) {
+      editModalColumnIncludeInSummary.checked = canIncludeInSummary ? coluna.includeInSummary === true : false;
+      editModalColumnIncludeInSummary.disabled = !canIncludeInSummary || !!coluna.locked;
+    }
     if (coluna.tipo === 'indice') {
       const opts = INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || [];
       const current = coluna.indexSource || defaultIndexSourceByKind(coluna.indexKind || 'correcao');
@@ -877,6 +891,10 @@
     editModalColumnName.value = '';
     editModalColumnFormula.value = '';
     editModalColumnName.readOnly = false;
+    if (editModalColumnIncludeInSummary) {
+      editModalColumnIncludeInSummary.checked = false;
+      editModalColumnIncludeInSummary.disabled = false;
+    }
     editFormulaFieldWrap.style.display = 'none';
     editIndexFieldWrap.style.display = 'none';
     editModalIndexSource.innerHTML = '';
@@ -913,6 +931,9 @@
     if (coluna.tipo === 'formula' && !formula){ alert('Informe a fórmula da coluna.'); editModalColumnFormula.focus(); return; }
     coluna.nome = nome;
     if (coluna.tipo === 'formula') coluna.formula = convertFormulaToStableTokens(formula, lancamento);
+    if (canColumnBeIncludedInSummary(coluna) && !coluna.locked) {
+      coluna.includeInSummary = !!(editModalColumnIncludeInSummary && editModalColumnIncludeInSummary.checked);
+    }
     normalizeColumnSummaryMeta(coluna);
     recalculateLaunch(lancamento);
     closeEditColumnModal();
@@ -1064,6 +1085,10 @@
       const options = INDEX_SOURCE_OPTIONS.correcao || [];
       modalIndexSource.innerHTML = options.map(function(opt){ return '<option value="' + esc(opt.value) + '">' + esc(opt.label) + '</option>'; }).join('');
     }
+    if (modalColumnIncludeInSummary) {
+      modalColumnIncludeInSummary.checked = false;
+      modalColumnIncludeInSummary.disabled = isIndex;
+    }
     columnModal.classList.add('open');
     columnModal.setAttribute('aria-hidden', 'false');
     setTimeout(function(){ (isIndex && modalIndexKind ? modalIndexKind : modalColumnName).focus(); }, 30);
@@ -1076,6 +1101,10 @@
     modalColumnType.value = '';
     modalColumnName.value = '';
     modalColumnFormula.value = '';
+    if (modalColumnIncludeInSummary) {
+      modalColumnIncludeInSummary.checked = false;
+      modalColumnIncludeInSummary.disabled = false;
+    }
     if (indexFieldWrap) indexFieldWrap.style.display = 'none';
     if (modalColumnName) modalColumnName.style.display = 'block';
     const nameLabel = document.querySelector('label[for="modalColumnName"]');
@@ -1093,7 +1122,13 @@
     const lancamento = state.lancamentos[launchIndex];
     const id = 'col_' + Date.now() + '_' + Math.random().toString(16).slice(2, 6);
     if (tipo === 'formula' || (tipo === 'manual' && formula)) {
-      lancamento.colunas.push(normalizeColumnSummaryMeta({ id: id, nome: nome, tipo: 'formula', formula: convertFormulaToStableTokens(formula, lancamento) }));
+      lancamento.colunas.push(normalizeColumnSummaryMeta({
+        id: id,
+        nome: nome,
+        tipo: 'formula',
+        formula: convertFormulaToStableTokens(formula, lancamento),
+        includeInSummary: !!(modalColumnIncludeInSummary && modalColumnIncludeInSummary.checked)
+      }));
       lancamento.linhas.forEach(function(linha){ linha[id] = ''; });
     } else if (tipo === 'indice') {
       const kind = modalIndexKind ? modalIndexKind.value : 'correcao';
@@ -1113,7 +1148,12 @@
       })));
       lancamento.linhas.forEach(function(linha){ linha[id] = 1; });
     } else {
-      lancamento.colunas.push(normalizeColumnSummaryMeta({ id: id, nome: nome, tipo: 'manual' }));
+      lancamento.colunas.push(normalizeColumnSummaryMeta({
+        id: id,
+        nome: nome,
+        tipo: 'manual',
+        includeInSummary: !!(modalColumnIncludeInSummary && modalColumnIncludeInSummary.checked)
+      }));
       lancamento.linhas.forEach(function(linha){ linha[id] = ''; });
     }
     recalculateLaunch(lancamento);
