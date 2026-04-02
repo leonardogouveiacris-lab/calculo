@@ -61,6 +61,20 @@
 
     function appendDepositTables(layout, result){
       (result.depBlocks || []).forEach(function(block){
+        const audit = block.auditRule || {};
+        const auditHtml = '<table class="report-table kv-like" style="margin-bottom:8px"><tbody>' +
+          rowHtml([{ cls:'bold', text:'Série' }, { text: audit.series || '-' }]) +
+          rowHtml([{ cls:'bold', text:'Unidade' }, { text: audit.unidade || '-' }]) +
+          rowHtml([{ cls:'bold', text:'Fórmula/Regra' }, { text: audit.formula || '-' }]) +
+          rowHtml([{ cls:'bold', text:'Intervalo' }, { text: audit.intervalo || '-' }]) +
+          rowHtml([{ cls:'bold', text:'Fator final' }, { text: Number(audit.fatorFinal || 1).toLocaleString('pt-BR', { minimumFractionDigits: 7, maximumFractionDigits: 7 }) }]) +
+        '</tbody></table>';
+        const technicalLog = result.enableAuditLog
+          ? '<details style="margin:8px 0"><summary>Log técnico</summary><div style="margin-top:6px;font-size:11px;line-height:1.45">' + (block.lines || []).map(function(line){
+            return '<div><b>' + monthLabel(line.mk) + '</b>: fator_mês=' + Number((line.debug || {}).fatorMes || 1).toLocaleString('pt-BR', { minimumFractionDigits: 7, maximumFractionDigits: 7 }) + ' • fator_acumulado=' + Number((line.debug || {}).fatorAcumulado || 1).toLocaleString('pt-BR', { minimumFractionDigits: 7, maximumFractionDigits: 7 }) + ' • dias=' + ((line.debug || {}).diasAplicados || 0) + '/' + ((line.debug || {}).baseDias || 0) + ' • intervalo=' + (((line.debug || {}).effectiveStartISO) || '-') + ' a ' + (((line.debug || {}).effectiveEndISO) || '-') + '</div>';
+          }).join('') + '</div></details>'
+          : '';
+        CPPrintLayout.appendSection(layout, { html: auditHtml + technicalLog });
         CPPrintLayout.appendTable(layout, {
           title: 'Depósito em ' + toDateBR(block.dep.date) + ' • ' + fmtBRL(block.dep.value) + (block.dep.obs ? ' • ' + block.dep.obs : ''),
           continuationLabel: 'Depósito em ' + toDateBR(block.dep.date) + ' (continuação)',

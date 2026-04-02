@@ -4,6 +4,7 @@
 
   var SELIC_DAILY_SERIES = '11';
   var CDI_DAILY_SERIES = '4389';
+  var UNIT_MONTHLY_PERCENT = 'monthly_percent';
   var UNIT_DAILY_PERCENT = 'daily_percent';
   var UNIT_ANNUAL_PERCENT_BASE_252 = 'annual_percent_base_252';
   var seriesMeta = Object.freeze({
@@ -11,8 +12,31 @@
     // - Série 11 ("Taxa de juros - Selic"): Diária, % a.d.
     // - Série 4389 ("Taxa de juros - CDI anualizada base 252"): Diária, % a.a. (derivada da série 12).
     // Referência: metadados oficiais do SGS (links "Metadados no BCB-SGS" nas séries).
-    '11': Object.freeze({ unitType: UNIT_DAILY_PERCENT, label: 'Selic diária (% a.d., SGS 11)' }),
-    '4389': Object.freeze({ unitType: UNIT_ANNUAL_PERCENT_BASE_252, label: 'CDI anualizado base 252 (% a.a., SGS 4389)' })
+    '11': Object.freeze({ unitType: UNIT_DAILY_PERCENT, unitLabel: '% a.d.', label: 'Selic diária (% a.d., SGS 11)', formulaLabel: 'taxa_dia = v/100' }),
+    '188': Object.freeze({ unitType: UNIT_MONTHLY_PERCENT, unitLabel: '% a.m.', label: 'INPC mensal (SGS 188)', formulaLabel: 'taxa_mês = v/100' }),
+    '189': Object.freeze({ unitType: UNIT_MONTHLY_PERCENT, unitLabel: '% a.m.', label: 'IGP-M mensal (SGS 189)', formulaLabel: 'taxa_mês = v/100' }),
+    '190': Object.freeze({ unitType: UNIT_MONTHLY_PERCENT, unitLabel: '% a.m.', label: 'IGP-DI mensal (SGS 190)', formulaLabel: 'taxa_mês = v/100' }),
+    '432': Object.freeze({ unitType: UNIT_MONTHLY_PERCENT, unitLabel: '% a.a.', label: 'Meta Selic (SGS 432)', formulaLabel: 'adicional poupança = (v > 8,5 ? 0,5 : 0,7*(v/12))' }),
+    '433': Object.freeze({ unitType: UNIT_MONTHLY_PERCENT, unitLabel: '% a.m.', label: 'IPCA mensal (SGS 433)', formulaLabel: 'taxa_mês = v/100' }),
+    '4389': Object.freeze({ unitType: UNIT_ANNUAL_PERCENT_BASE_252, unitLabel: '% a.a. base 252', label: 'CDI anualizado base 252 (% a.a., SGS 4389)', formulaLabel: 'taxa_dia = (1 + v/100)^(1/252) - 1' }),
+    '7478': Object.freeze({ unitType: UNIT_MONTHLY_PERCENT, unitLabel: '% a.m.', label: 'IPCA-15 mensal (SGS 7478)', formulaLabel: 'taxa_mês = v/100' }),
+    '7811': Object.freeze({ unitType: UNIT_MONTHLY_PERCENT, unitLabel: '% a.m.', label: 'TR mensal (SGS 7811)', formulaLabel: 'taxa_mês = v/100' }),
+    '10764': Object.freeze({ unitType: UNIT_MONTHLY_PERCENT, unitLabel: '% a.m.', label: 'IPCA-E mensal (SGS 10764)', formulaLabel: 'taxa_mês = v/100' })
+  });
+
+  var sourceMeta = Object.freeze({
+    ipca: Object.freeze({ seriesCodes: ['433'], ruleLabel: 'Mensal composta por competência', intervalLabel: 'Competência até data final' }),
+    ipcae: Object.freeze({ seriesCodes: ['10764'], ruleLabel: 'Mensal composta por competência', intervalLabel: 'Competência até data final' }),
+    inpc: Object.freeze({ seriesCodes: ['188'], ruleLabel: 'Mensal composta por competência', intervalLabel: 'Competência até data final' }),
+    igpm: Object.freeze({ seriesCodes: ['189'], ruleLabel: 'Mensal composta por competência', intervalLabel: 'Competência até data final' }),
+    igpdi: Object.freeze({ seriesCodes: ['190'], ruleLabel: 'Mensal composta por competência', intervalLabel: 'Competência até data final' }),
+    tr: Object.freeze({ seriesCodes: ['7811'], ruleLabel: 'Mensal composta por competência', intervalLabel: 'Competência até data final' }),
+    cdi: Object.freeze({ seriesCodes: ['4389'], ruleLabel: 'Composição diária exata', intervalLabel: 'Intervalo fechado [início, fim]' }),
+    selic: Object.freeze({ seriesCodes: ['11'], ruleLabel: 'Composição diária exata', intervalLabel: 'Intervalo fechado [início, fim]' }),
+    taxa_legal: Object.freeze({ seriesCodes: ['11', '7478'], ruleLabel: 'max(Selic mês base - IPCA-15 mês base, 0), aplicado no mês seguinte', intervalLabel: 'Competência limitada por coluna' }),
+    ec113_2021: Object.freeze({ seriesCodes: ['10764', '11'], ruleLabel: 'IPCA-E até 11/2021 e Selic a partir de 12/2021', intervalLabel: 'Competência limitada por coluna' }),
+    poupanca_auto: Object.freeze({ seriesCodes: ['7811', '432'], ruleLabel: 'TR + adicional da poupança', intervalLabel: 'Competência até data final' }),
+    jam_auto: Object.freeze({ seriesCodes: ['7811'], ruleLabel: 'TR + 0,25% a.m.', intervalLabel: 'Competência até data final' })
   });
 
   function parseBCBNumber(value){
@@ -51,6 +75,43 @@
     if (meta.unitType === UNIT_ANNUAL_PERCENT_BASE_252) return Math.pow(1 + (value / 100), 1 / 252) - 1;
     if (meta.unitType === UNIT_DAILY_PERCENT) return value / 100;
     return null;
+  }
+
+  function getSeriesMeta(seriesCode){
+    return seriesMeta[String(seriesCode || '')] || null;
+  }
+
+  function formatSeriesLabel(seriesCode){
+    var code = String(seriesCode || '');
+    var meta = getSeriesMeta(code);
+    return meta && meta.label ? meta.label : ('Série SGS ' + code);
+  }
+
+  function getSourceMeta(sourceType){
+    return sourceMeta[String(sourceType || '')] || null;
+  }
+
+  function describeSourceRule(sourceType){
+    var source = getSourceMeta(sourceType);
+    if (!source) return null;
+    var seriesLabels = (source.seriesCodes || []).map(function(code){ return formatSeriesLabel(code); });
+    var unitLabels = (source.seriesCodes || []).map(function(code){
+      var meta = getSeriesMeta(code);
+      return meta && meta.unitLabel ? (code + ': ' + meta.unitLabel) : null;
+    }).filter(Boolean);
+    var formulas = (source.seriesCodes || []).map(function(code){
+      var meta = getSeriesMeta(code);
+      return meta && meta.formulaLabel ? (code + ': ' + meta.formulaLabel) : null;
+    }).filter(Boolean);
+    return {
+      sourceType: String(sourceType || ''),
+      seriesCodes: (source.seriesCodes || []).slice(),
+      seriesLabel: seriesLabels.join(' + '),
+      unitLabel: unitLabels.join(' | '),
+      formulaLabel: formulas.join(' | '),
+      ruleLabel: source.ruleLabel || '',
+      intervalLabel: source.intervalLabel || ''
+    };
   }
 
   function dailyToMonthlyEffective(bcbDailyList, seriesCode){
@@ -364,8 +425,14 @@
   global.CPBCBRates = {
     SELIC_DAILY_SERIES: SELIC_DAILY_SERIES,
     CDI_DAILY_SERIES: CDI_DAILY_SERIES,
+    UNIT_MONTHLY_PERCENT: UNIT_MONTHLY_PERCENT,
     parseBCBNumber: parseBCBNumber,
     seriesMeta: seriesMeta,
+    sourceMeta: sourceMeta,
+    getSeriesMeta: getSeriesMeta,
+    getSourceMeta: getSourceMeta,
+    describeSourceRule: describeSourceRule,
+    formatSeriesLabel: formatSeriesLabel,
     dailyRateFromBCBValue: dailyRateFromBCBValue,
     dailyToMonthlyEffective: dailyToMonthlyEffective,
     dailyCompoundExactFactor: dailyCompoundExactFactor,
