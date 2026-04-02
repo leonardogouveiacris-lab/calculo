@@ -24,7 +24,7 @@
   const modalColumnType = $('modalColumnType');
   const modalColumnName = $('modalColumnName');
   const modalColumnFormula = $('modalColumnFormula');
-  const modalColumnIncludeInSummary = $('modalColumnIncludeInSummary');
+  const modalColumnSummaryRole = $('modalColumnSummaryRole');
   const formulaFieldWrap = $('formulaFieldWrap');
   let indexFieldWrap = $('indexFieldWrap');
   let modalIndexKind = $('modalIndexKind');
@@ -39,7 +39,7 @@
   const editModalColumnId = $('editModalColumnId');
   const editModalColumnName = $('editModalColumnName');
   const editModalColumnFormula = $('editModalColumnFormula');
-  const editModalColumnIncludeInSummary = $('editModalColumnIncludeInSummary');
+  const editModalColumnSummaryRole = $('editModalColumnSummaryRole');
   const editFormulaFieldWrap = $('editFormulaFieldWrap');
   const editIndexFieldWrap = $('editIndexFieldWrap');
   const editModalIndexSource = $('editModalIndexSource');
@@ -99,7 +99,6 @@
     { id:'valor_juros', nome:'Valor dos Juros', tipo:'formula', formato:'moeda', formula:'', includeInSummary:true },
     { id:'valor_devido', nome:'Valor Devido', tipo:'formula', formato:'moeda', formula:'', includeInSummary:true }
   ]);
-  const LEGACY_SUMMARY_COLUMN_IDS = new Set(['valor_correcao', 'valor_juros', 'valor_devido']);
   let state = { lancamentos: [], lancamentoSelecionadoId: '', honorarios: defaultHonorariosConfig(), custas: [] };
   let honorariosSelectorOpen = false;
   let honorariosSearchTerm = '';
@@ -638,80 +637,39 @@
     return '({valor}+{valor_correcao}+{valor_juros})';
   }
 
-  function defaultIncludeInSummaryByColumnId(columnId){
-    return LEGACY_SUMMARY_COLUMN_IDS.has(String(columnId || ''));
+  function defaultSummaryRoleByColumnId(columnId){
+    const id = String(columnId || '');
+    if (id === 'valor_correcao') return 'correcao';
+    if (id === 'valor_juros') return 'juros';
+    return 'none';
   }
 
   function normalizeColumnSummaryMeta(coluna){
     if (!coluna) return coluna;
-    if (typeof coluna.includeInSummary === 'boolean') return coluna;
-    coluna.includeInSummary = defaultIncludeInSummaryByColumnId(coluna.id);
+    if (!coluna.summaryRole) {
+      if (coluna.includeInSummary === true) coluna.summaryRole = defaultSummaryRoleByColumnId(coluna.id);
+      else coluna.summaryRole = 'none';
+    }
+    if (coluna.summaryRole !== 'correcao' && coluna.summaryRole !== 'juros') coluna.summaryRole = 'none';
+    delete coluna.includeInSummary;
     return coluna;
   }
 
-  function shouldAggregateColumnInSummary(coluna){
-    if (!coluna || coluna.includeInSummary !== true) return false;
-    if (coluna.formato === 'indice' || coluna.formato === 'percentual') return false;
-    return true;
-  }
-
-  function canColumnBeIncludedInSummary(coluna){
+  function canColumnUseSummaryRole(coluna){
     if (!coluna) return false;
     if (coluna.tipo === 'indice') return false;
     if (coluna.formato === 'indice' || coluna.formato === 'percentual') return false;
     return true;
   }
 
-  function isNumericEligibleColumn(lancamento, colunaId){
-    const id = String(colunaId || '').trim();
-    if (!id) return false;
-    if (id === 'valor') return true;
-    const coluna = (lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : []).find(function(item){
-      return String(item && item.id || '') === id;
-    });
-    if (!coluna) return false;
-    if (coluna.tipo === 'indice') return false;
-    if (coluna.formato === 'indice' || coluna.formato === 'percentual') return false;
-    return true;
-  }
-
-  function getSummaryMappingEligibleColumns(lancamento){
-    return (lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : []).filter(function(coluna){
-      return isNumericEligibleColumn(lancamento, coluna && coluna.id);
-    }).map(function(coluna){
-      return { id:String(coluna.id || ''), nome:String(coluna.nome || coluna.id || '') };
-    });
-  }
-
-  function normalizeSummaryMapping(lancamento){
-    const defaults = defaultSummaryMapping();
-    const original = lancamento && lancamento.summaryMapping ? lancamento.summaryMapping : {};
-    const valorCorrigidoCandidate = String(original.valorCorrigidoColumnId || defaults.valorCorrigidoColumnId || '').trim();
-    const jurosCandidate = String(original.jurosColumnId || defaults.jurosColumnId || '').trim();
-    const valorCorrigidoFallback = isNumericEligibleColumn(lancamento, defaults.valorCorrigidoColumnId)
-      ? defaults.valorCorrigidoColumnId
-      : (isNumericEligibleColumn(lancamento, 'valor') ? 'valor' : '');
-    const jurosFallback = isNumericEligibleColumn(lancamento, defaults.jurosColumnId)
-      ? defaults.jurosColumnId
-      : '';
-    lancamento.summaryMapping = {
-      valorCorrigidoColumnId: isNumericEligibleColumn(lancamento, valorCorrigidoCandidate) ? valorCorrigidoCandidate : valorCorrigidoFallback,
-      jurosColumnId: isNumericEligibleColumn(lancamento, jurosCandidate) ? jurosCandidate : jurosFallback
-    };
-    return lancamento.summaryMapping;
-  }
-
-  function isCustomSummaryMapping(mapping){
-    const defaults = defaultSummaryMapping();
-    const source = mapping || {};
-    return String(source.valorCorrigidoColumnId || '') !== defaults.valorCorrigidoColumnId
-      || String(source.jurosColumnId || '') !== defaults.jurosColumnId;
-  }
-
-  function hasExplicitSummarySelection(lancamento){
-    return (lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : []).some(function(coluna){
-      return coluna && coluna.includeInSummary === true;
-    });
+  function getSummaryRoleTotals(lancamento){
+    return (lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : []).reduce(function(acc, coluna){
+      if (!coluna || !canColumnUseSummaryRole(coluna)) return acc;
+      const role = coluna.summaryRole === 'correcao' || coluna.summaryRole === 'juros' ? coluna.summaryRole : 'none';
+      if (role === 'none') return acc;
+      acc[role] += roundMoney(totalLancamento(lancamento, coluna.id));
+      return acc;
+    }, { correcao:0, juros:0 });
   }
 
   function formulaTokenByColumnId(columnId){
@@ -817,7 +775,7 @@
       });
       lancamento.indexConfig.mode = 'factor_v9';
     }
-    normalizeSummaryMapping(lancamento);
+    if (lancamento && lancamento.summaryMapping) delete lancamento.summaryMapping;
     return lancamento;
   }
 
@@ -914,10 +872,10 @@
     editIndexFieldWrap.style.display = coluna.tipo === 'indice' ? 'block' : 'none';
     editModalColumnName.readOnly = !!coluna.locked;
     editModalColumnName.placeholder = coluna.locked ? 'Nome fixo da coluna padrão' : 'Ex.: Índice, Percentual, Resultado';
-    const canIncludeInSummary = canColumnBeIncludedInSummary(coluna);
-    if (editModalColumnIncludeInSummary) {
-      editModalColumnIncludeInSummary.checked = canIncludeInSummary ? coluna.includeInSummary === true : false;
-      editModalColumnIncludeInSummary.disabled = !canIncludeInSummary || !!coluna.locked;
+    const canAssignSummaryRole = canColumnUseSummaryRole(coluna) && !coluna.locked;
+    if (editModalColumnSummaryRole) {
+      editModalColumnSummaryRole.value = canAssignSummaryRole ? (coluna.summaryRole || 'none') : 'none';
+      editModalColumnSummaryRole.disabled = !canAssignSummaryRole;
     }
     if (coluna.tipo === 'indice') {
       const opts = INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || [];
@@ -944,9 +902,9 @@
     editModalColumnName.value = '';
     editModalColumnFormula.value = '';
     editModalColumnName.readOnly = false;
-    if (editModalColumnIncludeInSummary) {
-      editModalColumnIncludeInSummary.checked = false;
-      editModalColumnIncludeInSummary.disabled = false;
+    if (editModalColumnSummaryRole) {
+      editModalColumnSummaryRole.value = 'none';
+      editModalColumnSummaryRole.disabled = false;
     }
     editFormulaFieldWrap.style.display = 'none';
     editIndexFieldWrap.style.display = 'none';
@@ -984,8 +942,8 @@
     if (coluna.tipo === 'formula' && !formula){ alert('Informe a fórmula da coluna.'); editModalColumnFormula.focus(); return; }
     coluna.nome = nome;
     if (coluna.tipo === 'formula') coluna.formula = convertFormulaToStableTokens(formula, lancamento);
-    if (canColumnBeIncludedInSummary(coluna) && !coluna.locked) {
-      coluna.includeInSummary = !!(editModalColumnIncludeInSummary && editModalColumnIncludeInSummary.checked);
+    if (canColumnUseSummaryRole(coluna) && !coluna.locked && editModalColumnSummaryRole) {
+      coluna.summaryRole = editModalColumnSummaryRole.value || 'none';
     }
     normalizeColumnSummaryMeta(coluna);
     recalculateLaunch(lancamento);
@@ -1160,9 +1118,9 @@
       const options = INDEX_SOURCE_OPTIONS.correcao || [];
       modalIndexSource.innerHTML = options.map(function(opt){ return '<option value="' + esc(opt.value) + '">' + esc(opt.label) + '</option>'; }).join('');
     }
-    if (modalColumnIncludeInSummary) {
-      modalColumnIncludeInSummary.checked = false;
-      modalColumnIncludeInSummary.disabled = isIndex;
+    if (modalColumnSummaryRole) {
+      modalColumnSummaryRole.value = 'none';
+      modalColumnSummaryRole.disabled = isIndex;
     }
     columnModal.classList.add('open');
     columnModal.setAttribute('aria-hidden', 'false');
@@ -1176,9 +1134,9 @@
     modalColumnType.value = '';
     modalColumnName.value = '';
     modalColumnFormula.value = '';
-    if (modalColumnIncludeInSummary) {
-      modalColumnIncludeInSummary.checked = false;
-      modalColumnIncludeInSummary.disabled = false;
+    if (modalColumnSummaryRole) {
+      modalColumnSummaryRole.value = 'none';
+      modalColumnSummaryRole.disabled = false;
     }
     if (indexFieldWrap) indexFieldWrap.style.display = 'none';
     if (modalColumnName) modalColumnName.style.display = 'block';
@@ -1196,13 +1154,15 @@
     if (tipo === 'formula' && !formula){ alert('Informe a fórmula da coluna.'); modalColumnFormula.focus(); return; }
     const lancamento = state.lancamentos[launchIndex];
     const id = 'col_' + Date.now() + '_' + Math.random().toString(16).slice(2, 6);
+    const selectedSummaryRole = modalColumnSummaryRole ? modalColumnSummaryRole.value : 'none';
+    const summaryRole = (selectedSummaryRole === 'correcao' || selectedSummaryRole === 'juros') ? selectedSummaryRole : 'none';
     if (tipo === 'formula' || (tipo === 'manual' && formula)) {
       lancamento.colunas.push(normalizeColumnSummaryMeta({
         id: id,
         nome: nome,
         tipo: 'formula',
         formula: convertFormulaToStableTokens(formula, lancamento),
-        includeInSummary: !!(modalColumnIncludeInSummary && modalColumnIncludeInSummary.checked)
+        summaryRole: summaryRole
       }));
       lancamento.linhas.forEach(function(linha){ linha[id] = ''; });
     } else if (tipo === 'indice') {
@@ -1227,7 +1187,7 @@
         id: id,
         nome: nome,
         tipo: 'manual',
-        includeInSummary: !!(modalColumnIncludeInSummary && modalColumnIncludeInSummary.checked)
+        summaryRole: summaryRole
       }));
       lancamento.linhas.forEach(function(linha){ linha[id] = ''; });
     }
@@ -1541,11 +1501,9 @@
     normalizeLaunch(lancamento);
     recalculateLaunch(lancamento);
     const valorBase = roundMoney(totalLancamento(lancamento, 'valor'));
-    const mapping = normalizeSummaryMapping(lancamento);
-    const valorCorrigidoColumnId = String(mapping.valorCorrigidoColumnId || '');
-    const jurosColumnId = String(mapping.jurosColumnId || '');
-    const valorCorrecao = valorCorrigidoColumnId ? roundMoney(totalLancamento(lancamento, valorCorrigidoColumnId)) : 0;
-    const juros = jurosColumnId ? roundMoney(totalLancamento(lancamento, jurosColumnId)) : 0;
+    const roleTotals = getSummaryRoleTotals(lancamento);
+    const valorCorrecao = roundMoney(roleTotals.correcao || 0);
+    const juros = roundMoney(roleTotals.juros || 0);
     const valorDevido = roundMoney(valorBase + valorCorrecao + juros);
     const valorCorrigido = roundMoney(valorBase + valorCorrecao);
     return {
@@ -1556,8 +1514,7 @@
       valorCorrigido: valorCorrigido,
       juros: juros,
       valorDevido: valorDevido,
-      summaryMapping: mapping,
-      hasCustomSummaryMapping: isCustomSummaryMapping(mapping)
+      hasCustomSummaryMapping: valorCorrecao !== 0 || juros !== 0
     };
   }
 
@@ -1578,8 +1535,7 @@
         id: item.id,
         verba: item.verba,
         note: item.hasCustomSummaryMapping
-          ? ('Mapeamento customizado: corrigido em "' + String(item.summaryMapping.valorCorrigidoColumnId || '—') + '"' +
-            (item.summaryMapping.jurosColumnId ? (' e juros em "' + String(item.summaryMapping.jurosColumnId) + '".') : ' e sem juros no resumo.'))
+          ? 'Resumo com colunas configuradas no modal da coluna (Correção/Juros).'
           : '',
         valorCorrigido: item.valorCorrigido,
         juros: item.juros,
