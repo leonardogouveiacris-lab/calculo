@@ -24,7 +24,7 @@
   const modalColumnType = $('modalColumnType');
   const modalColumnName = $('modalColumnName');
   const modalColumnFormula = $('modalColumnFormula');
-  const modalColumnIncludeInSummary = $('modalColumnIncludeInSummary');
+  const modalColumnSummaryRole = $('modalColumnSummaryRole');
   const formulaFieldWrap = $('formulaFieldWrap');
   let indexFieldWrap = $('indexFieldWrap');
   let modalIndexKind = $('modalIndexKind');
@@ -39,7 +39,7 @@
   const editModalColumnId = $('editModalColumnId');
   const editModalColumnName = $('editModalColumnName');
   const editModalColumnFormula = $('editModalColumnFormula');
-  const editModalColumnIncludeInSummary = $('editModalColumnIncludeInSummary');
+  const editModalColumnSummaryRole = $('editModalColumnSummaryRole');
   const editFormulaFieldWrap = $('editFormulaFieldWrap');
   const editIndexFieldWrap = $('editIndexFieldWrap');
   const editModalIndexSource = $('editModalIndexSource');
@@ -97,7 +97,6 @@
     { id:'valor_juros', nome:'Valor dos Juros', tipo:'formula', formato:'moeda', formula:'', includeInSummary:true },
     { id:'valor_devido', nome:'Valor Devido', tipo:'formula', formato:'moeda', formula:'', includeInSummary:true }
   ]);
-  const LEGACY_SUMMARY_COLUMN_IDS = new Set(['valor_correcao', 'valor_juros', 'valor_devido']);
   let state = { lancamentos: [], lancamentoSelecionadoId: '', honorarios: defaultHonorariosConfig(), custas: [] };
   let honorariosSelectorOpen = false;
   let honorariosSearchTerm = '';
@@ -633,34 +632,40 @@
     return '({valor}+{valor_correcao}+{valor_juros})';
   }
 
-  function defaultIncludeInSummaryByColumnId(columnId){
-    return LEGACY_SUMMARY_COLUMN_IDS.has(String(columnId || ''));
+  function defaultSummaryRoleByColumnId(columnId){
+    const id = String(columnId || '');
+    if (id === 'valor_correcao') return 'correcao';
+    if (id === 'valor_juros') return 'juros';
+    return 'none';
   }
 
   function normalizeColumnSummaryMeta(coluna){
     if (!coluna) return coluna;
-    if (typeof coluna.includeInSummary === 'boolean') return coluna;
-    coluna.includeInSummary = defaultIncludeInSummaryByColumnId(coluna.id);
+    if (!coluna.summaryRole) {
+      if (coluna.includeInSummary === true) coluna.summaryRole = defaultSummaryRoleByColumnId(coluna.id);
+      else coluna.summaryRole = 'none';
+    }
+    if (coluna.summaryRole !== 'correcao' && coluna.summaryRole !== 'juros') coluna.summaryRole = 'none';
+    delete coluna.includeInSummary;
     return coluna;
   }
 
-  function shouldAggregateColumnInSummary(coluna){
-    if (!coluna || coluna.includeInSummary !== true) return false;
-    if (coluna.formato === 'indice' || coluna.formato === 'percentual') return false;
-    return true;
-  }
-
-  function canColumnBeIncludedInSummary(coluna){
+  function canColumnUseSummaryRole(coluna){
     if (!coluna) return false;
     if (coluna.tipo === 'indice') return false;
     if (coluna.formato === 'indice' || coluna.formato === 'percentual') return false;
     return true;
   }
 
-  function hasExplicitSummarySelection(lancamento){
-    return (lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : []).some(function(coluna){
-      return coluna && coluna.includeInSummary === true;
-    });
+  function getSummaryRoleTotals(lancamento){
+    return (lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : []).reduce(function(acc, coluna){
+      if (!coluna || !canColumnUseSummaryRole(coluna)) return acc;
+      if (String(coluna.id || '') === 'valor') return acc;
+      const role = coluna.summaryRole === 'correcao' || coluna.summaryRole === 'juros' ? coluna.summaryRole : 'none';
+      if (role === 'none') return acc;
+      acc[role] += roundMoney(totalLancamento(lancamento, coluna.id));
+      return acc;
+    }, { correcao:0, juros:0 });
   }
 
   function formulaTokenByColumnId(columnId){
@@ -766,6 +771,7 @@
       });
       lancamento.indexConfig.mode = 'factor_v9';
     }
+    if (lancamento && lancamento.summaryMapping) delete lancamento.summaryMapping;
     return lancamento;
   }
 
@@ -862,10 +868,10 @@
     editIndexFieldWrap.style.display = coluna.tipo === 'indice' ? 'block' : 'none';
     editModalColumnName.readOnly = !!coluna.locked;
     editModalColumnName.placeholder = coluna.locked ? 'Nome fixo da coluna padrão' : 'Ex.: Índice, Percentual, Resultado';
-    const canIncludeInSummary = canColumnBeIncludedInSummary(coluna);
-    if (editModalColumnIncludeInSummary) {
-      editModalColumnIncludeInSummary.checked = canIncludeInSummary ? coluna.includeInSummary === true : false;
-      editModalColumnIncludeInSummary.disabled = !canIncludeInSummary || !!coluna.locked;
+    const canAssignSummaryRole = canColumnUseSummaryRole(coluna) && !coluna.locked;
+    if (editModalColumnSummaryRole) {
+      editModalColumnSummaryRole.value = canAssignSummaryRole ? (coluna.summaryRole || 'none') : 'none';
+      editModalColumnSummaryRole.disabled = !canAssignSummaryRole;
     }
     if (coluna.tipo === 'indice') {
       const opts = INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || [];
@@ -892,9 +898,9 @@
     editModalColumnName.value = '';
     editModalColumnFormula.value = '';
     editModalColumnName.readOnly = false;
-    if (editModalColumnIncludeInSummary) {
-      editModalColumnIncludeInSummary.checked = false;
-      editModalColumnIncludeInSummary.disabled = false;
+    if (editModalColumnSummaryRole) {
+      editModalColumnSummaryRole.value = 'none';
+      editModalColumnSummaryRole.disabled = false;
     }
     editFormulaFieldWrap.style.display = 'none';
     editIndexFieldWrap.style.display = 'none';
@@ -932,8 +938,8 @@
     if (coluna.tipo === 'formula' && !formula){ alert('Informe a fórmula da coluna.'); editModalColumnFormula.focus(); return; }
     coluna.nome = nome;
     if (coluna.tipo === 'formula') coluna.formula = convertFormulaToStableTokens(formula, lancamento);
-    if (canColumnBeIncludedInSummary(coluna) && !coluna.locked) {
-      coluna.includeInSummary = !!(editModalColumnIncludeInSummary && editModalColumnIncludeInSummary.checked);
+    if (canColumnUseSummaryRole(coluna) && !coluna.locked && editModalColumnSummaryRole) {
+      coluna.summaryRole = editModalColumnSummaryRole.value || 'none';
     }
     normalizeColumnSummaryMeta(coluna);
     recalculateLaunch(lancamento);
@@ -1086,9 +1092,9 @@
       const options = INDEX_SOURCE_OPTIONS.correcao || [];
       modalIndexSource.innerHTML = options.map(function(opt){ return '<option value="' + esc(opt.value) + '">' + esc(opt.label) + '</option>'; }).join('');
     }
-    if (modalColumnIncludeInSummary) {
-      modalColumnIncludeInSummary.checked = false;
-      modalColumnIncludeInSummary.disabled = isIndex;
+    if (modalColumnSummaryRole) {
+      modalColumnSummaryRole.value = 'none';
+      modalColumnSummaryRole.disabled = isIndex;
     }
     columnModal.classList.add('open');
     columnModal.setAttribute('aria-hidden', 'false');
@@ -1102,9 +1108,9 @@
     modalColumnType.value = '';
     modalColumnName.value = '';
     modalColumnFormula.value = '';
-    if (modalColumnIncludeInSummary) {
-      modalColumnIncludeInSummary.checked = false;
-      modalColumnIncludeInSummary.disabled = false;
+    if (modalColumnSummaryRole) {
+      modalColumnSummaryRole.value = 'none';
+      modalColumnSummaryRole.disabled = false;
     }
     if (indexFieldWrap) indexFieldWrap.style.display = 'none';
     if (modalColumnName) modalColumnName.style.display = 'block';
@@ -1122,13 +1128,15 @@
     if (tipo === 'formula' && !formula){ alert('Informe a fórmula da coluna.'); modalColumnFormula.focus(); return; }
     const lancamento = state.lancamentos[launchIndex];
     const id = 'col_' + Date.now() + '_' + Math.random().toString(16).slice(2, 6);
+    const selectedSummaryRole = modalColumnSummaryRole ? modalColumnSummaryRole.value : 'none';
+    const summaryRole = (selectedSummaryRole === 'correcao' || selectedSummaryRole === 'juros') ? selectedSummaryRole : 'none';
     if (tipo === 'formula' || (tipo === 'manual' && formula)) {
       lancamento.colunas.push(normalizeColumnSummaryMeta({
         id: id,
         nome: nome,
         tipo: 'formula',
         formula: convertFormulaToStableTokens(formula, lancamento),
-        includeInSummary: !!(modalColumnIncludeInSummary && modalColumnIncludeInSummary.checked)
+        summaryRole: summaryRole
       }));
       lancamento.linhas.forEach(function(linha){ linha[id] = ''; });
     } else if (tipo === 'indice') {
@@ -1153,7 +1161,7 @@
         id: id,
         nome: nome,
         tipo: 'manual',
-        includeInSummary: !!(modalColumnIncludeInSummary && modalColumnIncludeInSummary.checked)
+        summaryRole: summaryRole
       }));
       lancamento.linhas.forEach(function(linha){ linha[id] = ''; });
     }
@@ -1467,43 +1475,20 @@
     normalizeLaunch(lancamento);
     recalculateLaunch(lancamento);
     const valorBase = roundMoney(totalLancamento(lancamento, 'valor'));
-    const legacyValorCorrecao = roundMoney(totalLancamento(lancamento, 'valor_correcao'));
-    const legacyJuros = roundMoney(totalLancamento(lancamento, 'valor_juros'));
-    const legacyValorDevido = roundMoney(totalLancamento(lancamento, 'valor_devido'));
-    const summaryColumns = (lancamento.colunas || []).filter(shouldAggregateColumnInSummary);
-    const summaryValues = summaryColumns.reduce(function(acc, coluna){
-      const colunaId = String(coluna.id || '');
-      if (!colunaId) return acc;
-      acc[colunaId] = roundMoney(totalLancamento(lancamento, colunaId));
-      return acc;
-    }, {});
-    const hasConfiguredSummary = hasExplicitSummarySelection(lancamento) && summaryColumns.length > 0;
-    const dynamicTotals = summaryColumns.reduce(function(acc, coluna){
-      const colunaId = String(coluna.id || '');
-      const total = roundMoney(totalLancamento(lancamento, colunaId));
-      acc.sum += total;
-      if (colunaId === 'valor_correcao') acc.valorCorrecao += total;
-      else if (colunaId === 'valor_juros') acc.juros += total;
-      else if (colunaId === 'valor_devido') acc.valorDevido += total;
-      else acc.outros += total;
-      return acc;
-    }, { sum:0, valorCorrecao:0, juros:0, valorDevido:0, outros:0 });
-    const valorCorrecao = hasConfiguredSummary ? roundMoney(dynamicTotals.valorCorrecao) : legacyValorCorrecao;
-    const juros = hasConfiguredSummary ? roundMoney(dynamicTotals.juros) : legacyJuros;
-    const valorDevido = hasConfiguredSummary
-      ? roundMoney(dynamicTotals.valorDevido || (dynamicTotals.valorCorrecao + dynamicTotals.juros + dynamicTotals.outros))
-      : legacyValorDevido;
+    const roleTotals = getSummaryRoleTotals(lancamento);
+    const valorCorrecao = roundMoney(roleTotals.correcao || 0);
+    const juros = roundMoney(roleTotals.juros || 0);
+    const valorDevido = roundMoney(valorBase + valorCorrecao + juros);
     const valorCorrigido = roundMoney(valorBase + valorCorrecao);
     return {
       id: String(lancamento.id || ''),
       verba: String(lancamento.verba || 'Verba'),
-      summaryColumns: summaryColumns.map(function(coluna){ return { id:String(coluna.id || ''), nome:String(coluna.nome || coluna.id || '') }; }),
-      summaryValues: summaryValues,
       valorBase: valorBase,
       valorCorrecao: valorCorrecao,
       valorCorrigido: valorCorrigido,
       juros: juros,
-      valorDevido: valorDevido
+      valorDevido: valorDevido,
+      hasCustomSummaryMapping: valorCorrecao !== 0 || juros !== 0
     };
   }
 
@@ -1523,7 +1508,9 @@
         kind: 'verba',
         id: item.id,
         verba: item.verba,
-        note: '',
+        note: item.hasCustomSummaryMapping
+          ? 'Resumo com colunas configuradas no modal da coluna (Correção/Juros).'
+          : '',
         valorCorrigido: item.valorCorrigido,
         juros: item.juros,
         valorDevido: item.valorDevido
@@ -1594,50 +1581,21 @@
 
   function renderSummaryTotals(summary){
     const summaryData = summary || buildCalculationSummary(collect());
-    const summaryColumnMetaById = new Map();
-    const summaryColumnOrder = [];
-
-    summaryData.launchItems.forEach(function(item){
-      (item.summaryColumns || []).forEach(function(coluna){
-        const colunaId = String(coluna && coluna.id || '');
-        if (!colunaId || summaryColumnMetaById.has(colunaId)) return;
-        summaryColumnMetaById.set(colunaId, { id: colunaId, nome: String(coluna.nome || coluna.id || colunaId) });
-        summaryColumnOrder.push(colunaId);
-      });
-    });
-
-    if (!summaryColumnOrder.length) {
-      [
-        { id:'valor_correcao', nome:'Valor da Correção' },
-        { id:'valor_juros', nome:'Valor dos Juros' },
-        { id:'valor_devido', nome:'Valor Devido' }
-      ].forEach(function(coluna){
-        summaryColumnMetaById.set(coluna.id, coluna);
-        summaryColumnOrder.push(coluna.id);
-      });
-    }
-
-    const summaryColumns = summaryColumnOrder.map(function(colunaId){
-      const coluna = summaryColumnMetaById.get(colunaId) || { id:colunaId, nome:colunaId };
-      return {
-        id: colunaId,
-        nome: coluna.nome,
-        className: colunaId === 'valor_devido' ? 'right bold' : 'right'
-      };
-    });
+    const summaryColumns = [
+      { id:'valorCorrigido', nome:'Valor corrigido', className:'right' },
+      { id:'juros', nome:'Juros', className:'right' },
+      { id:'valorDevido', nome:'Valor devido', className:'right bold' }
+    ];
 
     function getSummaryCellValue(row, columnId){
-      if (row && row.summaryValues && Number.isFinite(row.summaryValues[columnId])) return roundMoney(row.summaryValues[columnId]);
-      if (columnId === 'valor_correcao' && Number.isFinite(row.valorCorrecao)) return roundMoney(row.valorCorrecao);
-      if (columnId === 'valor_juros' && Number.isFinite(row.juros)) return roundMoney(row.juros);
-      if (columnId === 'valor_devido' && Number.isFinite(row.valorDevido)) return roundMoney(row.valorDevido);
+      if (columnId === 'valorCorrigido' && Number.isFinite(row.valorCorrigido)) return roundMoney(row.valorCorrigido);
+      if (columnId === 'juros' && Number.isFinite(row.juros)) return roundMoney(row.juros);
+      if (columnId === 'valorDevido' && Number.isFinite(row.valorDevido)) return roundMoney(row.valorDevido);
       return 0;
     }
 
     const summaryTotalsByColumn = summaryColumns.reduce(function(acc, coluna){
-      acc[coluna.id] = roundMoney(summaryData.rows.reduce(function(total, row){
-        return total + getSummaryCellValue(row, coluna.id);
-      }, 0));
+      acc[coluna.id] = roundMoney(summaryData.rows.reduce(function(total, row){ return total + getSummaryCellValue(row, coluna.id); }, 0));
       return acc;
     }, {});
 
