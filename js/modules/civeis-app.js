@@ -50,6 +50,8 @@
   const editLaunchVerba = $('editLaunchVerba');
   const editLaunchDataInicial = $('editLaunchDataInicial');
   const editLaunchDataFinal = $('editLaunchDataFinal');
+  const editLaunchSummaryValorCorrigido = $('editLaunchSummaryValorCorrigido');
+  const editLaunchSummaryJuros = $('editLaunchSummaryJuros');
   const editLaunchObservacao = $('editLaunchObservacao');
   const honorariosEnabled = $('honorariosEnabled');
   const honorariosDescricao = $('honorariosDescricao');
@@ -376,6 +378,9 @@
     return [valor];
   }
   function defaultIndexConfig(){ return { mode: 'factor_v9', lastAutoRefresh: '' }; }
+  function defaultSummaryMapping(){
+    return { valorCorrigidoColumnId: 'valor_correcao', jurosColumnId: 'valor_juros' };
+  }
 
   function uid(prefix){
     return String(prefix || 'id') + '_' + Date.now() + '_' + Math.random().toString(16).slice(2);
@@ -964,6 +969,7 @@
     if (coluna.id === 'valor'){ alert('A coluna Valor é obrigatória e não pode ser removida.'); return; }
     lancamento.colunas.splice(pos, 1);
     lancamento.linhas.forEach(function(linha){ delete linha[columnId]; });
+    normalizeSummaryMapping(lancamento);
     recalculateLaunch(lancamento);
     persistAndRefresh();
   }
@@ -1017,6 +1023,20 @@
     editLaunchVerba.value = lancamento.verba || '';
     editLaunchDataInicial.value = lancamento.dataInicial || '';
     editLaunchDataFinal.value = lancamento.dataFinal || '';
+    normalizeSummaryMapping(lancamento);
+    const summaryOptions = getSummaryMappingEligibleColumns(lancamento);
+    const valorCorrigidoSelected = lancamento.summaryMapping.valorCorrigidoColumnId;
+    const jurosSelected = lancamento.summaryMapping.jurosColumnId;
+    if (editLaunchSummaryValorCorrigido) {
+      editLaunchSummaryValorCorrigido.innerHTML = summaryOptions.map(function(coluna){
+        return '<option value="' + esc(coluna.id) + '"' + (coluna.id === valorCorrigidoSelected ? ' selected' : '') + '>' + esc(coluna.nome) + '</option>';
+      }).join('');
+    }
+    if (editLaunchSummaryJuros) {
+      editLaunchSummaryJuros.innerHTML = '<option value="">Sem juros no resumo</option>' + summaryOptions.map(function(coluna){
+        return '<option value="' + esc(coluna.id) + '"' + (coluna.id === jurosSelected ? ' selected' : '') + '>' + esc(coluna.nome) + '</option>';
+      }).join('');
+    }
     editLaunchObservacao.value = lancamento.observacao || '';
     editLaunchModal.classList.add('open');
     editLaunchModal.setAttribute('aria-hidden', 'false');
@@ -1030,6 +1050,8 @@
     editLaunchVerba.value = '';
     editLaunchDataInicial.value = '';
     editLaunchDataFinal.value = '';
+    if (editLaunchSummaryValorCorrigido) editLaunchSummaryValorCorrigido.innerHTML = '';
+    if (editLaunchSummaryJuros) editLaunchSummaryJuros.innerHTML = '';
     editLaunchObservacao.value = '';
   }
 
@@ -1050,6 +1072,10 @@
     const mudouPeriodo = lancamento.dataInicial !== dataInicial || lancamento.dataFinal !== dataFinal;
     lancamento.dataInicial = dataInicial;
     lancamento.dataFinal = dataFinal;
+    lancamento.summaryMapping = {
+      valorCorrigidoColumnId: editLaunchSummaryValorCorrigido ? editLaunchSummaryValorCorrigido.value : '',
+      jurosColumnId: editLaunchSummaryJuros ? editLaunchSummaryJuros.value : ''
+    };
     if (mudouPeriodo){
       const rows = buildMonthlyRows(dataInicial, dataFinal);
       lancamento.linhas = rows.map(function(baseRow, idx){
@@ -1062,6 +1088,7 @@
         return novaLinha;
       });
     }
+    normalizeSummaryMapping(lancamento);
     recalculateLaunch(lancamento);
     closeEditLaunchModal();
     persistAndRefresh();
