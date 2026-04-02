@@ -291,9 +291,12 @@ textarea{min-height:92px;resize:vertical}
         <input id="modalColumnFormula" type="text" placeholder="Ex.: (B+C) ou (BxD)">
         <div class="formula-help">Use as letras das colunas já existentes no lançamento. A = Data. B = Valor. As próximas colunas seguem C, D, E... Exemplos: (B+C), (BxD), (B+C-D) e ((B+C)*D).</div>
       </div>
-      <label class="check-inline" for="modalColumnIncludeInSummary">
-        <input id="modalColumnIncludeInSummary" type="checkbox"> Somar no resumo
-      </label>
+      <label for="modalColumnSummaryRole">Resumo</label>
+      <select id="modalColumnSummaryRole" class="select">
+        <option value="none">Não somar</option>
+        <option value="correcao">Somar em Correção</option>
+        <option value="juros">Somar em Juros</option>
+      </select>
     </div>
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" id="btnCancelColumnModal">Cancelar</button>
@@ -330,9 +333,12 @@ textarea{min-height:92px;resize:vertical}
         </div>
         <div class="formula-help">Defina um período para limitar a aplicação do índice. Fora desse intervalo, o mês não entra na acumulação do fator.</div>
       </div>
-      <label class="check-inline" for="editModalColumnIncludeInSummary">
-        <input id="editModalColumnIncludeInSummary" type="checkbox"> Somar no resumo
-      </label>
+      <label for="editModalColumnSummaryRole">Resumo</label>
+      <select id="editModalColumnSummaryRole" class="select">
+        <option value="none">Não somar</option>
+        <option value="correcao">Somar em Correção</option>
+        <option value="juros">Somar em Juros</option>
+      </select>
     </div>
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" id="btnCancelEditColumnModal">Cancelar</button>
