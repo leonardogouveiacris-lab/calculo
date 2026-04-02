@@ -7,8 +7,12 @@
   var UNIT_DAILY_PERCENT = 'daily_percent';
   var UNIT_ANNUAL_PERCENT_BASE_252 = 'annual_percent_base_252';
   var seriesMeta = Object.freeze({
-    '11': Object.freeze({ unitType: UNIT_ANNUAL_PERCENT_BASE_252, label: 'Selic anualizada base 252' }),
-    '4389': Object.freeze({ unitType: UNIT_ANNUAL_PERCENT_BASE_252, label: 'CDI anualizado base 252 (DI over)' })
+    // BCB/SGS:
+    // - Série 11 ("Taxa de juros - Selic"): Diária, % a.d.
+    // - Série 4389 ("Taxa de juros - CDI anualizada base 252"): Diária, % a.a. (derivada da série 12).
+    // Referência: metadados oficiais do SGS (links "Metadados no BCB-SGS" nas séries).
+    '11': Object.freeze({ unitType: UNIT_DAILY_PERCENT, label: 'Selic diária (% a.d., SGS 11)' }),
+    '4389': Object.freeze({ unitType: UNIT_ANNUAL_PERCENT_BASE_252, label: 'CDI anualizado base 252 (% a.a., SGS 4389)' })
   });
 
   function parseBCBNumber(value){
@@ -34,7 +38,9 @@
     return String((a && a.month) || a || '').localeCompare(String((b && b.month) || b || ''));
   }
 
-  // Regra oficial: SGS 11 e SGS 4389 são anualizadas base 252 e precisam ser convertidas em taxa diária efetiva.
+  // Regra oficial por unidade da série:
+  // - SGS 11 já vem em % a.d. (sem conversão adicional).
+  // - SGS 4389 vem em % a.a. base 252 (converter para taxa diária efetiva).
   // Em ambos os casos, o mês usa capitalização composta
   // dos dias disponíveis na série do BCB no período: produto(1 + taxa_dia) - 1.
   function dailyRateFromBCBValue(seriesCode, rawValue){
@@ -94,38 +100,38 @@
     var eps = Number(epsilon || 1e-12);
     var conversionFixtures = [
       {
-        name: 'SELIC diária convertida (SGS 11 anual base 252 -> taxa efetiva diária)',
+        name: 'SELIC em unidade oficial diária (SGS 11, % a.d.)',
         seriesCode: SELIC_DAILY_SERIES,
         raw: [
-          { data: '02/01/2025', valor: '10,65' }
+          { data: '02/01/2025', valor: '0,0402' }
         ],
         expected: [
-          { month: '2025-01', value: 0.04016754138975731 }
+          { month: '2025-01', value: 0.0402 }
         ]
       },
       {
-        name: 'CDI em unidade oficial % a.d. confirmada (SGS 4389)',
+        name: 'CDI anualizado base 252 convertido para diário efetivo (SGS 4389)',
         seriesCode: CDI_DAILY_SERIES,
-        raw: [
-          { data: '02/01/2025', valor: '0,10' },
-          { data: '03/01/2025', valor: '0,10' },
-          { data: '06/01/2025', valor: '0,10' }
-        ],
-        expected: [
-          { month: '2025-01', value: 0.0011898884280547861 }
-        ]
-      },
-      {
-        name: 'SELIC acumulada no mês por capitalização diária',
-        seriesCode: SELIC_DAILY_SERIES,
         raw: [
           { data: '02/01/2025', valor: '10,65' },
           { data: '03/01/2025', valor: '10,65' },
-          { data: '03/02/2025', valor: '10,65' }
+          { data: '06/01/2025', valor: '10,65' }
         ],
         expected: [
-          { month: '2025-01', value: 0.08035121709333293 },
-          { month: '2025-02', value: 0.04016754138975731 }
+          { month: '2025-01', value: 0.12055103359147612 }
+        ]
+      },
+      {
+        name: 'SELIC acumulada no mês por composição de taxa diária oficial (SGS 11)',
+        seriesCode: SELIC_DAILY_SERIES,
+        raw: [
+          { data: '02/01/2025', valor: '0,0402' },
+          { data: '03/01/2025', valor: '0,0402' },
+          { data: '03/02/2025', valor: '0,0402' }
+        ],
+        expected: [
+          { month: '2025-01', value: 0.0804161604000067 },
+          { month: '2025-02', value: 0.0402 }
         ]
       }
     ];

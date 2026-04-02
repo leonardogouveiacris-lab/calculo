@@ -236,7 +236,7 @@
     const num = Number(normalized);
     return Number.isFinite(num) ? num : 0;
   }
-  const BCB_SERIES_LABELS = { 11:'Selic SGS 11 (anualizada base 252 \u2192 diária efetiva \u2192 mensal composta)', 188:'INPC (SGS 188)', 189:'IGP-M (SGS 189)', 190:'IGP-DI (SGS 190)', 432:'Meta Selic (SGS 432)', 433:'IPCA (SGS 433)', 4389:'CDI SGS 4389 (diária \u2192 mensal composta)', 7478:'IPCA-15 (SGS 7478)', 7811:'TR mensal (SGS 7811)', 10764:'IPCA-E (SGS 10764)' };
+  const BCB_SERIES_LABELS = { 11:'Selic SGS 11 (% a.d. \u2192 mensal composta)', 188:'INPC (SGS 188)', 189:'IGP-M (SGS 189)', 190:'IGP-DI (SGS 190)', 432:'Meta Selic (SGS 432)', 433:'IPCA (SGS 433)', 4389:'CDI SGS 4389 (% a.a. base 252 \u2192 diária efetiva \u2192 mensal composta)', 7478:'IPCA-15 (SGS 7478)', 7811:'TR mensal (SGS 7811)', 10764:'IPCA-E (SGS 10764)' };
   function formatSeriesLabel(code){ return BCB_SERIES_LABELS[Number(code)] || ('série SGS ' + code); }
   function makeUTCDate(iso){ if (!iso) return null; const parts = String(iso).split('-').map(Number); if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return null; return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2])); }
   function cloneUTCDate(date){ return date instanceof Date ? new Date(date.getTime()) : null; }
