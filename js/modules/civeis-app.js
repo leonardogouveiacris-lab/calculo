@@ -65,6 +65,7 @@
   const custasHost = $('custasHost');
   const custasResumo = $('custasResumo');
   const btnAddCusta = $('btnAddCusta');
+  const summaryTableHead = $('summaryTableHead');
   const summaryTableBody = $('summaryTableBody');
   const summaryTableFoot = $('summaryTableFoot');
   const INDEX_SOURCE_OPTIONS = {
@@ -1470,6 +1471,12 @@
     const legacyJuros = roundMoney(totalLancamento(lancamento, 'valor_juros'));
     const legacyValorDevido = roundMoney(totalLancamento(lancamento, 'valor_devido'));
     const summaryColumns = (lancamento.colunas || []).filter(shouldAggregateColumnInSummary);
+    const summaryValues = summaryColumns.reduce(function(acc, coluna){
+      const colunaId = String(coluna.id || '');
+      if (!colunaId) return acc;
+      acc[colunaId] = roundMoney(totalLancamento(lancamento, colunaId));
+      return acc;
+    }, {});
     const hasConfiguredSummary = hasExplicitSummarySelection(lancamento) && summaryColumns.length > 0;
     const dynamicTotals = summaryColumns.reduce(function(acc, coluna){
       const colunaId = String(coluna.id || '');
@@ -1490,6 +1497,8 @@
     return {
       id: String(lancamento.id || ''),
       verba: String(lancamento.verba || 'Verba'),
+      summaryColumns: summaryColumns.map(function(coluna){ return { id:String(coluna.id || ''), nome:String(coluna.nome || coluna.id || '') }; }),
+      summaryValues: summaryValues,
       valorBase: valorBase,
       valorCorrecao: valorCorrecao,
       valorCorrigido: valorCorrigido,
@@ -1585,6 +1594,52 @@
 
   function renderSummaryTotals(summary){
     const summaryData = summary || buildCalculationSummary(collect());
+    const summaryColumnMetaById = new Map();
+    const summaryColumnOrder = [];
+
+    summaryData.launchItems.forEach(function(item){
+      (item.summaryColumns || []).forEach(function(coluna){
+        const colunaId = String(coluna && coluna.id || '');
+        if (!colunaId || summaryColumnMetaById.has(colunaId)) return;
+        summaryColumnMetaById.set(colunaId, { id: colunaId, nome: String(coluna.nome || coluna.id || colunaId) });
+        summaryColumnOrder.push(colunaId);
+      });
+    });
+
+    if (!summaryColumnOrder.length) {
+      [
+        { id:'valor_correcao', nome:'Valor da Correção' },
+        { id:'valor_juros', nome:'Valor dos Juros' },
+        { id:'valor_devido', nome:'Valor Devido' }
+      ].forEach(function(coluna){
+        summaryColumnMetaById.set(coluna.id, coluna);
+        summaryColumnOrder.push(coluna.id);
+      });
+    }
+
+    const summaryColumns = summaryColumnOrder.map(function(colunaId){
+      const coluna = summaryColumnMetaById.get(colunaId) || { id:colunaId, nome:colunaId };
+      return {
+        id: colunaId,
+        nome: coluna.nome,
+        className: colunaId === 'valor_devido' ? 'right bold' : 'right'
+      };
+    });
+
+    function getSummaryCellValue(row, columnId){
+      if (row && row.summaryValues && Number.isFinite(row.summaryValues[columnId])) return roundMoney(row.summaryValues[columnId]);
+      if (columnId === 'valor_correcao' && Number.isFinite(row.valorCorrecao)) return roundMoney(row.valorCorrecao);
+      if (columnId === 'valor_juros' && Number.isFinite(row.juros)) return roundMoney(row.juros);
+      if (columnId === 'valor_devido' && Number.isFinite(row.valorDevido)) return roundMoney(row.valorDevido);
+      return 0;
+    }
+
+    const summaryTotalsByColumn = summaryColumns.reduce(function(acc, coluna){
+      acc[coluna.id] = roundMoney(summaryData.rows.reduce(function(total, row){
+        return total + getSummaryCellValue(row, coluna.id);
+      }, 0));
+      return acc;
+    }, {});
 
     if (honorariosResumo) {
       if (!state.honorarios.enabled) {
@@ -1610,25 +1665,31 @@
         '</div>';
     }
 
+    if (summaryTableHead) {
+      summaryTableHead.innerHTML = '<tr><th>Verba</th>' + summaryColumns.map(function(coluna){
+        return '<th class="' + esc(coluna.className) + '">' + esc(coluna.nome || coluna.id) + '</th>';
+      }).join('') + '</tr>';
+    }
+
     if (summaryTableBody) {
       summaryTableBody.innerHTML = summaryData.rows.length ? summaryData.rows.map(function(row){
         return '' +
           '<tr class="summary-row summary-row-' + esc(row.kind) + '">' +
             '<td>' + esc(row.verba || '—') + (row.note ? '<span class="summary-row-note">' + esc(row.note) + '</span>' : '') + '</td>' +
-            '<td class="right">' + esc(formatCurrencyBR(row.valorCorrigido || 0)) + '</td>' +
-            '<td class="right">' + esc(formatCurrencyBR(row.juros || 0)) + '</td>' +
-            '<td class="right bold">' + esc(formatCurrencyBR(row.valorDevido || 0)) + '</td>' +
+            summaryColumns.map(function(coluna){
+              return '<td class="' + esc(coluna.className) + '">' + esc(formatCurrencyBR(getSummaryCellValue(row, coluna.id))) + '</td>';
+            }).join('') +
           '</tr>';
-      }).join('') : '<tr><td colspan="4" class="center">Nenhum item resumido até o momento.</td></tr>';
+      }).join('') : '<tr><td colspan="' + String(summaryColumns.length + 1) + '" class="center">Nenhum item resumido até o momento.</td></tr>';
     }
 
     if (summaryTableFoot) {
       summaryTableFoot.innerHTML = '' +
         '<tr>' +
           '<td>Total geral</td>' +
-          '<td class="right">' + esc(formatCurrencyBR(summaryData.totals.valorCorrigido || 0)) + '</td>' +
-          '<td class="right">' + esc(formatCurrencyBR(summaryData.totals.juros || 0)) + '</td>' +
-          '<td class="right">' + esc(formatCurrencyBR(summaryData.totals.valorDevido || 0)) + '</td>' +
+          summaryColumns.map(function(coluna){
+            return '<td class="' + esc(coluna.className) + '">' + esc(formatCurrencyBR(summaryTotalsByColumn[coluna.id] || 0)) + '</td>';
+          }).join('') +
         '</tr>';
     }
 
