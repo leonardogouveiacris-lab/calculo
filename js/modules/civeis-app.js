@@ -90,10 +90,11 @@
     { id:'juros', nome:'Juros', tipo:'indice', locked:true, formato:'indice', indexKind:'juros', indexSource:'selic', indexLimit:{ start:'', end:'' }, accumulationMode:'compound' }
   ]);
   const DEFAULT_RESULT_COLUMNS = Object.freeze([
-    { id:'valor_correcao', nome:'Valor da Correção', tipo:'formula', formato:'moeda', formula:'' },
-    { id:'valor_juros', nome:'Valor dos Juros', tipo:'formula', formato:'moeda', formula:'' },
-    { id:'valor_devido', nome:'Valor Devido', tipo:'formula', formato:'moeda', formula:'' }
+    { id:'valor_correcao', nome:'Valor da Correção', tipo:'formula', formato:'moeda', formula:'', includeInSummary:true },
+    { id:'valor_juros', nome:'Valor dos Juros', tipo:'formula', formato:'moeda', formula:'', includeInSummary:true },
+    { id:'valor_devido', nome:'Valor Devido', tipo:'formula', formato:'moeda', formula:'', includeInSummary:true }
   ]);
+  const LEGACY_SUMMARY_COLUMN_IDS = new Set(['valor_correcao', 'valor_juros', 'valor_devido']);
   let state = { lancamentos: [], lancamentoSelecionadoId: '', honorarios: defaultHonorariosConfig(), custas: [] };
   let honorariosSelectorOpen = false;
   let honorariosSearchTerm = '';
@@ -629,6 +630,29 @@
     return '({valor}+{valor_correcao}+{valor_juros})';
   }
 
+  function defaultIncludeInSummaryByColumnId(columnId){
+    return LEGACY_SUMMARY_COLUMN_IDS.has(String(columnId || ''));
+  }
+
+  function normalizeColumnSummaryMeta(coluna){
+    if (!coluna) return coluna;
+    if (typeof coluna.includeInSummary === 'boolean') return coluna;
+    coluna.includeInSummary = defaultIncludeInSummaryByColumnId(coluna.id);
+    return coluna;
+  }
+
+  function shouldAggregateColumnInSummary(coluna){
+    if (!coluna || coluna.includeInSummary !== true) return false;
+    if (coluna.formato === 'indice' || coluna.formato === 'percentual') return false;
+    return true;
+  }
+
+  function hasExplicitSummarySelection(lancamento){
+    return (lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : []).some(function(coluna){
+      return coluna && coluna.includeInSummary === true;
+    });
+  }
+
   function formulaTokenByColumnId(columnId){
     const tokenId = String(columnId || '').trim();
     if (!tokenId) return '';
@@ -704,10 +728,11 @@
     const dynamicColumns = existing.filter(function(item){
       return item && item.id !== 'valor' && !fixedColumnIds.has(String(item.id || ''));
     }).map(function(coluna){
-      return coluna && coluna.tipo === 'indice' ? normalizeIndexColumn(coluna) : coluna;
+      const normalized = coluna && coluna.tipo === 'indice' ? normalizeIndexColumn(coluna) : coluna;
+      return normalizeColumnSummaryMeta(normalized);
     });
 
-    lancamento.colunas = [Object.assign({ id:'valor', nome:'Valor', tipo:'manual' }, valor)].concat(dynamicColumns);
+    lancamento.colunas = [normalizeColumnSummaryMeta(Object.assign({ id:'valor', nome:'Valor', tipo:'manual' }, valor))].concat(dynamicColumns);
     lancamento.colunas.forEach(function(coluna){
       if (coluna && coluna.tipo === 'formula') coluna.formula = convertFormulaToStableTokens(coluna.formula, lancamento);
     });
@@ -878,6 +903,7 @@
       coluna.indexSource = editModalIndexSource.value || defaultIndexSourceByKind(coluna.indexKind || 'correcao');
       coluna.indexLimit = { start: editModalIndexStart.value || '', end: editModalIndexEnd.value || '' };
       coluna.accumulationMode = sourceAccumulationMode(coluna.indexSource);
+      normalizeColumnSummaryMeta(coluna);
       closeEditColumnModal();
       persistAndRefresh();
       updateIndicesForLaunch(launchIndex);
@@ -887,6 +913,7 @@
     if (coluna.tipo === 'formula' && !formula){ alert('Informe a fórmula da coluna.'); editModalColumnFormula.focus(); return; }
     coluna.nome = nome;
     if (coluna.tipo === 'formula') coluna.formula = convertFormulaToStableTokens(formula, lancamento);
+    normalizeColumnSummaryMeta(coluna);
     recalculateLaunch(lancamento);
     closeEditColumnModal();
     persistAndRefresh();
@@ -1066,7 +1093,7 @@
     const lancamento = state.lancamentos[launchIndex];
     const id = 'col_' + Date.now() + '_' + Math.random().toString(16).slice(2, 6);
     if (tipo === 'formula' || (tipo === 'manual' && formula)) {
-      lancamento.colunas.push({ id: id, nome: nome, tipo: 'formula', formula: convertFormulaToStableTokens(formula, lancamento) });
+      lancamento.colunas.push(normalizeColumnSummaryMeta({ id: id, nome: nome, tipo: 'formula', formula: convertFormulaToStableTokens(formula, lancamento) }));
       lancamento.linhas.forEach(function(linha){ linha[id] = ''; });
     } else if (tipo === 'indice') {
       const kind = modalIndexKind ? modalIndexKind.value : 'correcao';
@@ -1074,7 +1101,7 @@
       const limitStart = modalIndexStart ? modalIndexStart.value : '';
       const limitEnd = modalIndexEnd ? modalIndexEnd.value : '';
       if (limitStart && limitEnd && limitStart > limitEnd){ alert('A data inicial do limite não pode ser maior que a data final.'); return; }
-      lancamento.colunas.push(normalizeIndexColumn({
+      lancamento.colunas.push(normalizeColumnSummaryMeta(normalizeIndexColumn({
         id: id,
         nome: kind === 'juros' ? 'Juros (índice)' : 'Correção (índice)',
         tipo: 'indice',
@@ -1083,10 +1110,10 @@
         indexSource: source,
         indexLimit: { start: limitStart || '', end: limitEnd || '' },
         accumulationMode: sourceAccumulationMode(source)
-      }));
+      })));
       lancamento.linhas.forEach(function(linha){ linha[id] = 1; });
     } else {
-      lancamento.colunas.push({ id: id, nome: nome, tipo: 'manual' });
+      lancamento.colunas.push(normalizeColumnSummaryMeta({ id: id, nome: nome, tipo: 'manual' }));
       lancamento.linhas.forEach(function(linha){ linha[id] = ''; });
     }
     recalculateLaunch(lancamento);
@@ -1399,10 +1426,27 @@
     normalizeLaunch(lancamento);
     recalculateLaunch(lancamento);
     const valorBase = roundMoney(totalLancamento(lancamento, 'valor'));
-    const valorCorrecao = roundMoney(totalLancamento(lancamento, 'valor_correcao'));
+    const legacyValorCorrecao = roundMoney(totalLancamento(lancamento, 'valor_correcao'));
+    const legacyJuros = roundMoney(totalLancamento(lancamento, 'valor_juros'));
+    const legacyValorDevido = roundMoney(totalLancamento(lancamento, 'valor_devido'));
+    const summaryColumns = (lancamento.colunas || []).filter(shouldAggregateColumnInSummary);
+    const hasConfiguredSummary = hasExplicitSummarySelection(lancamento) && summaryColumns.length > 0;
+    const dynamicTotals = summaryColumns.reduce(function(acc, coluna){
+      const colunaId = String(coluna.id || '');
+      const total = roundMoney(totalLancamento(lancamento, colunaId));
+      acc.sum += total;
+      if (colunaId === 'valor_correcao') acc.valorCorrecao += total;
+      else if (colunaId === 'valor_juros') acc.juros += total;
+      else if (colunaId === 'valor_devido') acc.valorDevido += total;
+      else acc.outros += total;
+      return acc;
+    }, { sum:0, valorCorrecao:0, juros:0, valorDevido:0, outros:0 });
+    const valorCorrecao = hasConfiguredSummary ? roundMoney(dynamicTotals.valorCorrecao) : legacyValorCorrecao;
+    const juros = hasConfiguredSummary ? roundMoney(dynamicTotals.juros) : legacyJuros;
+    const valorDevido = hasConfiguredSummary
+      ? roundMoney(dynamicTotals.valorDevido || (dynamicTotals.valorCorrecao + dynamicTotals.juros + dynamicTotals.outros))
+      : legacyValorDevido;
     const valorCorrigido = roundMoney(valorBase + valorCorrecao);
-    const juros = roundMoney(totalLancamento(lancamento, 'valor_juros'));
-    const valorDevido = roundMoney(totalLancamento(lancamento, 'valor_devido'));
     return {
       id: String(lancamento.id || ''),
       verba: String(lancamento.verba || 'Verba'),
