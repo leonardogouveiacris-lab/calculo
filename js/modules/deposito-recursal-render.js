@@ -40,7 +40,7 @@
                   : t === 'cdi'
                     ? 'Busca automática no BCB: CDI (SGS 4389, % a.a. base 252) convertido para taxa diária efetiva e depois para taxa mensal efetiva por composição diária.'
                     : t === 'selic'
-                      ? 'Busca automática no BCB: Selic (SGS 11, % a.a. base 252) convertida para taxa diária efetiva e depois para taxa mensal efetiva por composição diária.'
+                      ? 'Busca automática no BCB: Selic (SGS 11, % a.d.) sem conversão de unidade e depois para taxa mensal efetiva por composição diária.'
                   : '';
     }
 
@@ -146,7 +146,7 @@
       if (tipo === 'igpm') return '<ul><li>API SGS/BCB: IGP-M mensal (SGS 189): <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.189/dados?formato=json" target="_blank" rel="noopener">Série 189</a></li></ul>';
       if (tipo === 'igpdi') return '<ul><li>API SGS/BCB: IGP-DI mensal (SGS 190): <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.190/dados?formato=json" target="_blank" rel="noopener">Série 190</a></li></ul>';
       if (tipo === 'cdi') return '<ul><li>API SGS/BCB: CDI (SGS 4389, % a.a. base 252) convertido para taxa diária efetiva (<code>(1+v/100)^(1/252)-1</code>) e depois para taxa mensal efetiva por composição diária: <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.4389/dados?formato=json" target="_blank" rel="noopener">Série 4389</a></li></ul>';
-      if (tipo === 'selic') return '<ul><li>API SGS/BCB: Selic (SGS 11, % a.a. base 252) convertida para taxa diária efetiva (<code>(1+v/100)^(1/252)-1</code>) e depois para taxa mensal efetiva por composição diária: <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados?formato=json" target="_blank" rel="noopener">Série 11</a></li></ul>';
+      if (tipo === 'selic') return '<ul><li>API SGS/BCB: Selic (SGS 11, % a.d.) usada diretamente como taxa diária efetiva (<code>v/100</code>) e depois convertida para taxa mensal efetiva por composição diária: <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.11/dados?formato=json" target="_blank" rel="noopener">Série 11</a></li></ul>';
       return '<p>Índices inseridos manualmente com base na tabela do Juízo/Tribunal.</p>';
     }
 
