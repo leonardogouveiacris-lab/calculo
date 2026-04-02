@@ -673,6 +673,14 @@
     }, { correcao:0, juros:0 });
   }
 
+  function hasSummaryRoleConfigured(lancamento){
+    return (lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : []).some(function(coluna){
+      if (!coluna || !canColumnUseSummaryRole(coluna)) return false;
+      if (String(coluna.id || '') === 'valor') return false;
+      return coluna.summaryRole === 'correcao' || coluna.summaryRole === 'juros';
+    });
+  }
+
   function formulaTokenByColumnId(columnId){
     const tokenId = String(columnId || '').trim();
     if (!tokenId) return '';
@@ -1501,21 +1509,19 @@
   function buildLaunchSummary(lancamento){
     normalizeLaunch(lancamento);
     recalculateLaunch(lancamento);
-    const valorBase = roundMoney(totalLancamento(lancamento, 'valor'));
     const roleTotals = getSummaryRoleTotals(lancamento);
     const valorCorrecao = roundMoney(roleTotals.correcao || 0);
     const juros = roundMoney(roleTotals.juros || 0);
-    const valorDevido = roundMoney(valorBase + valorCorrecao + juros);
-    const valorCorrigido = roundMoney(valorBase + valorCorrecao);
+    const valorCorrigido = roundMoney(valorCorrecao);
+    const valorDevido = roundMoney(valorCorrigido + juros);
     return {
       id: String(lancamento.id || ''),
       verba: String(lancamento.verba || 'Verba'),
-      valorBase: valorBase,
       valorCorrecao: valorCorrecao,
       valorCorrigido: valorCorrigido,
       juros: juros,
       valorDevido: valorDevido,
-      hasCustomSummaryMapping: valorCorrecao !== 0 || juros !== 0
+      hasCustomSummaryMapping: hasSummaryRoleConfigured(lancamento)
     };
   }
 
