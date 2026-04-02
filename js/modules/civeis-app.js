@@ -654,6 +654,20 @@
     });
   }
 
+  function formatFormulaForDisplay(formula, lancamento){
+    const text = String(formula || '').trim();
+    if (!text) return '';
+    const maps = buildFormulaMaps(lancamento);
+    const idToLetter = {};
+    Object.keys(maps.letterToId).forEach(function(letter){
+      idToLetter[maps.letterToId[letter]] = letter;
+    });
+    return text.replace(/\{\s*([a-zA-Z0-9_]+)\s*\}/g, function(match, tokenId){
+      const mappedLetter = idToLetter[String(tokenId || '').trim()];
+      return mappedLetter || match;
+    });
+  }
+
   function isLegacyValorDevidoFormula(formula){
     const normalized = String(formula || '').toUpperCase().replace(/\s+/g, '').replace(/X/g, '*');
     return normalized === '(B*C*D)' || normalized === '(B*C*E)' || normalized === '(B*D*E)' || normalized === '(B*CORRECAO_MONETARIA*JUROS)';
@@ -1085,7 +1099,7 @@
         const indiceMeta = coluna.tipo === 'indice'
           ? ('<span style="font-size:10px;color:#98a2b3">' + esc(summarizeIndexColumn(coluna).typeLabel + ' • ' + getIndexSourceLabel(coluna)) + '</span>')
           : '';
-        const metaHtml = '<div class="th-col-meta"><span>' + esc(column.title) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(coluna.formula || '') + '</span>' : '') + indiceMeta + '</div>';
+        const metaHtml = '<div class="th-col-meta"><span>' + esc(column.title) + '</span>' + (coluna.tipo === 'formula' ? '<span style="font-size:10px;color:#98a2b3">' + esc(column.formulaDisplay || '') + '</span>' : '') + indiceMeta + '</div>';
         let actions = '<div class="th-col-actions">';
         const leftTargetIndex = findReorderTargetIndex(lancamento, idx, 'left');
         const rightTargetIndex = findReorderTargetIndex(lancamento, idx, 'right');
@@ -1271,6 +1285,7 @@
         tipo: coluna.tipo,
         formato: coluna.formato,
         formula: coluna.formula || '',
+        formulaDisplay: formatFormulaForDisplay(coluna.formula, lancamento),
         title: columnTitle(coluna, idx),
         raw: coluna
       };
@@ -1302,7 +1317,7 @@
       columns: columns,
       rows: rows,
       badges: ['A = Data'].concat(columns.map(function(coluna){
-        return coluna.title + (coluna.tipo === 'formula' ? ' [' + coluna.formula + ']' : '');
+        return coluna.title + (coluna.tipo === 'formula' ? ' [' + coluna.formulaDisplay + ']' : '');
       })),
       indexSummary: getIndexColumns(lancamento).map(function(coluna){
         const colIndex = (lancamento.colunas || []).findIndex(function(item){ return item && item.id === coluna.id; });
