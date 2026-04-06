@@ -95,8 +95,44 @@
     CPCommon.clear(thead);
     CPCommon.clear(tbody);
 
+    function getVisibleRowIds(){
+      return rows.map(function(row){ return root.getRowId(row); }).filter(Boolean);
+    }
+
+    function syncMasterCheckbox(masterCheckbox){
+      if (!masterCheckbox) return;
+      var visibleIds = getVisibleRowIds();
+      if (!visibleIds.length) {
+        masterCheckbox.checked = false;
+        masterCheckbox.indeterminate = false;
+        return;
+      }
+      var selectedCount = visibleIds.reduce(function(acc, id){
+        return acc + (root.store.selectedRowIds.has(id) ? 1 : 0);
+      }, 0);
+      masterCheckbox.checked = selectedCount === visibleIds.length;
+      masterCheckbox.indeterminate = selectedCount > 0 && selectedCount < visibleIds.length;
+    }
+
     var headRow = document.createElement('tr');
-    headRow.appendChild(CPCommon.cell('th', ''));
+    var thCheck = document.createElement('th');
+    thCheck.className = 'center';
+    var masterInput = document.createElement('input');
+    masterInput.type = 'checkbox';
+    masterInput.setAttribute('aria-label', 'Selecionar linhas visíveis');
+    masterInput.addEventListener('change', function(){
+      var visibleIds = getVisibleRowIds();
+      visibleIds.forEach(function(id){
+        if (masterInput.checked) root.store.selectedRowIds.add(id);
+        else root.store.selectedRowIds.delete(id);
+      });
+      tbody.querySelectorAll('input[type="checkbox"][data-row-id]').forEach(function(input){
+        input.checked = masterInput.checked;
+      });
+      syncMasterCheckbox(masterInput);
+    });
+    thCheck.appendChild(masterInput);
+    headRow.appendChild(thCheck);
     root.COLUMNS.forEach(function(column){ headRow.appendChild(CPCommon.cell('th', column)); });
     thead.appendChild(headRow);
 
@@ -113,6 +149,7 @@
         if (!key) return;
         if (input.checked) root.store.selectedRowIds.add(key);
         else root.store.selectedRowIds.delete(key);
+        syncMasterCheckbox(masterInput);
       });
       tdCheck.appendChild(input);
       tr.appendChild(tdCheck);
@@ -120,6 +157,7 @@
       tbody.appendChild(tr);
     });
 
+    syncMasterCheckbox(masterInput);
     updateMeta(rows);
   }
 
