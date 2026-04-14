@@ -209,9 +209,11 @@
   function summarizeIndexColumn(coluna, columnRef){
     const kind = coluna && coluna.indexKind === 'juros' ? 'juros' : 'correcao';
     const limit = getIndexLimit(coluna);
+    const hasLimit = !!(limit.start || limit.end);
     const sourceRule = window.CPBCBRates && typeof window.CPBCBRates.describeSourceRule === 'function'
       ? window.CPBCBRates.describeSourceRule(coluna && coluna.indexSource)
       : null;
+    const noOverlap = !!(coluna && coluna.__lastNoOverlap);
     return {
       name: String(coluna && coluna.nome || 'Índice'),
       columnRef: String(columnRef || ''),
@@ -222,7 +224,8 @@
       unitLabel: sourceRule ? sourceRule.unitLabel : '—',
       formulaLabel: sourceRule ? sourceRule.formulaLabel : '—',
       intervalLabel: sourceRule ? sourceRule.intervalLabel : formatLimitInterval(limit.start, limit.end),
-      finalFactorLabel: formatIndexFactor(Number(coluna && coluna.__lastFactor || 1))
+      finalFactorLabel: formatIndexFactor(Number(coluna && coluna.__lastFactor || 1)),
+      overlapLabel: (noOverlap && hasLimit) ? 'Sem incidência no período atual (limite fora da competência/data de atualização).' : ''
     };
   }
 
@@ -541,6 +544,23 @@
       startISO: formatISODateUTC(effectiveStartDate),
       endISO: formatISODateUTC(effectiveEndDate)
     };
+  }
+
+  function minISODate(aISO, bISO){
+    const a = parseISODateUTC(aISO);
+    const b = parseISODateUTC(bISO);
+    if (a && b) return a <= b ? formatISODateUTC(a) : formatISODateUTC(b);
+    if (a) return formatISODateUTC(a);
+    if (b) return formatISODateUTC(b);
+    return '';
+  }
+
+  function requestedStartISOForColumn(coluna, competenciaStartISO){
+    const baseStart = String(competenciaStartISO || '');
+    if (!coluna || coluna.indexKind !== 'juros') return baseStart;
+    const limit = getIndexLimit(coluna);
+    if (limit && limit.start) return String(limit.start);
+    return baseStart;
   }
 
   function monthBoundsUTC(monthKey){
@@ -1393,6 +1413,7 @@
             '<span>Fórmula: ' + esc(summary.formulaLabel) + '</span>' +
             '<span>Intervalo: ' + esc(summary.intervalLabel) + ' / ' + esc(summary.limitLabel) + '</span>' +
             '<span>Fator final: ' + esc(summary.finalFactorLabel) + '</span>' +
+            (summary.overlapLabel ? '<span style="color:#b54708">' + esc(summary.overlapLabel) + '</span>' : '') +
           '</div>';
       }).join('');
       const fallbackIndexSummaryRows = hasIndexColumn && !indexSummaryRows
@@ -1485,56 +1506,35 @@
       const payloadCacheBySource = {};
       for (let idx = 0; idx < indexColumns.length; idx += 1){
         const coluna = indexColumns[idx];
-        const composition = getIndexComposition(coluna);
-        coluna.indexComposition = composition;
-        syncLegacyIndexFieldsFromComposition(coluna);
-        for (let segmentIndex = 0; segmentIndex < composition.length; segmentIndex += 1){
-          const source = composition[segmentIndex].source || defaultIndexSourceByKind(coluna.indexKind);
-          if (payloadCacheBySource[source]) continue;
-          payloadCacheBySource[source] = await loadAutoIndices(source, lancamento.dataInicial, dataAtualizacao);
-        }
-        coluna.__auditLog = [];
+        const limit = getIndexLimit(coluna);
+        const fetchStart = coluna.indexKind === 'juros' && limit.start
+          ? minISODate(lancamento.dataInicial, limit.start)
+          : lancamento.dataInicial;
+        const payload = await loadAutoIndices(coluna.indexSource || defaultIndexSourceByKind(coluna.indexKind), fetchStart, dataAtualizacao);
+        payloadByColumnId[coluna.id] = payload;
         coluna.__lastFactor = 1;
+        coluna.__lastNoOverlap = false;
       }
       lancamento.linhas.forEach(function(linha){
         const mesCompetencia = monthKeyFromPeriodo(linha.periodo);
         const inicioCompetenciaISO = mesCompetencia + '-01';
         indexColumns.forEach(function(coluna){
-          const composition = getIndexComposition(coluna);
-          let totalFactor = 1;
-          composition.forEach(function(segment){
-            const payload = payloadCacheBySource[segment.source] || makeIndexPayload('monthly', []);
-            const monthMap = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; }));
-            const mode = segment.accumulationMode || sourceAccumulationMode(segment.source);
-            const requestedStartISO = String(inicioCompetenciaISO);
-            const requestedEndISO = String(dataAtualizacao);
-            const effectiveStartISO = segment.start && segment.start > requestedStartISO ? segment.start : requestedStartISO;
-            const effectiveEndISO = segment.end && segment.end < requestedEndISO ? segment.end : requestedEndISO;
-            let factorSegment = 1;
-            if (payload.calculationPath === 'daily_compound_exact' && payload.dailySeriesCode && effectiveStartISO <= effectiveEndISO){
-              factorSegment = dailyCompoundExactFactor(payload.dailyRates, payload.dailySeriesCode, effectiveStartISO, effectiveEndISO);
-              coluna.__auditLog.push({
-                periodo: linha.periodo,
-                tipo: 'daily_compound_exact',
-                fonte: segment.source,
-                inicio: effectiveStartISO,
-                fim: effectiveEndISO,
-                fator: Number(factorSegment.toFixed(7))
-              });
-            } else {
-              factorSegment = accumulateIndexFactor(monthMap, mesCompetencia, mesAtualizacao, { start: segment.start || '', end: segment.end || '' }, mode, inicioCompetenciaISO, dataAtualizacao);
-              coluna.__auditLog.push({
-                periodo: linha.periodo,
-                tipo: 'monthly',
-                fonte: segment.source,
-                inicio: effectiveStartISO,
-                fim: effectiveEndISO,
-                fator: Number(factorSegment.toFixed(7))
-              });
-            }
-            totalFactor *= factorSegment;
-          });
-          linha[coluna.id] = Number(totalFactor.toFixed(7));
+          const payload = payloadByColumnId[coluna.id] || makeIndexPayload('monthly', []);
+          const monthMap = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; }));
+          const limit = getIndexLimit(coluna);
+          const mode = coluna.accumulationMode || sourceAccumulationMode(coluna.indexSource);
+          const requestedStartISO = requestedStartISOForColumn(coluna, inicioCompetenciaISO);
+          const requestedEndISO = String(dataAtualizacao);
+          const effectivePeriod = clampPeriodByLimit(requestedStartISO, requestedEndISO, limit);
+          coluna.__lastNoOverlap = !effectivePeriod;
+          if (payload.calculationPath === 'daily_compound_exact' && payload.dailySeriesCode && effectivePeriod){
+            const factorDaily = dailyCompoundExactFactor(payload.dailyRates, payload.dailySeriesCode, effectivePeriod.startISO, effectivePeriod.endISO);
+            linha[coluna.id] = Number(factorDaily.toFixed(7));
+            coluna.__lastFactor = linha[coluna.id];
+            return;
+          }
+          const factorMonthly = accumulateIndexFactor(monthMap, mesCompetencia, mesAtualizacao, limit, mode, requestedStartISO, dataAtualizacao);
+          linha[coluna.id] = Number(factorMonthly.toFixed(7));
           coluna.__lastFactor = linha[coluna.id];
         });
       });
