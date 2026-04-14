@@ -469,6 +469,8 @@
   }
 
   function sanitizeSummaryState(){
+    state.lancamentos = Array.isArray(state.lancamentos) ? state.lancamentos : [];
+    state.lancamentos.forEach(normalizeSummaryMapping);
     state.honorarios = normalizeHonorarios(state.honorarios);
     const validLaunchIds = new Set((state.lancamentos || []).map(function(lancamento){ return String(lancamento.id || ''); }).filter(Boolean));
     state.honorarios.launchIds = state.honorarios.launchIds.filter(function(id){ return validLaunchIds.has(String(id)); });
@@ -772,6 +774,51 @@
     });
   }
 
+  function getSummaryMappingEligibleColumns(lancamento){
+    return (lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : []).filter(function(coluna){
+      if (!coluna || !canColumnUseSummaryRole(coluna)) return false;
+      return String(coluna.id || '') !== 'valor';
+    });
+  }
+
+  function normalizeSummaryMapping(lancamento){
+    if (!lancamento || !Array.isArray(lancamento.colunas)) {
+      return defaultSummaryMapping();
+    }
+    const eligibleColumns = getSummaryMappingEligibleColumns(lancamento);
+    const eligibleIds = new Set(eligibleColumns.map(function(coluna){ return String(coluna.id || ''); }).filter(Boolean));
+    const defaults = defaultSummaryMapping();
+    const roleBased = eligibleColumns.reduce(function(acc, coluna){
+      const role = coluna && coluna.summaryRole;
+      if (role === 'correcao' && !acc.valorCorrigidoColumnId) acc.valorCorrigidoColumnId = String(coluna.id || '');
+      if (role === 'juros' && !acc.jurosColumnId) acc.jurosColumnId = String(coluna.id || '');
+      return acc;
+    }, { valorCorrigidoColumnId:'', jurosColumnId:'' });
+    const current = Object.assign({}, defaults, lancamento.summaryMapping || {});
+    const firstEligibleId = eligibleColumns[0] ? String(eligibleColumns[0].id || '') : '';
+    const fallbackCorrecao = (eligibleIds.has(defaults.valorCorrigidoColumnId) ? defaults.valorCorrigidoColumnId : firstEligibleId);
+    const fallbackJuros = eligibleIds.has(defaults.jurosColumnId) ? defaults.jurosColumnId : '';
+    let valorCorrigidoColumnId = String(current.valorCorrigidoColumnId || '').trim();
+    let jurosColumnId = String(current.jurosColumnId || '').trim();
+
+    if (!eligibleIds.has(valorCorrigidoColumnId)) valorCorrigidoColumnId = roleBased.valorCorrigidoColumnId || fallbackCorrecao;
+    if (!eligibleIds.has(jurosColumnId)) jurosColumnId = roleBased.jurosColumnId || fallbackJuros;
+    if (jurosColumnId === valorCorrigidoColumnId) jurosColumnId = '';
+
+    eligibleColumns.forEach(function(coluna){
+      const id = String(coluna.id || '');
+      if (id === valorCorrigidoColumnId) coluna.summaryRole = 'correcao';
+      else if (id === jurosColumnId) coluna.summaryRole = 'juros';
+      else coluna.summaryRole = 'none';
+      normalizeColumnSummaryMeta(coluna);
+    });
+    lancamento.summaryMapping = {
+      valorCorrigidoColumnId: valorCorrigidoColumnId,
+      jurosColumnId: jurosColumnId
+    };
+    return lancamento.summaryMapping;
+  }
+
   function formulaTokenByColumnId(columnId){
     const tokenId = String(columnId || '').trim();
     if (!tokenId) return '';
@@ -879,7 +926,7 @@
       });
       lancamento.indexConfig.mode = 'factor_v9';
     }
-    if (lancamento && lancamento.summaryMapping) delete lancamento.summaryMapping;
+    normalizeSummaryMapping(lancamento);
     return lancamento;
   }
 
@@ -1116,7 +1163,11 @@
     const coluna = lancamento.colunas[pos];
     if (coluna.id === 'valor'){ alert('A coluna Valor é obrigatória e não pode ser removida.'); return; }
     lancamento.colunas.splice(pos, 1);
+    (lancamento.linhas || []).forEach(function(linha){
+      if (linha && Object.prototype.hasOwnProperty.call(linha, columnId)) delete linha[columnId];
+    });
     normalizeSummaryMapping(lancamento);
+    recalculateLaunch(lancamento);
     persistAndRefresh();
   }
 
