@@ -115,13 +115,15 @@ textarea{min-height:92px;resize:vertical}
           <div class="col-6"><label for="processo">Número do processo</label><input id="processo" type="text" placeholder="0000000-00.0000.0.00.0000"></div>
           <div class="col-4"><label for="ajuizamento">Data do ajuizamento</label><input id="ajuizamento" type="date"></div>
           <div class="col-4"><label for="dataAtualizacao">Data de atualização do cálculo</label><input id="dataAtualizacao" type="date"></div>
-          <div class="col-4"><label>&nbsp;</label><label class="check-inline"><input id="enableIndexAuditLog" type="checkbox"> Exibir log técnico de índices</label></div>
           <div class="col-12"><label for="observacoes">Observações iniciais</label><textarea id="observacoes" placeholder="Campo inicial para registrar o objeto do cálculo, critérios e observações gerais."></textarea></div>
         </div>
         <div class="btn-row">
           <button class="btn-ghost" id="btnExportJson" type="button">Exportar cálculo (.json)</button>
           <button class="btn-ghost" id="btnImportJson" type="button">Importar cálculo (.json)</button>
+          <button class="btn-ghost" id="btnExportCsvLaunches" type="button">Exportar lançamentos (.csv)</button>
+          <button class="btn-ghost" id="btnImportCsvLaunches" type="button">Importar lançamentos (.csv)</button>
           <input id="importJsonInput" type="file" accept=".json,application/json" style="display:none">
+          <input id="importCsvLaunchesInput" type="file" accept=".csv,text/csv" style="display:none">
         </div>
       </section>
     </section>
@@ -330,6 +332,10 @@ textarea{min-height:92px;resize:vertical}
         <div class="row" style="margin-top:8px">
           <div class="col-6"><label for="editModalIndexStart">Aplicar a partir de</label><input id="editModalIndexStart" type="date"></div>
           <div class="col-6"><label for="editModalIndexEnd">Aplicar até</label><input id="editModalIndexEnd" type="date"></div>
+        </div>
+        <div id="editModalIndexSegments" style="display:grid;gap:8px;margin-top:8px"></div>
+        <div class="btn-row" style="margin-top:8px">
+          <button type="button" class="btn btn-ghost" id="btnAddEditIndexSegment">Adicionar tabela por período</button>
         </div>
         <div class="formula-help">Defina um período para limitar a aplicação do índice. Fora desse intervalo, o mês não entra na acumulação do fator.</div>
       </div>
