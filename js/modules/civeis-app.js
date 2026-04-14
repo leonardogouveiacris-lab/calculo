@@ -2773,9 +2773,13 @@
   const btnExportJson = $('btnExportJson');
   const btnImportJson = $('btnImportJson');
   const importJsonInput = $('importJsonInput');
-  const btnExportCsvLaunches = $('btnExportCsvLaunches');
-  const btnImportCsvLaunches = $('btnImportCsvLaunches');
-  const importCsvLaunchesInput = $('importCsvLaunchesInput');
+  const legacyBtnExportCsvLaunches = $('btnExportCsvLaunches');
+  const legacyBtnImportCsvLaunches = $('btnImportCsvLaunches');
+  const legacyImportCsvLaunchesInput = $('importCsvLaunchesInput');
+
+  [legacyBtnExportCsvLaunches, legacyBtnImportCsvLaunches, legacyImportCsvLaunchesInput].forEach(function(node){
+    if (node && node.parentNode) node.parentNode.removeChild(node);
+  });
 
   if (btnExportJson) btnExportJson.addEventListener('click', exportCalculationToJson);
   if (btnImportJson && importJsonInput) btnImportJson.addEventListener('click', function(){ importJsonInput.click(); });
