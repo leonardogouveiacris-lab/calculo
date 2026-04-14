@@ -473,6 +473,26 @@
     return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
   }
 
+  function formatISODateUTC(date){
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+    return String(date.getUTCFullYear()) + '-' + String(date.getUTCMonth() + 1).padStart(2, '0') + '-' + String(date.getUTCDate()).padStart(2, '0');
+  }
+
+  function clampPeriodByLimit(requestedStartISO, requestedEndISO, limit){
+    const requestedStart = parseISODateUTC(requestedStartISO);
+    const requestedEnd = parseISODateUTC(requestedEndISO);
+    if (!requestedStart || !requestedEnd || requestedStart > requestedEnd) return null;
+    const limitStart = parseISODateUTC(limit && limit.start ? limit.start : '');
+    const limitEnd = parseISODateUTC(limit && limit.end ? limit.end : '');
+    const effectiveStartDate = limitStart && limitStart > requestedStart ? limitStart : requestedStart;
+    const effectiveEndDate = limitEnd && limitEnd < requestedEnd ? limitEnd : requestedEnd;
+    if (!effectiveStartDate || !effectiveEndDate || effectiveStartDate > effectiveEndDate) return null;
+    return {
+      startISO: formatISODateUTC(effectiveStartDate),
+      endISO: formatISODateUTC(effectiveEndDate)
+    };
+  }
+
   function monthBoundsUTC(monthKey){
     const parts = String(monthKey || '').split('-').map(Number);
     if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
@@ -499,9 +519,10 @@
     const accumulationMode = mode || 'compound';
     const requestedStartISO = String(periodStartISO || (startMonthKey + '-01'));
     const requestedEndISO = String(periodEndISO || (endMonthKey + '-31'));
-    const effectiveStartISO = limit && limit.start && limit.start > requestedStartISO ? limit.start : requestedStartISO;
-    const effectiveEndISO = limit && limit.end && limit.end < requestedEndISO ? limit.end : requestedEndISO;
-    if (!effectiveStartISO || !effectiveEndISO || effectiveStartISO > effectiveEndISO) return 1;
+    const effectivePeriod = clampPeriodByLimit(requestedStartISO, requestedEndISO, limit);
+    if (!effectivePeriod) return 1;
+    const effectiveStartISO = effectivePeriod.startISO;
+    const effectiveEndISO = effectivePeriod.endISO;
     const clampedStart = effectiveStartISO.slice(0, 7);
     const clampedEnd = effectiveEndISO.slice(0, 7);
     if (!clampedStart || !clampedEnd || clampedStart > clampedEnd) return 1;
@@ -1365,10 +1386,9 @@
           const mode = coluna.accumulationMode || sourceAccumulationMode(coluna.indexSource);
           const requestedStartISO = String(inicioCompetenciaISO);
           const requestedEndISO = String(dataAtualizacao);
-          const effectiveStartISO = limit && limit.start && limit.start > requestedStartISO ? limit.start : requestedStartISO;
-          const effectiveEndISO = limit && limit.end && limit.end < requestedEndISO ? limit.end : requestedEndISO;
-          if (payload.calculationPath === 'daily_compound_exact' && payload.dailySeriesCode && effectiveStartISO <= effectiveEndISO){
-            const factorDaily = dailyCompoundExactFactor(payload.dailyRates, payload.dailySeriesCode, effectiveStartISO, effectiveEndISO);
+          const effectivePeriod = clampPeriodByLimit(requestedStartISO, requestedEndISO, limit);
+          if (payload.calculationPath === 'daily_compound_exact' && payload.dailySeriesCode && effectivePeriod){
+            const factorDaily = dailyCompoundExactFactor(payload.dailyRates, payload.dailySeriesCode, effectivePeriod.startISO, effectivePeriod.endISO);
             linha[coluna.id] = Number(factorDaily.toFixed(7));
             coluna.__lastFactor = linha[coluna.id];
             return;
