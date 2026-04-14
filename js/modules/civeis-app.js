@@ -2818,24 +2818,6 @@
     if (file) importCalculationFromJson(file);
     this.value = '';
   });
-  if (btnExportCsvLaunches) {
-    btnExportCsvLaunches.style.display = 'none';
-    btnExportCsvLaunches.setAttribute('aria-hidden', 'true');
-    btnExportCsvLaunches.addEventListener('click', exportActiveLaunchToCsv);
-  }
-  if (btnImportCsvLaunches) {
-    btnImportCsvLaunches.style.display = 'none';
-    btnImportCsvLaunches.setAttribute('aria-hidden', 'true');
-    if (importCsvLaunchesInput) {
-      btnImportCsvLaunches.addEventListener('click', function(){ importCsvLaunchesInput.click(); });
-    }
-  }
-  if (importCsvLaunchesInput) importCsvLaunchesInput.addEventListener('change', function(){
-    const file = this.files && this.files[0] ? this.files[0] : null;
-    if (file) importCsvIntoActiveLaunch(file);
-    this.value = '';
-  });
-
   $('btnCloseColumnModal').addEventListener('click', closeColumnModal);
   $('btnCloseEditColumnModal').addEventListener('click', closeEditColumnModal);
   $('btnCancelEditColumnModal').addEventListener('click', closeEditColumnModal);
