@@ -1538,6 +1538,34 @@
     });
   }
 
+  function factorForIndexComposition(composition, payloadBySource, competenciaStartISO, dataAtualizacaoISO){
+    const requestedStartISO = String(competenciaStartISO || '');
+    const requestedEndISO = String(dataAtualizacaoISO || '');
+    if (!requestedStartISO || !requestedEndISO || requestedStartISO > requestedEndISO) return { factor: 1, hasOverlap: false };
+    const segments = Array.isArray(composition) ? composition : [];
+    let totalFactor = 1;
+    let hasOverlap = false;
+    for (let idx = 0; idx < segments.length; idx += 1){
+      const segment = normalizeIndexSegment(segments[idx]);
+      const payload = payloadBySource.get(segment.source) || makeIndexPayload('monthly', []);
+      const effectivePeriod = clampPeriodByLimit(requestedStartISO, requestedEndISO, { start: segment.start || '', end: segment.end || '' });
+      if (!effectivePeriod) continue;
+      hasOverlap = true;
+      if (payload.calculationPath === 'daily_compound_exact' && payload.dailySeriesCode){
+        const factorDaily = dailyCompoundExactFactor(payload.dailyRates, payload.dailySeriesCode, effectivePeriod.startISO, effectivePeriod.endISO);
+        totalFactor *= factorDaily;
+        continue;
+      }
+      const monthMap = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; }));
+      const startMonth = monthKeyFromISO(effectivePeriod.startISO);
+      const endMonth = monthKeyFromISO(effectivePeriod.endISO);
+      const segmentMode = segment.accumulationMode || sourceAccumulationMode(segment.source);
+      const factorMonthly = accumulateIndexFactor(monthMap, startMonth, endMonth, { start: segment.start || '', end: segment.end || '' }, segmentMode, effectivePeriod.startISO, effectivePeriod.endISO);
+      totalFactor *= factorMonthly;
+    }
+    return { factor: totalFactor, hasOverlap: hasOverlap };
+  }
+
   async function updateIndicesForLaunch(launchIndex){
     const lancamento = state.lancamentos[launchIndex];
     if (!lancamento) return;
@@ -1546,8 +1574,7 @@
     normalizeLaunch(lancamento);
     const config = Object.assign(defaultIndexConfig(), lancamento.indexConfig || {});
     const dataAtualizacao = fields.dataAtualizacao.value || new Date().toISOString().slice(0,10);
-    const mesAtualizacao = monthKeyFromISO(dataAtualizacao);
-    if (!mesAtualizacao){
+    if (!monthKeyFromISO(dataAtualizacao)){
       alert('Informe a data de atualização do cálculo.');
       return;
     }
@@ -1557,12 +1584,21 @@
       const indexColumns = getIndexColumns(lancamento);
       for (let idx = 0; idx < indexColumns.length; idx += 1){
         const coluna = indexColumns[idx];
-        const limit = getIndexLimit(coluna);
-        const fetchStart = coluna.indexKind === 'juros' && limit.start
-          ? minISODate(lancamento.dataInicial, limit.start)
+        const composition = getIndexComposition(coluna);
+        const allStarts = composition.map(function(segment){ return String(segment.start || '').trim(); }).filter(Boolean);
+        const firstStart = allStarts.length ? allStarts.sort()[0] : '';
+        const fetchStart = coluna.indexKind === 'juros' && firstStart
+          ? minISODate(lancamento.dataInicial, firstStart)
           : lancamento.dataInicial;
-        const payload = await loadAutoIndices(coluna.indexSource || defaultIndexSourceByKind(coluna.indexKind), fetchStart, dataAtualizacao);
-        payloadByColumnId[coluna.id] = payload;
+        const payloadBySource = new Map();
+        for (let segIdx = 0; segIdx < composition.length; segIdx += 1){
+          const segment = composition[segIdx];
+          const source = segment.source || defaultIndexSourceByKind(coluna.indexKind);
+          if (payloadBySource.has(source)) continue;
+          const payload = await loadAutoIndices(source, fetchStart, dataAtualizacao);
+          payloadBySource.set(source, payload);
+        }
+        payloadByColumnId[coluna.id] = payloadBySource;
         coluna.__lastFactor = 1;
         coluna.__lastNoOverlap = false;
       }
@@ -1570,22 +1606,14 @@
         const mesCompetencia = monthKeyFromPeriodo(linha.periodo);
         const inicioCompetenciaISO = mesCompetencia + '-01';
         indexColumns.forEach(function(coluna){
-          const payload = payloadByColumnId[coluna.id] || makeIndexPayload('monthly', []);
-          const monthMap = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; }));
-          const limit = getIndexLimit(coluna);
-          const mode = coluna.accumulationMode || sourceAccumulationMode(coluna.indexSource);
-          const requestedStartISO = requestedStartISOForColumn(coluna, inicioCompetenciaISO);
-          const requestedEndISO = String(dataAtualizacao);
-          const effectivePeriod = clampPeriodByLimit(requestedStartISO, requestedEndISO, limit);
-          coluna.__lastNoOverlap = !effectivePeriod;
-          if (payload.calculationPath === 'daily_compound_exact' && payload.dailySeriesCode && effectivePeriod){
-            const factorDaily = dailyCompoundExactFactor(payload.dailyRates, payload.dailySeriesCode, effectivePeriod.startISO, effectivePeriod.endISO);
-            linha[coluna.id] = Number(factorDaily.toFixed(7));
-            coluna.__lastFactor = linha[coluna.id];
-            return;
+          const payloadBySource = payloadByColumnId[coluna.id] || new Map();
+          const composition = getIndexComposition(coluna);
+          if (coluna.indexKind === 'juros' && composition.length && !composition[0].start) {
+            composition[0] = normalizeIndexSegment(Object.assign({}, composition[0], { start: lancamento.dataInicial }), 'juros');
           }
-          const factorMonthly = accumulateIndexFactor(monthMap, mesCompetencia, mesAtualizacao, limit, mode, requestedStartISO, dataAtualizacao);
-          linha[coluna.id] = Number(factorMonthly.toFixed(7));
+          const calculation = factorForIndexComposition(composition, payloadBySource, requestedStartISOForColumn(coluna, inicioCompetenciaISO), dataAtualizacao);
+          coluna.__lastNoOverlap = !calculation.hasOverlap;
+          linha[coluna.id] = Number(calculation.factor.toFixed(7));
           coluna.__lastFactor = linha[coluna.id];
         });
       });
