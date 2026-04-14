@@ -2538,8 +2538,8 @@
     URL.revokeObjectURL(url);
   }
 
-  function downloadCsvFile(filename, content){
-    const blob = new Blob(['\ufeff' + content], { type: 'text/csv;charset=utf-8' });
+  function downloadTextFile(filename, content, mimeType){
+    const blob = new Blob([content], { type: mimeType || 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -2550,120 +2550,131 @@
     URL.revokeObjectURL(url);
   }
 
-  function escapeCsvCell(value){
-    const text = String(value == null ? '' : value);
-    if (!/[;"\n\r]/.test(text)) return text;
-    return '"' + text.replace(/"/g, '""') + '"';
-  }
-
-  function parseCsvRows(text){
-    const source = String(text || '').replace(/^\ufeff/, '');
-    const rows = [];
-    let row = [];
-    let cell = '';
-    let inQuotes = false;
-    for (let index = 0; index < source.length; index += 1){
-      const char = source[index];
-      if (inQuotes) {
-        if (char === '"') {
-          if (source[index + 1] === '"') {
-            cell += '"';
-            index += 1;
-          } else {
-            inQuotes = false;
-          }
-        } else {
-          cell += char;
-        }
-        continue;
-      }
-      if (char === '"') {
-        inQuotes = true;
-        continue;
-      }
-      if (char === ';') {
-        row.push(cell);
-        cell = '';
-        continue;
-      }
-      if (char === '\n') {
-        row.push(cell);
-        rows.push(row);
-        row = [];
-        cell = '';
-        continue;
-      }
-      if (char === '\r') continue;
-      cell += char;
-    }
-    row.push(cell);
-    if (row.length > 1 || row[0] !== '') rows.push(row);
-    return rows;
-  }
-
-  function findEditableColumn(lancamento, columnId){
-    const id = String(columnId || '').trim();
-    if (!id) return null;
-    return (lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : []).find(function(coluna){
-      return coluna && coluna.id === id && coluna.tipo !== 'formula' && coluna.tipo !== 'indice';
-    }) || null;
-  }
-
   function exportCalculationToJson(){
     const data = collect();
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     downloadJsonFile('calculo-civel-' + stamp + '.json', JSON.stringify(data, null, 2));
   }
 
-  function exportLaunchesToCsv(launchIndex){
-    const launchList = typeof launchIndex === 'number'
-      ? (state.lancamentos[launchIndex] ? [state.lancamentos[launchIndex]] : [])
-      : state.lancamentos.slice();
-    if (!launchList.length) {
-      alert('Cadastre ao menos um lançamento antes de exportar o CSV.');
-      return;
+  function csvEscape(value){
+    const text = String(value == null ? '' : value);
+    if (!/[;"\n\r]/.test(text)) return text;
+    return '"' + text.replace(/"/g, '""') + '"';
+  }
+
+  function toCsvRow(values){
+    return values.map(csvEscape).join(';');
+  }
+
+  function parseCsvText(content){
+    const rows = [];
+    let row = [];
+    let current = '';
+    let quoted = false;
+    for (let i = 0; i < content.length; i += 1){
+      const char = content[i];
+      const next = content[i + 1];
+      if (quoted){
+        if (char === '"' && next === '"'){
+          current += '"';
+          i += 1;
+        } else if (char === '"'){
+          quoted = false;
+        } else {
+          current += char;
+        }
+      } else if (char === '"'){
+        quoted = true;
+      } else if (char === ';'){
+        row.push(current);
+        current = '';
+      } else if (char === '\n'){
+        row.push(current);
+        rows.push(row);
+        row = [];
+        current = '';
+      } else if (char !== '\r'){
+        current += char;
+      }
     }
-    const header = [
-      'lancamento_id',
-      'verba',
-      'periodo',
-      'data_inicial_verba',
-      'data_final_verba',
-      'observacao_verba',
-      'coluna_id',
-      'coluna_nome',
-      'tipo_coluna',
-      'valor'
-    ];
-    const lines = [header.join(';')];
-    launchList.forEach(function(lancamento){
-      normalizeLaunch(lancamento);
-      const editableColumns = (lancamento.colunas || []).filter(function(coluna){
-        return coluna && coluna.tipo !== 'formula' && coluna.tipo !== 'indice';
+    row.push(current);
+    if (row.some(function(cell){ return String(cell || '').trim() !== ''; })) rows.push(row);
+    return rows;
+  }
+
+  function getActiveLaunch(){
+    const launchIndex = getSelectedLaunchIndex();
+    if (launchIndex < 0) return { launchIndex: -1, lancamento: null };
+    return { launchIndex: launchIndex, lancamento: state.lancamentos[launchIndex] || null };
+  }
+
+  function exportActiveLaunchToCsv(){
+    const active = getActiveLaunch();
+    const lancamento = active.lancamento;
+    if (!lancamento) return alert('Selecione uma verba para exportar.');
+    const columns = (lancamento.colunas || []).slice();
+    const header = ['Período'].concat(columns.map(function(coluna){ return coluna.nome || coluna.id; }));
+    const dataRows = (lancamento.linhas || []).map(function(linha){
+      const row = [linha.periodo || ''];
+      columns.forEach(function(coluna){
+        row.push(displayColumnValue(coluna, linha[coluna.id], { forInput: false }));
       });
-      (lancamento.linhas || []).forEach(function(linha){
-        editableColumns.forEach(function(coluna){
-          const columnId = coluna.id === 'valor' ? 'valor' : coluna.id;
-          const rawValue = columnId === 'valor' ? linha.valor : linha[columnId];
-          const cells = [
-            lancamento.id || '',
-            lancamento.verba || '',
-            linha.periodo || '',
-            lancamento.dataInicial || '',
-            lancamento.dataFinal || '',
-            lancamento.observacao || '',
-            columnId,
-            coluna.nome || '',
-            coluna.tipo || 'manual',
-            formatEditableNumberBR(rawValue || 0)
-          ].map(escapeCsvCell);
-          lines.push(cells.join(';'));
-        });
-      });
+      return row;
     });
+    const csv = [toCsvRow(header)].concat(dataRows.map(toCsvRow)).join('\n');
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-    const suffix = launchList.length === 1 ? ('-' + String(launchList[0].verba || 'verba').toLowerCase().replace(/[^a-z0-9]+/g, '-')) : '';
-    downloadCsvFile('calculo-civel-lancamentos' + suffix + '-' + stamp + '.csv', lines.join('\r\n'));
+    const safeName = String(lancamento.verba || 'verba').replace(/[^\w\-]+/g, '_').slice(0, 40) || 'verba';
+    downloadTextFile('lancamento_' + safeName + '_' + stamp + '.csv', csv, 'text/csv;charset=utf-8');
+  }
+
+  function importCsvIntoActiveLaunch(file){
+    const active = getActiveLaunch();
+    const launchIndex = active.launchIndex;
+    const lancamento = active.lancamento;
+    if (!lancamento) return alert('Selecione uma verba para importar o CSV.');
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(){
+      try {
+        const rows = parseCsvText(String(reader.result || ''));
+        if (rows.length < 2) throw new Error('CSV sem linhas de dados.');
+        const header = rows[0].map(function(cell){ return String(cell || '').trim(); });
+        const headerMap = new Map(header.map(function(cell, index){ return [cell.toLowerCase(), index]; }));
+        const periodIndex = headerMap.has('período') ? headerMap.get('período') : headerMap.get('periodo');
+        if (periodIndex == null) throw new Error('Cabeçalho "Período" não encontrado.');
+        const importableCols = (lancamento.colunas || []).filter(function(coluna){
+          return coluna && coluna.tipo !== 'indice' && coluna.tipo !== 'formula';
+        });
+        const colIndexById = {};
+        importableCols.forEach(function(coluna){
+          const idx = headerMap.get(String(coluna.nome || '').trim().toLowerCase());
+          if (idx != null) colIndexById[coluna.id] = idx;
+        });
+        const rowMap = new Map((lancamento.linhas || []).map(function(item){ return [String(item.periodo || ''), item]; }));
+        for (let r = 1; r < rows.length; r += 1){
+          const cells = rows[r];
+          const periodo = String(cells[periodIndex] || '').trim();
+          if (!periodo) continue;
+          const linha = rowMap.get(periodo);
+          if (!linha) continue;
+          importableCols.forEach(function(coluna){
+            const cellIndex = colIndexById[coluna.id];
+            if (cellIndex == null) return;
+            linha[coluna.id] = String(cells[cellIndex] == null ? '' : cells[cellIndex]).trim();
+          });
+        }
+        recalculateLaunch(lancamento);
+        persistAndRefresh();
+        updateIndicesForLaunch(launchIndex);
+        alert('CSV importado para a verba ativa com sucesso.');
+      } catch (error) {
+        alert('Falha ao importar CSV da verba ativa: ' + (error && error.message ? error.message : 'erro inesperado.'));
+      }
+    };
+    reader.onerror = function(){
+      alert('Não foi possível ler o CSV selecionado.');
+    };
+    reader.readAsText(file, 'utf-8');
   }
 
   function importCalculationFromJson(file){
@@ -2769,11 +2780,21 @@
     if (file) importCalculationFromJson(file);
     this.value = '';
   });
-  if (btnExportCsvLaunches) btnExportCsvLaunches.addEventListener('click', exportLaunchesToCsv);
-  if (btnImportCsvLaunches && importCsvLaunchesInput) btnImportCsvLaunches.addEventListener('click', function(){ importCsvLaunchesInput.click(); });
+  if (btnExportCsvLaunches) {
+    btnExportCsvLaunches.style.display = 'none';
+    btnExportCsvLaunches.setAttribute('aria-hidden', 'true');
+    btnExportCsvLaunches.addEventListener('click', exportActiveLaunchToCsv);
+  }
+  if (btnImportCsvLaunches) {
+    btnImportCsvLaunches.style.display = 'none';
+    btnImportCsvLaunches.setAttribute('aria-hidden', 'true');
+    if (importCsvLaunchesInput) {
+      btnImportCsvLaunches.addEventListener('click', function(){ importCsvLaunchesInput.click(); });
+    }
+  }
   if (importCsvLaunchesInput) importCsvLaunchesInput.addEventListener('change', function(){
     const file = this.files && this.files[0] ? this.files[0] : null;
-    if (file) importLaunchesFromCsv(file);
+    if (file) importCsvIntoActiveLaunch(file);
     this.value = '';
   });
 
