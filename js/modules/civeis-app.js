@@ -31,6 +31,8 @@
   let modalIndexSource = $('modalIndexSource');
   let modalIndexStart = $('modalIndexStart');
   let modalIndexEnd = $('modalIndexEnd');
+  let modalIndexSegments = $('modalIndexSegments');
+  let btnAddModalIndexSegment = $('btnAddModalIndexSegment');
   const columnModalTitle = $('columnModalTitle');
   const columnModalSub = $('columnModalSub');
   const launchSelector = $('launchSelector');
@@ -45,6 +47,8 @@
   const editModalIndexSource = $('editModalIndexSource');
   const editModalIndexStart = $('editModalIndexStart');
   const editModalIndexEnd = $('editModalIndexEnd');
+  const editModalIndexSegments = $('editModalIndexSegments');
+  const btnAddEditIndexSegment = $('btnAddEditIndexSegment');
   const editLaunchModal = $('editLaunchModal');
   const editLaunchIndex = $('editLaunchIndex');
   const editLaunchVerba = $('editLaunchVerba');
@@ -120,6 +124,8 @@
         '<div class="col-6"><label for="modalIndexStart">Aplicar a partir de</label><input id="modalIndexStart" type="date"></div>' +
         '<div class="col-6"><label for="modalIndexEnd">Aplicar até</label><input id="modalIndexEnd" type="date"></div>' +
       '</div>' +
+      '<div id="modalIndexSegments" style="display:grid;gap:8px;margin-top:8px"></div>' +
+      '<div class="btn-row" style="margin-top:8px"><button type="button" class="btn btn-ghost" id="btnAddModalIndexSegment">Adicionar tabela por período</button></div>' +
       '<div class="formula-help">Defina fonte e limites opcionais para acumular o fator do índice.</div>';
     modalBody.appendChild(wrap);
     indexFieldWrap = $('indexFieldWrap');
@@ -127,6 +133,8 @@
     modalIndexSource = $('modalIndexSource');
     modalIndexStart = $('modalIndexStart');
     modalIndexEnd = $('modalIndexEnd');
+    modalIndexSegments = $('modalIndexSegments');
+    btnAddModalIndexSegment = $('btnAddModalIndexSegment');
   })();
 
   function esc(value){
@@ -158,9 +166,45 @@
   }
 
   function getIndexSourceLabel(coluna){
+    const composition = getIndexComposition(coluna);
+    if (composition.length > 1) return 'Combinado (' + composition.length + ' tabelas)';
     const kind = coluna && coluna.indexKind ? coluna.indexKind : 'correcao';
     const source = coluna && coluna.indexSource ? coluna.indexSource : '';
     return ((INDEX_SOURCE_OPTIONS[kind] || []).find(function(opt){ return opt.value === source; }) || {}).label || source || '—';
+  }
+
+  function normalizeIndexSegment(segment, fallbackKind){
+    const base = segment || {};
+    const kind = fallbackKind === 'juros' ? 'juros' : 'correcao';
+    const source = String(base.source || base.indexSource || '').trim() || defaultIndexSourceByKind(kind);
+    const start = String(base.start || '').trim();
+    const end = String(base.end || '').trim();
+    return {
+      source: source,
+      start: start,
+      end: end,
+      accumulationMode: sourceAccumulationMode(source)
+    };
+  }
+
+  function getIndexComposition(coluna){
+    const kind = coluna && coluna.indexKind === 'juros' ? 'juros' : 'correcao';
+    const source = coluna && coluna.indexSource ? coluna.indexSource : defaultIndexSourceByKind(kind);
+    const limit = getIndexLimit(coluna);
+    const legacy = normalizeIndexSegment({ source: source, start: limit.start, end: limit.end }, kind);
+    const list = Array.isArray(coluna && coluna.indexComposition) ? coluna.indexComposition.map(function(item){
+      return normalizeIndexSegment(item, kind);
+    }).filter(function(item){ return !!item.source; }) : [];
+    return list.length ? list : [legacy];
+  }
+
+  function syncLegacyIndexFieldsFromComposition(coluna){
+    const composition = getIndexComposition(coluna);
+    const first = composition[0] || normalizeIndexSegment({}, coluna && coluna.indexKind);
+    coluna.indexComposition = composition;
+    coluna.indexSource = first.source;
+    coluna.indexLimit = { start: first.start || '', end: first.end || '' };
+    coluna.accumulationMode = first.accumulationMode || sourceAccumulationMode(first.source);
   }
 
   function summarizeIndexColumn(coluna, columnRef){
@@ -357,13 +401,19 @@
     const source = String(base.indexSource || base.defaultSource || defaultIndexSourceByKind(kind) || '').trim() || defaultIndexSourceByKind(kind);
     const mode = String(base.accumulationMode || sourceAccumulationMode(source) || 'compound').trim() || 'compound';
     const limit = base.indexLimit || {};
+    const composition = getIndexComposition(Object.assign({}, base, {
+      indexKind: kind,
+      indexSource: source,
+      indexLimit: { start: String(limit.start || ''), end: String(limit.end || '') }
+    }));
     return Object.assign({}, base, {
       tipo: 'indice',
       formato: 'indice',
       indexKind: kind,
       indexSource: source,
       accumulationMode: mode,
-      indexLimit: { start: String(limit.start || ''), end: String(limit.end || '') }
+      indexLimit: { start: String(limit.start || ''), end: String(limit.end || '') },
+      indexComposition: composition
     });
   }
 
@@ -745,6 +795,10 @@
   }
 
   function getIndexLimit(coluna){
+    if (coluna && Array.isArray(coluna.indexComposition) && coluna.indexComposition.length) {
+      const first = coluna.indexComposition[0] || {};
+      return { start: String(first.start || ''), end: String(first.end || '') };
+    }
     const limit = coluna && coluna.indexLimit ? coluna.indexLimit : {};
     return { start: String(limit.start || ''), end: String(limit.end || '') };
   }
@@ -870,6 +924,50 @@
     $('btnExcluirLancamentoSelecionado').disabled = false;
   }
 
+  function buildIndexSegmentRowHtml(kind, segment){
+    const opts = INDEX_SOURCE_OPTIONS[kind] || [];
+    const source = segment && segment.source ? segment.source : defaultIndexSourceByKind(kind);
+    const start = segment && segment.start ? segment.start : '';
+    const end = segment && segment.end ? segment.end : '';
+    return '' +
+      '<div class="row js-index-segment-row" style="margin:0">' +
+        '<div class="col-4"><label>Fonte complementar</label><select class="select js-index-segment-source">' + opts.map(function(opt){ return '<option value="' + esc(opt.value) + '"' + (opt.value === source ? ' selected' : '') + '>' + esc(opt.label) + '</option>'; }).join('') + '</select></div>' +
+        '<div class="col-3"><label>Início</label><input class="js-index-segment-start" type="date" value="' + esc(start) + '"></div>' +
+        '<div class="col-3"><label>Fim</label><input class="js-index-segment-end" type="date" value="' + esc(end) + '"></div>' +
+        '<div class="col-2" style="display:flex;align-items:end"><button type="button" class="btn btn-danger js-remove-index-segment">Remover</button></div>' +
+      '</div>';
+  }
+
+  function renderIndexSegmentList(host, kind, segments){
+    if (!host) return;
+    const rows = (segments || []).map(function(segment){ return buildIndexSegmentRowHtml(kind, segment); });
+    host.innerHTML = rows.join('');
+  }
+
+  function collectExtraIndexSegments(host, kind){
+    if (!host) return [];
+    return Array.from(host.querySelectorAll('.js-index-segment-row')).map(function(row){
+      const sourceEl = row.querySelector('.js-index-segment-source');
+      const startEl = row.querySelector('.js-index-segment-start');
+      const endEl = row.querySelector('.js-index-segment-end');
+      return normalizeIndexSegment({
+        source: sourceEl ? sourceEl.value : '',
+        start: startEl ? startEl.value : '',
+        end: endEl ? endEl.value : ''
+      }, kind);
+    });
+  }
+
+  function validateIndexComposition(composition){
+    for (let i = 0; i < composition.length; i += 1){
+      const item = composition[i];
+      if (item.start && item.end && item.start > item.end) {
+        return 'A faixa ' + (i + 1) + ' possui data inicial maior que a data final.';
+      }
+    }
+    return '';
+  }
+
   function openEditColumnModal(launchIndex, columnId){
     const lancamento = state.lancamentos[launchIndex];
     if (!lancamento) return;
@@ -890,15 +988,18 @@
     }
     if (coluna.tipo === 'indice') {
       const opts = INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || [];
-      const current = coluna.indexSource || defaultIndexSourceByKind(coluna.indexKind || 'correcao');
+      const composition = getIndexComposition(coluna);
+      const current = composition[0] ? composition[0].source : (coluna.indexSource || defaultIndexSourceByKind(coluna.indexKind || 'correcao'));
       editModalIndexSource.innerHTML = opts.map(function(opt){ return '<option value="' + esc(opt.value) + '"' + (opt.value === current ? ' selected' : '') + '>' + esc(opt.label) + '</option>'; }).join('');
-      const limit = getIndexLimit(coluna);
-      editModalIndexStart.value = limit.start || '';
-      editModalIndexEnd.value = limit.end || '';
+      const first = composition[0] || { start:'', end:'' };
+      editModalIndexStart.value = first.start || '';
+      editModalIndexEnd.value = first.end || '';
+      renderIndexSegmentList(editModalIndexSegments, coluna.indexKind || 'correcao', composition.slice(1));
     } else {
       editModalIndexSource.innerHTML = '';
       editModalIndexStart.value = '';
       editModalIndexEnd.value = '';
+      renderIndexSegmentList(editModalIndexSegments, 'correcao', []);
     }
     editColumnModal.classList.add('open');
     editColumnModal.setAttribute('aria-hidden', 'false');
@@ -922,6 +1023,7 @@
     editModalIndexSource.innerHTML = '';
     editModalIndexStart.value = '';
     editModalIndexEnd.value = '';
+    renderIndexSegmentList(editModalIndexSegments, 'correcao', []);
   }
 
   function saveEditColumnModal(){
@@ -935,14 +1037,19 @@
     if (!coluna) return closeEditColumnModal();
     if (coluna.tipo === 'indice') {
       if (!coluna.locked && nome) coluna.nome = nome;
-      if (editModalIndexStart.value && editModalIndexEnd.value && editModalIndexStart.value > editModalIndexEnd.value) {
-        alert('A data inicial do limite não pode ser maior que a data final.');
-        editModalIndexEnd.focus();
+      const kind = coluna.indexKind || 'correcao';
+      const composition = [normalizeIndexSegment({
+        source: editModalIndexSource.value || defaultIndexSourceByKind(kind),
+        start: editModalIndexStart.value || '',
+        end: editModalIndexEnd.value || ''
+      }, kind)].concat(collectExtraIndexSegments(editModalIndexSegments, kind));
+      const validationError = validateIndexComposition(composition);
+      if (validationError) {
+        alert(validationError);
         return;
       }
-      coluna.indexSource = editModalIndexSource.value || defaultIndexSourceByKind(coluna.indexKind || 'correcao');
-      coluna.indexLimit = { start: editModalIndexStart.value || '', end: editModalIndexEnd.value || '' };
-      coluna.accumulationMode = sourceAccumulationMode(coluna.indexSource);
+      coluna.indexComposition = composition;
+      syncLegacyIndexFieldsFromComposition(coluna);
       normalizeColumnSummaryMeta(coluna);
       closeEditColumnModal();
       persistAndRefresh();
@@ -1112,6 +1219,7 @@
     modalColumnFormula.value = '';
     if (modalIndexStart) modalIndexStart.value = '';
     if (modalIndexEnd) modalIndexEnd.value = '';
+    renderIndexSegmentList(modalIndexSegments, 'correcao', []);
     const isFormula = tipo === 'formula';
     const isIndex = tipo === 'indice';
     const isFlexibleManual = tipo === 'manual';
@@ -1153,6 +1261,7 @@
     if (modalColumnName) modalColumnName.style.display = 'block';
     const nameLabel = document.querySelector('label[for="modalColumnName"]');
     if (nameLabel) nameLabel.style.display = 'block';
+    renderIndexSegmentList(modalIndexSegments, 'correcao', []);
   }
 
   function saveColumnFromModal(){
@@ -1181,16 +1290,16 @@
       const source = modalIndexSource ? (modalIndexSource.value || defaultIndexSourceByKind(kind)) : defaultIndexSourceByKind(kind);
       const limitStart = modalIndexStart ? modalIndexStart.value : '';
       const limitEnd = modalIndexEnd ? modalIndexEnd.value : '';
-      if (limitStart && limitEnd && limitStart > limitEnd){ alert('A data inicial do limite não pode ser maior que a data final.'); return; }
+      const composition = [normalizeIndexSegment({ source: source, start: limitStart, end: limitEnd }, kind)].concat(collectExtraIndexSegments(modalIndexSegments, kind));
+      const validationError = validateIndexComposition(composition);
+      if (validationError){ alert(validationError); return; }
       lancamento.colunas.push(normalizeColumnSummaryMeta(normalizeIndexColumn({
         id: id,
         nome: kind === 'juros' ? 'Juros (índice)' : 'Correção (índice)',
         tipo: 'indice',
         locked: false,
         indexKind: kind,
-        indexSource: source,
-        indexLimit: { start: limitStart || '', end: limitEnd || '' },
-        accumulationMode: sourceAccumulationMode(source)
+        indexComposition: composition
       })));
       lancamento.linhas.forEach(function(linha){ linha[id] = 1; });
     } else {
@@ -1359,11 +1468,17 @@
     let indicesAtualizados = false;
     try {
       const indexColumns = getIndexColumns(lancamento);
-      const payloadByColumnId = {};
+      const payloadCacheBySource = {};
       for (let idx = 0; idx < indexColumns.length; idx += 1){
         const coluna = indexColumns[idx];
-        const payload = await loadAutoIndices(coluna.indexSource || defaultIndexSourceByKind(coluna.indexKind), lancamento.dataInicial, dataAtualizacao);
-        payloadByColumnId[coluna.id] = payload;
+        const composition = getIndexComposition(coluna);
+        coluna.indexComposition = composition;
+        syncLegacyIndexFieldsFromComposition(coluna);
+        for (let segmentIndex = 0; segmentIndex < composition.length; segmentIndex += 1){
+          const source = composition[segmentIndex].source || defaultIndexSourceByKind(coluna.indexKind);
+          if (payloadCacheBySource[source]) continue;
+          payloadCacheBySource[source] = await loadAutoIndices(source, lancamento.dataInicial, dataAtualizacao);
+        }
         coluna.__auditLog = [];
         coluna.__lastFactor = 1;
       }
@@ -1371,37 +1486,42 @@
         const mesCompetencia = monthKeyFromPeriodo(linha.periodo);
         const inicioCompetenciaISO = mesCompetencia + '-01';
         indexColumns.forEach(function(coluna){
-          const payload = payloadByColumnId[coluna.id] || makeIndexPayload('monthly', []);
-          const monthMap = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; }));
-          const limit = getIndexLimit(coluna);
-          const mode = coluna.accumulationMode || sourceAccumulationMode(coluna.indexSource);
-          const requestedStartISO = String(inicioCompetenciaISO);
-          const requestedEndISO = String(dataAtualizacao);
-          const effectiveStartISO = limit && limit.start && limit.start > requestedStartISO ? limit.start : requestedStartISO;
-          const effectiveEndISO = limit && limit.end && limit.end < requestedEndISO ? limit.end : requestedEndISO;
-          if (payload.calculationPath === 'daily_compound_exact' && payload.dailySeriesCode && effectiveStartISO <= effectiveEndISO){
-            const factorDaily = dailyCompoundExactFactor(payload.dailyRates, payload.dailySeriesCode, effectiveStartISO, effectiveEndISO);
-            linha[coluna.id] = Number(factorDaily.toFixed(7));
-            coluna.__lastFactor = linha[coluna.id];
-            coluna.__auditLog.push({
-              periodo: linha.periodo,
-              tipo: 'daily_compound_exact',
-              inicio: effectiveStartISO,
-              fim: effectiveEndISO,
-              fator: linha[coluna.id]
-            });
-            return;
-          }
-          const factorMonthly = accumulateIndexFactor(monthMap, mesCompetencia, mesAtualizacao, limit, mode, inicioCompetenciaISO, dataAtualizacao);
-          linha[coluna.id] = Number(factorMonthly.toFixed(7));
-          coluna.__lastFactor = linha[coluna.id];
-          coluna.__auditLog.push({
-            periodo: linha.periodo,
-            tipo: 'monthly',
-            inicio: effectiveStartISO,
-            fim: effectiveEndISO,
-            fator: linha[coluna.id]
+          const composition = getIndexComposition(coluna);
+          let totalFactor = 1;
+          composition.forEach(function(segment){
+            const payload = payloadCacheBySource[segment.source] || makeIndexPayload('monthly', []);
+            const monthMap = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; }));
+            const mode = segment.accumulationMode || sourceAccumulationMode(segment.source);
+            const requestedStartISO = String(inicioCompetenciaISO);
+            const requestedEndISO = String(dataAtualizacao);
+            const effectiveStartISO = segment.start && segment.start > requestedStartISO ? segment.start : requestedStartISO;
+            const effectiveEndISO = segment.end && segment.end < requestedEndISO ? segment.end : requestedEndISO;
+            let factorSegment = 1;
+            if (payload.calculationPath === 'daily_compound_exact' && payload.dailySeriesCode && effectiveStartISO <= effectiveEndISO){
+              factorSegment = dailyCompoundExactFactor(payload.dailyRates, payload.dailySeriesCode, effectiveStartISO, effectiveEndISO);
+              coluna.__auditLog.push({
+                periodo: linha.periodo,
+                tipo: 'daily_compound_exact',
+                fonte: segment.source,
+                inicio: effectiveStartISO,
+                fim: effectiveEndISO,
+                fator: Number(factorSegment.toFixed(7))
+              });
+            } else {
+              factorSegment = accumulateIndexFactor(monthMap, mesCompetencia, mesAtualizacao, { start: segment.start || '', end: segment.end || '' }, mode, inicioCompetenciaISO, dataAtualizacao);
+              coluna.__auditLog.push({
+                periodo: linha.periodo,
+                tipo: 'monthly',
+                fonte: segment.source,
+                inicio: effectiveStartISO,
+                fim: effectiveEndISO,
+                fator: Number(factorSegment.toFixed(7))
+              });
+            }
+            totalFactor *= factorSegment;
           });
+          linha[coluna.id] = Number(totalFactor.toFixed(7));
+          coluna.__lastFactor = linha[coluna.id];
         });
       });
       config.lastAutoRefresh = new Date().toISOString();
@@ -2402,10 +2522,143 @@
     URL.revokeObjectURL(url);
   }
 
+  function downloadTextFile(filename, content, mimeType){
+    const blob = new Blob([content], { type: mimeType || 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   function exportCalculationToJson(){
     const data = collect();
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     downloadJsonFile('calculo-civel-' + stamp + '.json', JSON.stringify(data, null, 2));
+  }
+
+  function csvEscape(value){
+    const text = String(value == null ? '' : value);
+    if (!/[;"\n\r]/.test(text)) return text;
+    return '"' + text.replace(/"/g, '""') + '"';
+  }
+
+  function toCsvRow(values){
+    return values.map(csvEscape).join(';');
+  }
+
+  function parseCsvText(content){
+    const rows = [];
+    let row = [];
+    let current = '';
+    let quoted = false;
+    for (let i = 0; i < content.length; i += 1){
+      const char = content[i];
+      const next = content[i + 1];
+      if (quoted){
+        if (char === '"' && next === '"'){
+          current += '"';
+          i += 1;
+        } else if (char === '"'){
+          quoted = false;
+        } else {
+          current += char;
+        }
+      } else if (char === '"'){
+        quoted = true;
+      } else if (char === ';'){
+        row.push(current);
+        current = '';
+      } else if (char === '\n'){
+        row.push(current);
+        rows.push(row);
+        row = [];
+        current = '';
+      } else if (char !== '\r'){
+        current += char;
+      }
+    }
+    row.push(current);
+    if (row.some(function(cell){ return String(cell || '').trim() !== ''; })) rows.push(row);
+    return rows;
+  }
+
+  function getActiveLaunch(){
+    const launchIndex = getSelectedLaunchIndex();
+    if (launchIndex < 0) return { launchIndex: -1, lancamento: null };
+    return { launchIndex: launchIndex, lancamento: state.lancamentos[launchIndex] || null };
+  }
+
+  function exportActiveLaunchToCsv(){
+    const active = getActiveLaunch();
+    const lancamento = active.lancamento;
+    if (!lancamento) return alert('Selecione uma verba para exportar.');
+    const columns = (lancamento.colunas || []).slice();
+    const header = ['Período'].concat(columns.map(function(coluna){ return coluna.nome || coluna.id; }));
+    const dataRows = (lancamento.linhas || []).map(function(linha){
+      const row = [linha.periodo || ''];
+      columns.forEach(function(coluna){
+        row.push(displayColumnValue(coluna, linha[coluna.id], { forInput: false }));
+      });
+      return row;
+    });
+    const csv = [toCsvRow(header)].concat(dataRows.map(toCsvRow)).join('\n');
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    const safeName = String(lancamento.verba || 'verba').replace(/[^\w\-]+/g, '_').slice(0, 40) || 'verba';
+    downloadTextFile('lancamento_' + safeName + '_' + stamp + '.csv', csv, 'text/csv;charset=utf-8');
+  }
+
+  function importCsvIntoActiveLaunch(file){
+    const active = getActiveLaunch();
+    const launchIndex = active.launchIndex;
+    const lancamento = active.lancamento;
+    if (!lancamento) return alert('Selecione uma verba para importar o CSV.');
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(){
+      try {
+        const rows = parseCsvText(String(reader.result || ''));
+        if (rows.length < 2) throw new Error('CSV sem linhas de dados.');
+        const header = rows[0].map(function(cell){ return String(cell || '').trim(); });
+        const headerMap = new Map(header.map(function(cell, index){ return [cell.toLowerCase(), index]; }));
+        const periodIndex = headerMap.has('período') ? headerMap.get('período') : headerMap.get('periodo');
+        if (periodIndex == null) throw new Error('Cabeçalho "Período" não encontrado.');
+        const importableCols = (lancamento.colunas || []).filter(function(coluna){
+          return coluna && coluna.tipo !== 'indice' && coluna.tipo !== 'formula';
+        });
+        const colIndexById = {};
+        importableCols.forEach(function(coluna){
+          const idx = headerMap.get(String(coluna.nome || '').trim().toLowerCase());
+          if (idx != null) colIndexById[coluna.id] = idx;
+        });
+        const rowMap = new Map((lancamento.linhas || []).map(function(item){ return [String(item.periodo || ''), item]; }));
+        for (let r = 1; r < rows.length; r += 1){
+          const cells = rows[r];
+          const periodo = String(cells[periodIndex] || '').trim();
+          if (!periodo) continue;
+          const linha = rowMap.get(periodo);
+          if (!linha) continue;
+          importableCols.forEach(function(coluna){
+            const cellIndex = colIndexById[coluna.id];
+            if (cellIndex == null) return;
+            linha[coluna.id] = String(cells[cellIndex] == null ? '' : cells[cellIndex]).trim();
+          });
+        }
+        recalculateLaunch(lancamento);
+        persistAndRefresh();
+        updateIndicesForLaunch(launchIndex);
+        alert('CSV importado para a verba ativa com sucesso.');
+      } catch (error) {
+        alert('Falha ao importar CSV da verba ativa: ' + (error && error.message ? error.message : 'erro inesperado.'));
+      }
+    };
+    reader.onerror = function(){
+      alert('Não foi possível ler o CSV selecionado.');
+    };
+    reader.readAsText(file, 'utf-8');
   }
 
   function importCalculationFromJson(file){
@@ -2430,12 +2683,32 @@
   const btnExportJson = $('btnExportJson');
   const btnImportJson = $('btnImportJson');
   const importJsonInput = $('importJsonInput');
+  const btnExportCsvLaunches = $('btnExportCsvLaunches');
+  const btnImportCsvLaunches = $('btnImportCsvLaunches');
+  const importCsvLaunchesInput = $('importCsvLaunchesInput');
 
   if (btnExportJson) btnExportJson.addEventListener('click', exportCalculationToJson);
   if (btnImportJson && importJsonInput) btnImportJson.addEventListener('click', function(){ importJsonInput.click(); });
   if (importJsonInput) importJsonInput.addEventListener('change', function(){
     const file = this.files && this.files[0] ? this.files[0] : null;
     if (file) importCalculationFromJson(file);
+    this.value = '';
+  });
+  if (btnExportCsvLaunches) {
+    btnExportCsvLaunches.style.display = 'none';
+    btnExportCsvLaunches.setAttribute('aria-hidden', 'true');
+    btnExportCsvLaunches.addEventListener('click', exportActiveLaunchToCsv);
+  }
+  if (btnImportCsvLaunches) {
+    btnImportCsvLaunches.style.display = 'none';
+    btnImportCsvLaunches.setAttribute('aria-hidden', 'true');
+    if (importCsvLaunchesInput) {
+      btnImportCsvLaunches.addEventListener('click', function(){ importCsvLaunchesInput.click(); });
+    }
+  }
+  if (importCsvLaunchesInput) importCsvLaunchesInput.addEventListener('change', function(){
+    const file = this.files && this.files[0] ? this.files[0] : null;
+    if (file) importCsvIntoActiveLaunch(file);
     this.value = '';
   });
 
@@ -2450,10 +2723,38 @@
   $('btnSaveColumnModal').addEventListener('click', saveColumnFromModal);
   if (modalIndexKind && modalIndexSource) {
     modalIndexKind.addEventListener('change', function(){
+      const previousRows = collectExtraIndexSegments(modalIndexSegments, this.value || 'correcao');
       const options = INDEX_SOURCE_OPTIONS[this.value || 'correcao'] || [];
       modalIndexSource.innerHTML = options.map(function(opt){ return '<option value="' + esc(opt.value) + '">' + esc(opt.label) + '</option>'; }).join('');
+      renderIndexSegmentList(modalIndexSegments, this.value || 'correcao', previousRows);
     });
   }
+  if (btnAddModalIndexSegment && modalIndexKind) {
+    btnAddModalIndexSegment.addEventListener('click', function(){
+      const kind = modalIndexKind.value || 'correcao';
+      const rows = collectExtraIndexSegments(modalIndexSegments, kind);
+      rows.push(normalizeIndexSegment({}, kind));
+      renderIndexSegmentList(modalIndexSegments, kind, rows);
+    });
+  }
+  if (btnAddEditIndexSegment) {
+    btnAddEditIndexSegment.addEventListener('click', function(){
+      const launchIndex = Number(editModalLaunchIndex.value);
+      const columnId = editModalColumnId.value;
+      const lancamento = state.lancamentos[launchIndex];
+      const coluna = lancamento ? lancamento.colunas.find(function(item){ return item.id === columnId; }) : null;
+      const kind = coluna && coluna.indexKind ? coluna.indexKind : 'correcao';
+      const rows = collectExtraIndexSegments(editModalIndexSegments, kind);
+      rows.push(normalizeIndexSegment({}, kind));
+      renderIndexSegmentList(editModalIndexSegments, kind, rows);
+    });
+  }
+  document.addEventListener('click', function(event){
+    const target = event.target;
+    if (!target || !target.classList || !target.classList.contains('js-remove-index-segment')) return;
+    const row = target.closest('.js-index-segment-row');
+    if (row && row.parentNode) row.parentNode.removeChild(row);
+  });
 
   columnModal.addEventListener('click', function(event){
     if (event.target === columnModal) closeColumnModal();
