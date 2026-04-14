@@ -176,7 +176,6 @@
     pushLog('info', msg);
   }
 
-  document.addEventListener('click', function(e){ logAction('click', e); }, true);
   document.addEventListener('change', function(e){
     var info = previewValue(e.target);
     logAction('change', e, info ? ('valor="' + info + '"') : '');
