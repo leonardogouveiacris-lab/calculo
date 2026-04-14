@@ -165,9 +165,11 @@
   function summarizeIndexColumn(coluna, columnRef){
     const kind = coluna && coluna.indexKind === 'juros' ? 'juros' : 'correcao';
     const limit = getIndexLimit(coluna);
+    const hasLimit = !!(limit.start || limit.end);
     const sourceRule = window.CPBCBRates && typeof window.CPBCBRates.describeSourceRule === 'function'
       ? window.CPBCBRates.describeSourceRule(coluna && coluna.indexSource)
       : null;
+    const noOverlap = !!(coluna && coluna.__lastNoOverlap);
     return {
       name: String(coluna && coluna.nome || 'Índice'),
       columnRef: String(columnRef || ''),
@@ -178,7 +180,8 @@
       unitLabel: sourceRule ? sourceRule.unitLabel : '—',
       formulaLabel: sourceRule ? sourceRule.formulaLabel : '—',
       intervalLabel: sourceRule ? sourceRule.intervalLabel : formatLimitInterval(limit.start, limit.end),
-      finalFactorLabel: formatIndexFactor(Number(coluna && coluna.__lastFactor || 1))
+      finalFactorLabel: formatIndexFactor(Number(coluna && coluna.__lastFactor || 1)),
+      overlapLabel: (noOverlap && hasLimit) ? 'Sem incidência no período atual (limite fora da competência/data de atualização).' : ''
     };
   }
 
@@ -473,6 +476,26 @@
     return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
   }
 
+  function formatISODateUTC(date){
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+    return String(date.getUTCFullYear()) + '-' + String(date.getUTCMonth() + 1).padStart(2, '0') + '-' + String(date.getUTCDate()).padStart(2, '0');
+  }
+
+  function clampPeriodByLimit(requestedStartISO, requestedEndISO, limit){
+    const requestedStart = parseISODateUTC(requestedStartISO);
+    const requestedEnd = parseISODateUTC(requestedEndISO);
+    if (!requestedStart || !requestedEnd || requestedStart > requestedEnd) return null;
+    const limitStart = parseISODateUTC(limit && limit.start ? limit.start : '');
+    const limitEnd = parseISODateUTC(limit && limit.end ? limit.end : '');
+    const effectiveStartDate = limitStart && limitStart > requestedStart ? limitStart : requestedStart;
+    const effectiveEndDate = limitEnd && limitEnd < requestedEnd ? limitEnd : requestedEnd;
+    if (!effectiveStartDate || !effectiveEndDate || effectiveStartDate > effectiveEndDate) return null;
+    return {
+      startISO: formatISODateUTC(effectiveStartDate),
+      endISO: formatISODateUTC(effectiveEndDate)
+    };
+  }
+
   function monthBoundsUTC(monthKey){
     const parts = String(monthKey || '').split('-').map(Number);
     if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
@@ -499,9 +522,10 @@
     const accumulationMode = mode || 'compound';
     const requestedStartISO = String(periodStartISO || (startMonthKey + '-01'));
     const requestedEndISO = String(periodEndISO || (endMonthKey + '-31'));
-    const effectiveStartISO = limit && limit.start && limit.start > requestedStartISO ? limit.start : requestedStartISO;
-    const effectiveEndISO = limit && limit.end && limit.end < requestedEndISO ? limit.end : requestedEndISO;
-    if (!effectiveStartISO || !effectiveEndISO || effectiveStartISO > effectiveEndISO) return 1;
+    const effectivePeriod = clampPeriodByLimit(requestedStartISO, requestedEndISO, limit);
+    if (!effectivePeriod) return 1;
+    const effectiveStartISO = effectivePeriod.startISO;
+    const effectiveEndISO = effectivePeriod.endISO;
     const clampedStart = effectiveStartISO.slice(0, 7);
     const clampedEnd = effectiveEndISO.slice(0, 7);
     if (!clampedStart || !clampedEnd || clampedStart > clampedEnd) return 1;
@@ -1263,6 +1287,7 @@
             '<span>Fórmula: ' + esc(summary.formulaLabel) + '</span>' +
             '<span>Intervalo: ' + esc(summary.intervalLabel) + ' / ' + esc(summary.limitLabel) + '</span>' +
             '<span>Fator final: ' + esc(summary.finalFactorLabel) + '</span>' +
+            (summary.overlapLabel ? '<span style="color:#b54708">' + esc(summary.overlapLabel) + '</span>' : '') +
           '</div>';
       }).join('');
       const fallbackIndexSummaryRows = hasIndexColumn && !indexSummaryRows
@@ -1354,6 +1379,7 @@
         const payload = await loadAutoIndices(coluna.indexSource || defaultIndexSourceByKind(coluna.indexKind), lancamento.dataInicial, dataAtualizacao);
         payloadByColumnId[coluna.id] = payload;
         coluna.__lastFactor = 1;
+        coluna.__lastNoOverlap = false;
       }
       lancamento.linhas.forEach(function(linha){
         const mesCompetencia = monthKeyFromPeriodo(linha.periodo);
@@ -1365,10 +1391,10 @@
           const mode = coluna.accumulationMode || sourceAccumulationMode(coluna.indexSource);
           const requestedStartISO = String(inicioCompetenciaISO);
           const requestedEndISO = String(dataAtualizacao);
-          const effectiveStartISO = limit && limit.start && limit.start > requestedStartISO ? limit.start : requestedStartISO;
-          const effectiveEndISO = limit && limit.end && limit.end < requestedEndISO ? limit.end : requestedEndISO;
-          if (payload.calculationPath === 'daily_compound_exact' && payload.dailySeriesCode && effectiveStartISO <= effectiveEndISO){
-            const factorDaily = dailyCompoundExactFactor(payload.dailyRates, payload.dailySeriesCode, effectiveStartISO, effectiveEndISO);
+          const effectivePeriod = clampPeriodByLimit(requestedStartISO, requestedEndISO, limit);
+          coluna.__lastNoOverlap = !effectivePeriod;
+          if (payload.calculationPath === 'daily_compound_exact' && payload.dailySeriesCode && effectivePeriod){
+            const factorDaily = dailyCompoundExactFactor(payload.dailyRates, payload.dailySeriesCode, effectivePeriod.startISO, effectivePeriod.endISO);
             linha[coluna.id] = Number(factorDaily.toFixed(7));
             coluna.__lastFactor = linha[coluna.id];
             return;
