@@ -32,6 +32,8 @@
   let modalIndexEnd = $('modalIndexEnd');
   let modalIndexSegments = $('modalIndexSegments');
   let btnAddModalIndexSegment = $('btnAddModalIndexSegment');
+  let btnExportIndexTemplateModal = $('btnExportIndexTemplateModal');
+  let btnImportIndexTableModal = $('btnImportIndexTableModal');
   const columnModalTitle = $('columnModalTitle');
   const columnModalSub = $('columnModalSub');
   const launchSelector = $('launchSelector');
@@ -48,6 +50,8 @@
   const editModalIndexEnd = $('editModalIndexEnd');
   const editModalIndexSegments = $('editModalIndexSegments');
   const btnAddEditIndexSegment = $('btnAddEditIndexSegment');
+  const btnExportIndexTemplateEdit = $('btnExportIndexTemplateEdit');
+  const btnImportIndexTableEdit = $('btnImportIndexTableEdit');
   const editLaunchModal = $('editLaunchModal');
   const editLaunchIndex = $('editLaunchIndex');
   const editLaunchVerba = $('editLaunchVerba');
@@ -95,6 +99,7 @@
       { value:'jam_auto', label:'JAM/TR + 0,25% a.m.' }
     ]
   };
+  const CUSTOM_INDEX_SOURCE_PREFIX = 'custom_table:';
   const DEFAULT_INDEX_COLUMNS = Object.freeze([
     { id:'correcao_monetaria', nome:'Correção Monetária', tipo:'indice', locked:true, formato:'indice', indexKind:'correcao', indexSource:'ipca', indexLimit:{ start:'', end:'' }, accumulationMode:'compound' },
     { id:'juros', nome:'Juros', tipo:'indice', locked:true, formato:'indice', indexKind:'juros', indexSource:'selic', indexLimit:{ start:'', end:'' }, accumulationMode:'compound' }
@@ -104,7 +109,7 @@
     { id:'valor_juros', nome:'Valor dos Juros', tipo:'formula', formato:'moeda', formula:'', includeInSummary:true },
     { id:'valor_devido', nome:'Valor Devido', tipo:'formula', formato:'moeda', formula:'', includeInSummary:true }
   ]);
-  let state = { lancamentos: [], lancamentoSelecionadoId: '', honorarios: defaultHonorariosConfig(), custas: [] };
+  let state = { lancamentos: [], lancamentoSelecionadoId: '', honorarios: defaultHonorariosConfig(), custas: [], indexTables: [] };
   let honorariosSelectorOpen = false;
   let honorariosSearchTerm = '';
 
@@ -125,7 +130,11 @@
         '<div class="col-6"><label for="modalIndexEnd">Aplicar até</label><input id="modalIndexEnd" type="date"></div>' +
       '</div>' +
       '<div id="modalIndexSegments" style="display:grid;gap:8px;margin-top:8px"></div>' +
-      '<div class="btn-row" style="margin-top:8px"><button type="button" class="btn btn-ghost" id="btnAddModalIndexSegment">Adicionar tabela por período</button></div>' +
+      '<div class="btn-row" style="margin-top:8px">' +
+        '<button type="button" class="btn btn-ghost" id="btnAddModalIndexSegment">Adicionar tabela por período</button>' +
+        '<button type="button" class="btn btn-ghost" id="btnExportIndexTemplateModal">Exportar modelo CSV</button>' +
+        '<button type="button" class="btn btn-ghost" id="btnImportIndexTableModal">Importar tabela CSV</button>' +
+      '</div>' +
       '<div class="formula-help">Defina fonte e limites opcionais para acumular o fator do índice.</div>';
     modalBody.appendChild(wrap);
     indexFieldWrap = $('indexFieldWrap');
@@ -135,6 +144,8 @@
     modalIndexEnd = $('modalIndexEnd');
     modalIndexSegments = $('modalIndexSegments');
     btnAddModalIndexSegment = $('btnAddModalIndexSegment');
+    btnExportIndexTemplateModal = $('btnExportIndexTemplateModal');
+    btnImportIndexTableModal = $('btnImportIndexTableModal');
   })();
 
   function esc(value){
@@ -149,6 +160,31 @@
     } catch (error) {
       return '[unserializable: ' + String(error && error.message || error || 'erro desconhecido') + ']';
     }
+  }
+
+  function isCustomIndexSource(sourceType){
+    return String(sourceType || '').indexOf(CUSTOM_INDEX_SOURCE_PREFIX) === 0;
+  }
+
+  function getCustomIndexTableIdFromSource(sourceType){
+    const raw = String(sourceType || '');
+    return isCustomIndexSource(raw) ? raw.slice(CUSTOM_INDEX_SOURCE_PREFIX.length) : '';
+  }
+
+  function normalizeIndexTableId(value){
+    const raw = String(value || '').trim().toLowerCase();
+    return raw.replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || ('tabela-' + Math.random().toString(16).slice(2, 8));
+  }
+
+  function getIndexSourceOptions(kind){
+    const base = (INDEX_SOURCE_OPTIONS[kind] || []).slice();
+    const custom = (Array.isArray(state.indexTables) ? state.indexTables : []).map(function(table){
+      return {
+        value: CUSTOM_INDEX_SOURCE_PREFIX + table.id,
+        label: 'Tabela importada: ' + (table.name || table.id)
+      };
+    });
+    return base.concat(custom);
   }
 
   function formatDateBR(value){
@@ -170,7 +206,7 @@
     if (composition.length > 1) return 'Combinado (' + composition.length + ' tabelas)';
     const kind = coluna && coluna.indexKind ? coluna.indexKind : 'correcao';
     const source = coluna && coluna.indexSource ? coluna.indexSource : '';
-    return ((INDEX_SOURCE_OPTIONS[kind] || []).find(function(opt){ return opt.value === source; }) || {}).label || source || '—';
+    return (getIndexSourceOptions(kind).find(function(opt){ return opt.value === source; }) || {}).label || source || '—';
   }
 
   function normalizeIndexSegment(segment, fallbackKind){
@@ -260,6 +296,45 @@
     if (!normalized || normalized === '-' || normalized === '.') return 0;
     const number = Number(normalized);
     return Number.isFinite(number) ? number : 0;
+  }
+
+  function normalizeMonthKey(value){
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const match = raw.match(/^(\d{4})[-\/](\d{1,2})$/);
+    if (!match) return '';
+    const month = Number(match[2]);
+    if (!Number.isInteger(month) || month < 1 || month > 12) return '';
+    return match[1] + '-' + String(month).padStart(2, '0');
+  }
+
+  function normalizeIndexTables(list){
+    const grouped = new Map();
+    (Array.isArray(list) ? list : []).forEach(function(item){
+      if (!item || typeof item !== 'object') return;
+      const name = String(item.name || item.nome || '').trim();
+      const entries = Array.isArray(item.entries) ? item.entries : [];
+      if (!name || !entries.length) return;
+      const normalizedId = normalizeIndexTableId(item.id || name);
+      const existing = grouped.get(normalizedId) || { id: normalizedId, name: name, entriesByMonth: new Map() };
+      existing.name = existing.name || name;
+      entries.forEach(function(entry){
+        const month = normalizeMonthKey(entry.month || entry.competencia);
+        const value = Number(entry.value);
+        if (!month || !Number.isFinite(value)) return;
+        existing.entriesByMonth.set(month, value);
+      });
+      grouped.set(normalizedId, existing);
+    });
+    return Array.from(grouped.values()).map(function(item){
+      return {
+        id: item.id,
+        name: item.name,
+        entries: Array.from(item.entriesByMonth.entries()).map(function(entry){
+          return { month: entry[0], value: Number(entry[1]) };
+        }).sort(function(a, b){ return compareMonth(a.month, b.month); })
+      };
+    }).filter(function(item){ return item.entries.length > 0; });
   }
 
   function formatNumberBR(value, minimumFractionDigits, maximumFractionDigits, useGrouping){
@@ -384,7 +459,7 @@
   function buildEc113Monthly(ipcaeList, selicDailyList){ const ipcaeMap = monthlyMapFromBCB(ipcaeList); const selicMap = new Map(dailyToMonthlyEffective(selicDailyList, 11).map(function(item){ return [item.month, item.value]; })); const months = Array.from(new Set([].concat(Array.from(ipcaeMap.keys()), Array.from(selicMap.keys())))).sort(); return months.map(function(month){ if (month <= '2021-11') return { month: month, value: Number(ipcaeMap.get(month) || 0) }; if (month >= '2021-12') return { month: month, value: Number(selicMap.get(month) || 0) }; return null; }).filter(Boolean).sort(compareMonth); }
   function sourceAccumulationMode(sourceType){ return sourceType === 'taxa_legal' ? 'simple' : 'compound'; }
   function makeIndexPayload(path, monthlyRates, dailyRates, dailySeriesCode){ return { calculationPath: path || 'monthly', monthlyRates: Array.isArray(monthlyRates) ? monthlyRates : [], dailyRates: Array.isArray(dailyRates) ? dailyRates : [], dailySeriesCode: dailySeriesCode || null }; }
-  async function loadAutoIndices(sourceType, startDate, endDate){ if (!startDate || !endDate || sourceType === 'none') return makeIndexPayload('monthly', []); if (sourceType === 'ipca') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(433, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'ipcae') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(10764, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'inpc') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(188, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'igpm') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(189, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'igpdi') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(190, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'tr') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(7811, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'cdi') { const raw = await fetchSeries(4389, startDate, endDate); return makeIndexPayload('daily_compound_exact', dailyToMonthlyEffective(raw, 4389), raw, 4389); } if (sourceType === 'selic') { const rawSelic = await fetchSeries(11, startDate, endDate); return makeIndexPayload('daily_compound_exact', dailyToMonthlyEffective(rawSelic, 11), rawSelic, 11); } if (sourceType === 'taxa_legal') { const taxaLegalStart = previousMonthKey(monthKeyFromISO(startDate)); const taxaLegalStartISO = taxaLegalStart ? (taxaLegalStart + '-01') : startDate; return makeIndexPayload('monthly', buildTaxaLegalMonthly(await fetchSeries(11, taxaLegalStartISO, endDate), await fetchSeries(7478, taxaLegalStartISO, endDate))); } if (sourceType === 'ec113_2021') return makeIndexPayload('monthly', buildEc113Monthly(await fetchSeries(10764, startDate, endDate), await fetchSeries(11, startDate, endDate))); if (sourceType === 'poupanca_auto') return makeIndexPayload('monthly', buildPoupancaMonthly(await fetchSeries(7811, startDate, endDate), await fetchSeries(432, startDate, endDate))); if (sourceType === 'juros_1am') return makeIndexPayload('monthly', buildFixedMonthlyRate(startDate, endDate, 1)); if (sourceType === 'jam_auto') return makeIndexPayload('monthly', buildJamMonthly(await fetchSeries(7811, startDate, endDate))); return makeIndexPayload('monthly', []); }
+  async function loadAutoIndices(sourceType, startDate, endDate){ if (!startDate || !endDate || sourceType === 'none') return makeIndexPayload('monthly', []); if (isCustomIndexSource(sourceType)) { const tableId = getCustomIndexTableIdFromSource(sourceType); const table = (state.indexTables || []).find(function(item){ return item && item.id === tableId; }); const startMonth = monthKeyFromISO(startDate); const endMonth = monthKeyFromISO(endDate); const monthlyRates = (table && Array.isArray(table.entries) ? table.entries : []).filter(function(entry){ return entry.month >= startMonth && entry.month <= endMonth; }).map(function(entry){ return { month: entry.month, value: Number(entry.value) || 0 }; }).sort(compareMonth); return makeIndexPayload('monthly', monthlyRates); } if (sourceType === 'ipca') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(433, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'ipcae') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(10764, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'inpc') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(188, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'igpm') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(189, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'igpdi') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(190, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'tr') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(7811, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'cdi') { const raw = await fetchSeries(4389, startDate, endDate); return makeIndexPayload('daily_compound_exact', dailyToMonthlyEffective(raw, 4389), raw, 4389); } if (sourceType === 'selic') { const rawSelic = await fetchSeries(11, startDate, endDate); return makeIndexPayload('daily_compound_exact', dailyToMonthlyEffective(rawSelic, 11), rawSelic, 11); } if (sourceType === 'taxa_legal') { const taxaLegalStart = previousMonthKey(monthKeyFromISO(startDate)); const taxaLegalStartISO = taxaLegalStart ? (taxaLegalStart + '-01') : startDate; return makeIndexPayload('monthly', buildTaxaLegalMonthly(await fetchSeries(11, taxaLegalStartISO, endDate), await fetchSeries(7478, taxaLegalStartISO, endDate))); } if (sourceType === 'ec113_2021') return makeIndexPayload('monthly', buildEc113Monthly(await fetchSeries(10764, startDate, endDate), await fetchSeries(11, startDate, endDate))); if (sourceType === 'poupanca_auto') return makeIndexPayload('monthly', buildPoupancaMonthly(await fetchSeries(7811, startDate, endDate), await fetchSeries(432, startDate, endDate))); if (sourceType === 'juros_1am') return makeIndexPayload('monthly', buildFixedMonthlyRate(startDate, endDate, 1)); if (sourceType === 'jam_auto') return makeIndexPayload('monthly', buildJamMonthly(await fetchSeries(7811, startDate, endDate))); return makeIndexPayload('monthly', []); }
   function formatPercent(value){ return formatNumberBR(value, 4, 6, true) + '%'; }
   function formatIndexFactor(value){
     return formatNumberBR(value, 7, 7, true);
@@ -637,6 +712,7 @@
       lancamentoSelecionadoId: state.lancamentoSelecionadoId || '',
       honorarios: state.honorarios,
       custas: state.custas,
+      indexTables: state.indexTables,
       atualizadoEm: new Date().toLocaleString('pt-BR')
     };
   }
@@ -653,6 +729,7 @@
     state.lancamentoSelecionadoId = source.lancamentoSelecionadoId || (state.lancamentos[0] ? state.lancamentos[0].id : '');
     state.honorarios = normalizeHonorarios(source.honorarios);
     state.custas = Array.isArray(source.custas) ? source.custas.map(normalizeCusta) : [];
+    state.indexTables = normalizeIndexTables(source.indexTables);
     sanitizeSummaryState();
   }
 
@@ -1011,7 +1088,7 @@
   }
 
   function buildIndexSegmentRowHtml(kind, segment){
-    const opts = INDEX_SOURCE_OPTIONS[kind] || [];
+    const opts = getIndexSourceOptions(kind);
     const source = segment && segment.source ? segment.source : defaultIndexSourceByKind(kind);
     const start = segment && segment.start ? segment.start : '';
     const end = segment && segment.end ? segment.end : '';
@@ -1028,6 +1105,17 @@
     if (!host) return;
     const rows = (segments || []).map(function(segment){ return buildIndexSegmentRowHtml(kind, segment); });
     host.innerHTML = rows.join('');
+  }
+
+  function fillIndexSourceSelect(selectEl, kind, selectedValue){
+    if (!selectEl) return;
+    const options = getIndexSourceOptions(kind);
+    const preferred = selectedValue || defaultIndexSourceByKind(kind);
+    const hasPreferred = options.some(function(opt){ return opt.value === preferred; });
+    const finalValue = hasPreferred ? preferred : (options[0] ? options[0].value : defaultIndexSourceByKind(kind));
+    selectEl.innerHTML = options.map(function(opt){
+      return '<option value="' + esc(opt.value) + '"' + (opt.value === finalValue ? ' selected' : '') + '>' + esc(opt.label) + '</option>';
+    }).join('');
   }
 
   function collectExtraIndexSegments(host, kind){
@@ -1073,10 +1161,9 @@
       editModalColumnSummaryRole.disabled = !canAssignSummaryRole;
     }
     if (coluna.tipo === 'indice') {
-      const opts = INDEX_SOURCE_OPTIONS[coluna.indexKind || 'correcao'] || [];
       const composition = getIndexComposition(coluna);
       const current = composition[0] ? composition[0].source : (coluna.indexSource || defaultIndexSourceByKind(coluna.indexKind || 'correcao'));
-      editModalIndexSource.innerHTML = opts.map(function(opt){ return '<option value="' + esc(opt.value) + '"' + (opt.value === current ? ' selected' : '') + '>' + esc(opt.label) + '</option>'; }).join('');
+      fillIndexSourceSelect(editModalIndexSource, coluna.indexKind || 'correcao', current);
       const first = composition[0] || { start:'', end:'' };
       editModalIndexStart.value = first.start || '';
       editModalIndexEnd.value = first.end || '';
@@ -1322,8 +1409,7 @@
     if (nameLabel) nameLabel.style.display = isIndex ? 'none' : 'block';
     if (isIndex && modalIndexKind && modalIndexSource){
       modalIndexKind.value = 'correcao';
-      const options = INDEX_SOURCE_OPTIONS.correcao || [];
-      modalIndexSource.innerHTML = options.map(function(opt){ return '<option value="' + esc(opt.value) + '">' + esc(opt.label) + '</option>'; }).join('');
+      fillIndexSourceSelect(modalIndexSource, 'correcao');
     }
     if (modalColumnSummaryRole) {
       modalColumnSummaryRole.value = 'none';
@@ -2692,6 +2778,107 @@
     return rows;
   }
 
+  function exportIndexTablesCsvTemplate(){
+    const lines = [
+      ['nome_tabela', 'competencia', 'fator_correcao', 'taxa_percentual', 'observacao'].join(';'),
+      ['IPCA Manual', '2025-01', '1,0042', '', 'Use fator ou taxa percentual'].join(';'),
+      ['IPCA Manual', '2025-02', '1,0078', '', ''].join(';'),
+      ['Juros Tribunal X', '2025-01', '', '0,8500', 'Exemplo com taxa % mensal'].join(';')
+    ];
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    downloadCsvFile('modelo-tabelas-indices-' + stamp + '.csv', lines.join('\r\n'));
+  }
+
+  function importIndexTablesFromCsv(file, options){
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(){
+      try {
+        const rows = parseCsvRows(String(reader.result || ''));
+        if (rows.length < 2) throw new Error('Arquivo CSV vazio.');
+        const header = rows[0].map(function(cell){ return String(cell || '').trim().toLowerCase(); });
+        const idxName = header.indexOf('nome_tabela');
+        const idxMonth = header.indexOf('competencia');
+        const idxFactor = header.indexOf('fator_correcao');
+        const idxPercent = header.indexOf('taxa_percentual');
+        if (idxName < 0 || idxMonth < 0 || (idxFactor < 0 && idxPercent < 0)) {
+          throw new Error('Cabeçalho inválido. Use o modelo CSV de tabelas de índices.');
+        }
+        const grouped = new Map((state.indexTables || []).map(function(table){
+          return [table.id, { id: table.id, name: table.name, entriesByMonth: new Map((table.entries || []).map(function(entry){ return [entry.month, Number(entry.value) || 0]; })) }];
+        }));
+        let importedRows = 0;
+        rows.slice(1).forEach(function(cols){
+          const tableName = String(cols[idxName] || '').trim();
+          const month = normalizeMonthKey(cols[idxMonth]);
+          if (!tableName || !month) return;
+          const tableId = normalizeIndexTableId(tableName);
+          const factorRaw = idxFactor >= 0 ? cols[idxFactor] : '';
+          const percentRaw = idxPercent >= 0 ? cols[idxPercent] : '';
+          const factorValue = parseBRNumber(factorRaw);
+          const percentValue = parseBRNumber(percentRaw);
+          let monthlyPercent = Number.isFinite(percentValue) && String(percentRaw || '').trim() !== '' ? percentValue : null;
+          if (monthlyPercent == null && Number.isFinite(factorValue) && String(factorRaw || '').trim() !== '') monthlyPercent = (factorValue - 1) * 100;
+          if (!Number.isFinite(monthlyPercent)) return;
+          const current = grouped.get(tableId) || { id: tableId, name: tableName, entriesByMonth: new Map() };
+          current.name = tableName;
+          current.entriesByMonth.set(month, Number(monthlyPercent));
+          grouped.set(tableId, current);
+          importedRows += 1;
+        });
+        if (!importedRows) throw new Error('Nenhuma linha válida foi importada. Revise nome da tabela, competência e fator/taxa.');
+        state.indexTables = Array.from(grouped.values()).map(function(item){
+          return {
+            id: item.id,
+            name: item.name,
+            entries: Array.from(item.entriesByMonth.entries()).map(function(entry){
+              return { month: entry[0], value: Number(entry[1]) };
+            }).sort(function(a, b){ return compareMonth(a.month, b.month); })
+          };
+        }).sort(function(a, b){ return String(a.name || '').localeCompare(String(b.name || '')); });
+        persistAndRefresh();
+        if (options && typeof options.onSuccess === 'function') options.onSuccess();
+        alert('Tabelas de índices importadas com sucesso. ' + String(importedRows) + ' linha(s) processada(s).');
+      } catch (error) {
+        alert('Não foi possível importar o CSV de índices. ' + String(error && error.message || ''));
+      }
+    };
+    reader.onerror = function(){
+      alert('Falha ao ler o arquivo CSV de índices.');
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  function triggerIndexTablesCsvImport(options){
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv,text/csv';
+    input.style.display = 'none';
+    input.addEventListener('change', function(){
+      const file = this.files && this.files[0] ? this.files[0] : null;
+      if (file) importIndexTablesFromCsv(file, options);
+      document.body.removeChild(input);
+    }, { once:true });
+    document.body.appendChild(input);
+    input.click();
+  }
+
+  function refreshOpenIndexSourceSelectors(preferredSource){
+    if (columnModal && columnModal.classList.contains('open') && modalColumnType && modalColumnType.value === 'indice' && modalIndexKind && modalIndexSource) {
+      fillIndexSourceSelect(modalIndexSource, modalIndexKind.value || 'correcao', preferredSource || modalIndexSource.value);
+      renderIndexSegmentList(modalIndexSegments, modalIndexKind.value || 'correcao', collectExtraIndexSegments(modalIndexSegments, modalIndexKind.value || 'correcao'));
+    }
+    if (editColumnModal && editColumnModal.classList.contains('open') && editModalLaunchIndex && editModalColumnId) {
+      const launchIndex = Number(editModalLaunchIndex.value);
+      const columnId = editModalColumnId.value;
+      const lancamento = state.lancamentos[launchIndex];
+      const coluna = lancamento ? lancamento.colunas.find(function(item){ return item.id === columnId; }) : null;
+      const kind = coluna && coluna.indexKind ? coluna.indexKind : 'correcao';
+      fillIndexSourceSelect(editModalIndexSource, kind, preferredSource || (editModalIndexSource ? editModalIndexSource.value : ''));
+      renderIndexSegmentList(editModalIndexSegments, kind, collectExtraIndexSegments(editModalIndexSegments, kind));
+    }
+  }
+
   function findEditableColumn(lancamento, columnId){
     const id = String(columnId || '').trim();
     if (!id) return null;
@@ -2881,8 +3068,7 @@
   if (modalIndexKind && modalIndexSource) {
     modalIndexKind.addEventListener('change', function(){
       const previousRows = collectExtraIndexSegments(modalIndexSegments, this.value || 'correcao');
-      const options = INDEX_SOURCE_OPTIONS[this.value || 'correcao'] || [];
-      modalIndexSource.innerHTML = options.map(function(opt){ return '<option value="' + esc(opt.value) + '">' + esc(opt.label) + '</option>'; }).join('');
+      fillIndexSourceSelect(modalIndexSource, this.value || 'correcao');
       renderIndexSegmentList(modalIndexSegments, this.value || 'correcao', previousRows);
     });
   }
@@ -2894,6 +3080,16 @@
       renderIndexSegmentList(modalIndexSegments, kind, rows);
     });
   }
+  if (btnExportIndexTemplateModal) btnExportIndexTemplateModal.addEventListener('click', exportIndexTablesCsvTemplate);
+  if (btnImportIndexTableModal) btnImportIndexTableModal.addEventListener('click', function(){
+    triggerIndexTablesCsvImport({
+      onSuccess: function(){
+        const latest = (state.indexTables || [])[state.indexTables.length - 1];
+        const preferred = latest ? (CUSTOM_INDEX_SOURCE_PREFIX + latest.id) : '';
+        refreshOpenIndexSourceSelectors(preferred);
+      }
+    });
+  });
   if (btnAddEditIndexSegment) {
     btnAddEditIndexSegment.addEventListener('click', function(){
       const launchIndex = Number(editModalLaunchIndex.value);
@@ -2906,6 +3102,16 @@
       renderIndexSegmentList(editModalIndexSegments, kind, rows);
     });
   }
+  if (btnExportIndexTemplateEdit) btnExportIndexTemplateEdit.addEventListener('click', exportIndexTablesCsvTemplate);
+  if (btnImportIndexTableEdit) btnImportIndexTableEdit.addEventListener('click', function(){
+    triggerIndexTablesCsvImport({
+      onSuccess: function(){
+        const latest = (state.indexTables || [])[state.indexTables.length - 1];
+        const preferred = latest ? (CUSTOM_INDEX_SOURCE_PREFIX + latest.id) : '';
+        refreshOpenIndexSourceSelectors(preferred);
+      }
+    });
+  });
   document.addEventListener('click', function(event){
     const target = event.target;
     if (!target || !target.classList || !target.classList.contains('js-remove-index-segment')) return;
