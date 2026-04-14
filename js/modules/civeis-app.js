@@ -1114,9 +1114,7 @@
     const coluna = lancamento.colunas[pos];
     if (coluna.id === 'valor'){ alert('A coluna Valor é obrigatória e não pode ser removida.'); return; }
     lancamento.colunas.splice(pos, 1);
-    lancamento.linhas.forEach(function(linha){ delete linha[columnId]; });
     normalizeSummaryMapping(lancamento);
-    recalculateLaunch(lancamento);
     persistAndRefresh();
   }
 
