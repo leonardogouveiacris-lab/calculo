@@ -10,7 +10,6 @@
     processo: $('processo'),
     ajuizamento: $('ajuizamento'),
     dataAtualizacao: $('dataAtualizacao'),
-    enableIndexAuditLog: $('enableIndexAuditLog'),
     observacoes: $('observacoes'),
     novaVerba: $('novaVerba'),
     periodoInicial: $('periodoInicial'),
@@ -179,8 +178,7 @@
       unitLabel: sourceRule ? sourceRule.unitLabel : '—',
       formulaLabel: sourceRule ? sourceRule.formulaLabel : '—',
       intervalLabel: sourceRule ? sourceRule.intervalLabel : formatLimitInterval(limit.start, limit.end),
-      finalFactorLabel: formatIndexFactor(Number(coluna && coluna.__lastFactor || 1)),
-      technicalLog: Array.isArray(coluna && coluna.__auditLog) ? coluna.__auditLog : []
+      finalFactorLabel: formatIndexFactor(Number(coluna && coluna.__lastFactor || 1))
     };
   }
 
@@ -539,7 +537,6 @@
       processo: fields.processo.value.trim(),
       ajuizamento: fields.ajuizamento.value,
       dataAtualizacao: fields.dataAtualizacao.value || new Date().toISOString().slice(0,10),
-      enableIndexAuditLog: !!(fields.enableIndexAuditLog && fields.enableIndexAuditLog.checked),
       observacoes: fields.observacoes.value.trim(),
       lancamentos: state.lancamentos,
       lancamentoSelecionadoId: state.lancamentoSelecionadoId || '',
@@ -556,7 +553,6 @@
     fields.processo.value = source.processo || '';
     fields.ajuizamento.value = source.ajuizamento || '';
     fields.dataAtualizacao.value = source.dataAtualizacao || new Date().toISOString().slice(0,10);
-    if (fields.enableIndexAuditLog) fields.enableIndexAuditLog.checked = !!source.enableIndexAuditLog;
     fields.observacoes.value = source.observacoes || '';
     state.lancamentos = normalizeLaunchListSafely(Array.isArray(source.lancamentos) ? source.lancamentos : []);
     state.lancamentoSelecionadoId = source.lancamentoSelecionadoId || (state.lancamentos[0] ? state.lancamentos[0].id : '');
@@ -1256,13 +1252,7 @@
         return '<span class="mini-badge">' + esc(label) + '</span>';
       }).join('');
       const hasIndexColumn = (lancamento.colunas || []).some(function(coluna){ return coluna && coluna.tipo === 'indice'; });
-      const showTechnicalLog = !!(fields.enableIndexAuditLog && fields.enableIndexAuditLog.checked);
       const indexSummaryRows = view.indexSummary.map(function(summary){
-        const technicalRows = showTechnicalLog && summary.technicalLog.length
-          ? '<details><summary>Log técnico</summary>' + summary.technicalLog.map(function(item){
-            return '<div style="font-size:10.5px">Período ' + esc(item.periodo) + ': ' + esc(item.tipo) + ' • intervalo ' + esc(item.inicio) + ' a ' + esc(item.fim) + ' • fator ' + esc(formatIndexFactor(item.fator)) + '</div>';
-          }).join('') + '</details>'
-          : '';
         return '' +
           '<div class="index-summary-row">' +
             '<strong>' + esc(summary.name) + '</strong>' +
@@ -1273,7 +1263,6 @@
             '<span>Fórmula: ' + esc(summary.formulaLabel) + '</span>' +
             '<span>Intervalo: ' + esc(summary.intervalLabel) + ' / ' + esc(summary.limitLabel) + '</span>' +
             '<span>Fator final: ' + esc(summary.finalFactorLabel) + '</span>' +
-            technicalRows +
           '</div>';
       }).join('');
       const fallbackIndexSummaryRows = hasIndexColumn && !indexSummaryRows
@@ -1364,7 +1353,6 @@
         const coluna = indexColumns[idx];
         const payload = await loadAutoIndices(coluna.indexSource || defaultIndexSourceByKind(coluna.indexKind), lancamento.dataInicial, dataAtualizacao);
         payloadByColumnId[coluna.id] = payload;
-        coluna.__auditLog = [];
         coluna.__lastFactor = 1;
       }
       lancamento.linhas.forEach(function(linha){
@@ -1383,25 +1371,11 @@
             const factorDaily = dailyCompoundExactFactor(payload.dailyRates, payload.dailySeriesCode, effectiveStartISO, effectiveEndISO);
             linha[coluna.id] = Number(factorDaily.toFixed(7));
             coluna.__lastFactor = linha[coluna.id];
-            coluna.__auditLog.push({
-              periodo: linha.periodo,
-              tipo: 'daily_compound_exact',
-              inicio: effectiveStartISO,
-              fim: effectiveEndISO,
-              fator: linha[coluna.id]
-            });
             return;
           }
           const factorMonthly = accumulateIndexFactor(monthMap, mesCompetencia, mesAtualizacao, limit, mode, inicioCompetenciaISO, dataAtualizacao);
           linha[coluna.id] = Number(factorMonthly.toFixed(7));
           coluna.__lastFactor = linha[coluna.id];
-          coluna.__auditLog.push({
-            periodo: linha.periodo,
-            tipo: 'monthly',
-            inicio: effectiveStartISO,
-            fim: effectiveEndISO,
-            fator: linha[coluna.id]
-          });
         });
       });
       config.lastAutoRefresh = new Date().toISOString();
@@ -1870,18 +1844,12 @@
       data.lancamentos.forEach(function(lancamento){
         const view = mapLaunchForView(lancamento, -1);
         const indexSummaryRows = view.indexSummary.map(function(summary){
-          const technicalRows = (fields.enableIndexAuditLog && fields.enableIndexAuditLog.checked && summary.technicalLog.length)
-            ? '<details><summary>Log técnico</summary>' + summary.technicalLog.map(function(item){
-              return '<div style="font-size:9.4pt">Período ' + esc(item.periodo) + ': ' + esc(item.tipo) + ' • intervalo ' + esc(item.inicio) + ' a ' + esc(item.fim) + ' • fator ' + esc(formatIndexFactor(item.fator)) + '</div>';
-            }).join('') + '</details>'
-            : '';
           return '' +
             '<div class="report-index-summary-row">' +
               '<b>' + esc(summary.name) + '</b>' +
               (summary.columnRef ? '  Coluna: ' + esc(summary.columnRef) + '  ' : '  ') +
               'Fonte: ' + esc(summary.sourceLabel) + ' • Série: ' + esc(summary.seriesLabel) + ' • Unidade: ' + esc(summary.unitLabel) + ' • Fórmula: ' + esc(summary.formulaLabel) + ' • Intervalo: ' + esc(summary.intervalLabel) + ' / ' + esc(summary.limitLabel) + ' • Fator final: ' + esc(summary.finalFactorLabel) +
-              technicalRows +
-            '</div>';
+              '</div>';
         }).join('');
         const headers = ['Data'].concat(view.columns.map(function(coluna){ return coluna.title; }));
         const rows = view.rows.map(function(row){
@@ -2501,14 +2469,6 @@
       buildReport(collect());
     });
   });
-  if (fields.enableIndexAuditLog) {
-    fields.enableIndexAuditLog.addEventListener('change', function(){
-      save(collect());
-      renderLaunches();
-      buildReport(collect());
-    });
-  }
-
   const initial = load();
   fill(initial);
   state.lancamentos = normalizeLaunchListSafely(state.lancamentos);
