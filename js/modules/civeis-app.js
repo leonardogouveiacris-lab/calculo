@@ -1315,6 +1315,10 @@
             '<div class="launch-sub">' + esc(view.periodLabel) + ' — ' + view.competenciaCount + ' competência(s)</div>' +
             (view.observacao ? '<div class="launch-sub">Observação: ' + esc(view.observacao) + '</div>' : '') +
           '</div>' +
+          '<div style="display:flex;gap:8px;align-items:flex-start;justify-content:flex-end;opacity:.85">' +
+            '<button type="button" class="btn btn-ghost btnExportLaunchCsv" data-launch-index="' + index + '" style="padding:4px 8px;font-size:11px;line-height:1.2">CSV ↓</button>' +
+            '<button type="button" class="btn btn-ghost btnImportLaunchCsv" data-launch-index="' + index + '" style="padding:4px 8px;font-size:11px;line-height:1.2">CSV ↑</button>' +
+          '</div>' +
         '</div>' +
         '<div class="launch-actions">' +
           '<button type="button" class="btn btn-primary btnFetchIndices" data-launch-index="' + index + '"' + (indexLoadingState[index] ? ' disabled aria-busy="true"' : '') + '>' + (indexLoadingState[index] ? 'Buscando índices...' : 'Atualizar índices') + '</button>' +
@@ -2173,7 +2177,10 @@
   });
 
   launchesHost.addEventListener('click', function(event){
-    const target = event.target;
+    const target = event.target && typeof event.target.closest === 'function'
+      ? event.target.closest('button[data-launch-index],button[data-column-id]')
+      : event.target;
+    if (!target) return;
     const launchIndex = Number(target.getAttribute('data-launch-index'));
     if (!state.lancamentos[launchIndex]) return;
     if (target.classList.contains('btnAddColumn')){
@@ -2186,6 +2193,14 @@
     }
     if (target.classList.contains('btnFetchIndices')){
       updateIndicesForLaunch(launchIndex);
+      return;
+    }
+    if (target.classList.contains('btnExportLaunchCsv')){
+      exportLaunchesToCsv(launchIndex);
+      return;
+    }
+    if (target.classList.contains('btnImportLaunchCsv')){
+      triggerLaunchCsvImport(launchIndex);
       return;
     }
     if (target.classList.contains('btnEditColumn')){
@@ -2402,10 +2417,144 @@
     URL.revokeObjectURL(url);
   }
 
+  function downloadCsvFile(filename, content){
+    const blob = new Blob(['\ufeff' + content], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  function sanitizeFilenameSegment(value){
+    const raw = String(value == null ? '' : value).trim();
+    const normalized = typeof raw.normalize === 'function' ? raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : raw;
+    const clean = normalized.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    return clean || 'verba';
+  }
+
+  function escapeCsvCell(value){
+    const text = String(value == null ? '' : value);
+    if (!/[;"\n\r]/.test(text)) return text;
+    return '"' + text.replace(/"/g, '""') + '"';
+  }
+
+  function parseCsvRows(text){
+    const source = String(text || '').replace(/^\ufeff/, '');
+    const rows = [];
+    let row = [];
+    let cell = '';
+    let inQuotes = false;
+    for (let index = 0; index < source.length; index += 1){
+      const char = source[index];
+      if (inQuotes) {
+        if (char === '"') {
+          if (source[index + 1] === '"') {
+            cell += '"';
+            index += 1;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          cell += char;
+        }
+        continue;
+      }
+      if (char === '"') {
+        inQuotes = true;
+        continue;
+      }
+      if (char === ';') {
+        row.push(cell);
+        cell = '';
+        continue;
+      }
+      if (char === '\n') {
+        row.push(cell);
+        rows.push(row);
+        row = [];
+        cell = '';
+        continue;
+      }
+      if (char === '\r') continue;
+      cell += char;
+    }
+    row.push(cell);
+    if (row.length > 1 || row[0] !== '') rows.push(row);
+    return rows;
+  }
+
+  function findEditableColumn(lancamento, columnId){
+    const id = String(columnId || '').trim();
+    if (!id) return null;
+    return (lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : []).find(function(coluna){
+      return coluna && coluna.id === id && coluna.tipo !== 'formula' && coluna.tipo !== 'indice';
+    }) || null;
+  }
+
   function exportCalculationToJson(){
     const data = collect();
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     downloadJsonFile('calculo-civel-' + stamp + '.json', JSON.stringify(data, null, 2));
+  }
+
+  function exportLaunchesToCsv(launchIndex){
+    try {
+      const launchList = typeof launchIndex === 'number'
+        ? (state.lancamentos[launchIndex] ? [state.lancamentos[launchIndex]] : [])
+        : state.lancamentos.slice();
+      if (!launchList.length) {
+        alert('Cadastre ao menos um lançamento antes de exportar o CSV.');
+        return;
+      }
+      const header = [
+        'lancamento_id',
+        'verba',
+        'periodo',
+        'data_inicial_verba',
+        'data_final_verba',
+        'observacao_verba',
+        'coluna_id',
+        'coluna_nome',
+        'tipo_coluna',
+        'valor'
+      ];
+      const lines = [header.join(';')];
+      launchList.forEach(function(lancamento){
+        normalizeLaunch(lancamento);
+        const editableColumns = (lancamento.colunas || []).filter(function(coluna){
+          return coluna && coluna.tipo !== 'formula' && coluna.tipo !== 'indice';
+        });
+        (lancamento.linhas || []).forEach(function(linha){
+          editableColumns.forEach(function(coluna){
+            const columnId = coluna.id === 'valor' ? 'valor' : coluna.id;
+            const rawValue = columnId === 'valor' ? linha.valor : linha[columnId];
+            const cells = [
+              lancamento.id || '',
+              lancamento.verba || '',
+              linha.periodo || '',
+              lancamento.dataInicial || '',
+              lancamento.dataFinal || '',
+              lancamento.observacao || '',
+              columnId,
+              coluna.nome || '',
+              coluna.tipo || 'manual',
+              formatEditableNumberBR(rawValue || 0)
+            ].map(escapeCsvCell);
+            lines.push(cells.join(';'));
+          });
+        });
+      });
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+      const suffix = launchList.length === 1 ? ('-' + sanitizeFilenameSegment(launchList[0].verba || 'verba')) : '';
+      downloadCsvFile('calculo-civel-lancamentos' + suffix + '-' + stamp + '.csv', lines.join('\r\n'));
+    } catch (error) {
+      console.error('Falha ao exportar lançamentos para CSV.', error);
+      alert('Não foi possível exportar o CSV deste lançamento.');
+    }
   }
 
   function importCalculationFromJson(file){
@@ -2425,6 +2574,76 @@
       alert('Falha ao ler o arquivo JSON selecionado.');
     };
     reader.readAsText(file, 'utf-8');
+  }
+
+  function importLaunchesFromCsv(file, launchIndex){
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(){
+      try {
+        const rows = parseCsvRows(String(reader.result || ''));
+        if (rows.length < 2) throw new Error('Arquivo CSV vazio.');
+        const header = rows[0].map(function(cell){ return String(cell || '').trim().toLowerCase(); });
+        const idxLaunchId = header.indexOf('lancamento_id');
+        const idxPeriodo = header.indexOf('periodo');
+        const idxColumnId = header.indexOf('coluna_id');
+        const idxValor = header.indexOf('valor');
+        if (idxLaunchId < 0 || idxPeriodo < 0 || idxColumnId < 0 || idxValor < 0) {
+          throw new Error('Cabeçalho inválido. Use o CSV gerado pelo sistema.');
+        }
+        const allowedIds = new Set(typeof launchIndex === 'number' && state.lancamentos[launchIndex]
+          ? [String(state.lancamentos[launchIndex].id || '')]
+          : state.lancamentos.map(function(lancamento){ return String(lancamento.id || ''); }));
+        const launchById = new Map(state.lancamentos.map(function(lancamento){ return [String(lancamento.id || ''), lancamento]; }));
+        const touchedLaunches = new Set();
+        let updatedCells = 0;
+        rows.slice(1).forEach(function(cols){
+          const launchId = String(cols[idxLaunchId] || '').trim();
+          const periodo = String(cols[idxPeriodo] || '').trim();
+          const columnId = String(cols[idxColumnId] || '').trim();
+          const value = cols[idxValor];
+          if (!launchId || !periodo || !columnId) return;
+          if (!allowedIds.has(launchId)) return;
+          const lancamento = launchById.get(launchId);
+          if (!lancamento) return;
+          if (!findEditableColumn(lancamento, columnId)) return;
+          const linha = (lancamento.linhas || []).find(function(item){ return String(item.periodo || '') === periodo; });
+          if (!linha) return;
+          const parsedValue = roundMoney(value);
+          if (columnId === 'valor') linha.valor = parsedValue;
+          else linha[columnId] = parsedValue;
+          touchedLaunches.add(launchId);
+          updatedCells += 1;
+        });
+        touchedLaunches.forEach(function(launchId){
+          const lancamento = launchById.get(launchId);
+          if (lancamento) recalculateLaunch(lancamento);
+        });
+        if (!updatedCells) throw new Error('Nenhum valor foi atualizado. Revise o conteúdo do CSV.');
+        persistAndRefresh();
+        alert('Importação concluída com sucesso. ' + String(updatedCells) + ' célula(s) atualizada(s) em ' + String(touchedLaunches.size) + ' verba(s).');
+      } catch (error) {
+        alert('Não foi possível importar o arquivo CSV informado. ' + String(error && error.message || ''));
+      }
+    };
+    reader.onerror = function(){
+      alert('Falha ao ler o arquivo CSV selecionado.');
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  function triggerLaunchCsvImport(launchIndex){
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv,text/csv';
+    input.style.display = 'none';
+    input.addEventListener('change', function(){
+      const file = this.files && this.files[0] ? this.files[0] : null;
+      if (file) importLaunchesFromCsv(file, launchIndex);
+      document.body.removeChild(input);
+    }, { once:true });
+    document.body.appendChild(input);
+    input.click();
   }
 
   const btnExportJson = $('btnExportJson');
