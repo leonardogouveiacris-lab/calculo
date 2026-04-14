@@ -1434,6 +1434,10 @@
             '<div class="launch-sub">' + esc(view.periodLabel) + ' — ' + view.competenciaCount + ' competência(s)</div>' +
             (view.observacao ? '<div class="launch-sub">Observação: ' + esc(view.observacao) + '</div>' : '') +
           '</div>' +
+          '<div style="display:flex;gap:8px;align-items:flex-start;justify-content:flex-end;opacity:.85">' +
+            '<button type="button" class="btn btn-ghost btnExportLaunchCsv" data-launch-index="' + index + '" style="padding:4px 8px;font-size:11px;line-height:1.2">CSV ↓</button>' +
+            '<button type="button" class="btn btn-ghost btnImportLaunchCsv" data-launch-index="' + index + '" style="padding:4px 8px;font-size:11px;line-height:1.2">CSV ↑</button>' +
+          '</div>' +
         '</div>' +
         '<div class="launch-actions">' +
           '<button type="button" class="btn btn-primary btnFetchIndices" data-launch-index="' + index + '"' + (indexLoadingState[index] ? ' disabled aria-busy="true"' : '') + '>' + (indexLoadingState[index] ? 'Buscando índices...' : 'Atualizar índices') + '</button>' +
@@ -2312,6 +2316,14 @@
       updateIndicesForLaunch(launchIndex);
       return;
     }
+    if (target.classList.contains('btnExportLaunchCsv')){
+      exportLaunchesToCsv(launchIndex);
+      return;
+    }
+    if (target.classList.contains('btnImportLaunchCsv')){
+      triggerLaunchCsvImport(launchIndex);
+      return;
+    }
     if (target.classList.contains('btnEditColumn')){
       openEditColumnModal(launchIndex, target.getAttribute('data-column-id') || '');
       return;
@@ -2603,8 +2615,11 @@
     downloadJsonFile('calculo-civel-' + stamp + '.json', JSON.stringify(data, null, 2));
   }
 
-  function exportLaunchesToCsv(){
-    if (!state.lancamentos.length) {
+  function exportLaunchesToCsv(launchIndex){
+    const launchList = typeof launchIndex === 'number'
+      ? (state.lancamentos[launchIndex] ? [state.lancamentos[launchIndex]] : [])
+      : state.lancamentos.slice();
+    if (!launchList.length) {
       alert('Cadastre ao menos um lançamento antes de exportar o CSV.');
       return;
     }
@@ -2621,7 +2636,7 @@
       'valor'
     ];
     const lines = [header.join(';')];
-    state.lancamentos.forEach(function(lancamento){
+    launchList.forEach(function(lancamento){
       normalizeLaunch(lancamento);
       const editableColumns = (lancamento.colunas || []).filter(function(coluna){
         return coluna && coluna.tipo !== 'formula' && coluna.tipo !== 'indice';
@@ -2647,7 +2662,8 @@
       });
     });
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-    downloadCsvFile('calculo-civel-lancamentos-' + stamp + '.csv', lines.join('\r\n'));
+    const suffix = launchList.length === 1 ? ('-' + String(launchList[0].verba || 'verba').toLowerCase().replace(/[^a-z0-9]+/g, '-')) : '';
+    downloadCsvFile('calculo-civel-lancamentos' + suffix + '-' + stamp + '.csv', lines.join('\r\n'));
   }
 
   function importCalculationFromJson(file){
@@ -2669,7 +2685,7 @@
     reader.readAsText(file, 'utf-8');
   }
 
-  function importLaunchesFromCsv(file){
+  function importLaunchesFromCsv(file, launchIndex){
     if (!file) return;
     const reader = new FileReader();
     reader.onload = function(){
@@ -2684,6 +2700,9 @@
         if (idxLaunchId < 0 || idxPeriodo < 0 || idxColumnId < 0 || idxValor < 0) {
           throw new Error('Cabeçalho inválido. Use o CSV gerado pelo sistema.');
         }
+        const allowedIds = new Set(typeof launchIndex === 'number' && state.lancamentos[launchIndex]
+          ? [String(state.lancamentos[launchIndex].id || '')]
+          : state.lancamentos.map(function(lancamento){ return String(lancamento.id || ''); }));
         const launchById = new Map(state.lancamentos.map(function(lancamento){ return [String(lancamento.id || ''), lancamento]; }));
         const touchedLaunches = new Set();
         let updatedCells = 0;
@@ -2693,6 +2712,7 @@
           const columnId = String(cols[idxColumnId] || '').trim();
           const value = cols[idxValor];
           if (!launchId || !periodo || !columnId) return;
+          if (!allowedIds.has(launchId)) return;
           const lancamento = launchById.get(launchId);
           if (!lancamento) return;
           if (!findEditableColumn(lancamento, columnId)) return;
@@ -2719,6 +2739,20 @@
       alert('Falha ao ler o arquivo CSV selecionado.');
     };
     reader.readAsText(file, 'utf-8');
+  }
+
+  function triggerLaunchCsvImport(launchIndex){
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv,text/csv';
+    input.style.display = 'none';
+    input.addEventListener('change', function(){
+      const file = this.files && this.files[0] ? this.files[0] : null;
+      if (file) importLaunchesFromCsv(file, launchIndex);
+      document.body.removeChild(input);
+    }, { once:true });
+    document.body.appendChild(input);
+    input.click();
   }
 
   const btnExportJson = $('btnExportJson');
