@@ -10,7 +10,6 @@
     processo: $('processo'),
     ajuizamento: $('ajuizamento'),
     dataAtualizacao: $('dataAtualizacao'),
-    enableIndexAuditLog: $('enableIndexAuditLog'),
     observacoes: $('observacoes'),
     novaVerba: $('novaVerba'),
     periodoInicial: $('periodoInicial'),
@@ -223,8 +222,7 @@
       unitLabel: sourceRule ? sourceRule.unitLabel : '—',
       formulaLabel: sourceRule ? sourceRule.formulaLabel : '—',
       intervalLabel: sourceRule ? sourceRule.intervalLabel : formatLimitInterval(limit.start, limit.end),
-      finalFactorLabel: formatIndexFactor(Number(coluna && coluna.__lastFactor || 1)),
-      technicalLog: Array.isArray(coluna && coluna.__auditLog) ? coluna.__auditLog : []
+      finalFactorLabel: formatIndexFactor(Number(coluna && coluna.__lastFactor || 1))
     };
   }
 
@@ -525,6 +523,26 @@
     return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
   }
 
+  function formatISODateUTC(date){
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+    return String(date.getUTCFullYear()) + '-' + String(date.getUTCMonth() + 1).padStart(2, '0') + '-' + String(date.getUTCDate()).padStart(2, '0');
+  }
+
+  function clampPeriodByLimit(requestedStartISO, requestedEndISO, limit){
+    const requestedStart = parseISODateUTC(requestedStartISO);
+    const requestedEnd = parseISODateUTC(requestedEndISO);
+    if (!requestedStart || !requestedEnd || requestedStart > requestedEnd) return null;
+    const limitStart = parseISODateUTC(limit && limit.start ? limit.start : '');
+    const limitEnd = parseISODateUTC(limit && limit.end ? limit.end : '');
+    const effectiveStartDate = limitStart && limitStart > requestedStart ? limitStart : requestedStart;
+    const effectiveEndDate = limitEnd && limitEnd < requestedEnd ? limitEnd : requestedEnd;
+    if (!effectiveStartDate || !effectiveEndDate || effectiveStartDate > effectiveEndDate) return null;
+    return {
+      startISO: formatISODateUTC(effectiveStartDate),
+      endISO: formatISODateUTC(effectiveEndDate)
+    };
+  }
+
   function monthBoundsUTC(monthKey){
     const parts = String(monthKey || '').split('-').map(Number);
     if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
@@ -551,9 +569,10 @@
     const accumulationMode = mode || 'compound';
     const requestedStartISO = String(periodStartISO || (startMonthKey + '-01'));
     const requestedEndISO = String(periodEndISO || (endMonthKey + '-31'));
-    const effectiveStartISO = limit && limit.start && limit.start > requestedStartISO ? limit.start : requestedStartISO;
-    const effectiveEndISO = limit && limit.end && limit.end < requestedEndISO ? limit.end : requestedEndISO;
-    if (!effectiveStartISO || !effectiveEndISO || effectiveStartISO > effectiveEndISO) return 1;
+    const effectivePeriod = clampPeriodByLimit(requestedStartISO, requestedEndISO, limit);
+    if (!effectivePeriod) return 1;
+    const effectiveStartISO = effectivePeriod.startISO;
+    const effectiveEndISO = effectivePeriod.endISO;
     const clampedStart = effectiveStartISO.slice(0, 7);
     const clampedEnd = effectiveEndISO.slice(0, 7);
     if (!clampedStart || !clampedEnd || clampedStart > clampedEnd) return 1;
@@ -589,7 +608,6 @@
       processo: fields.processo.value.trim(),
       ajuizamento: fields.ajuizamento.value,
       dataAtualizacao: fields.dataAtualizacao.value || new Date().toISOString().slice(0,10),
-      enableIndexAuditLog: !!(fields.enableIndexAuditLog && fields.enableIndexAuditLog.checked),
       observacoes: fields.observacoes.value.trim(),
       lancamentos: state.lancamentos,
       lancamentoSelecionadoId: state.lancamentoSelecionadoId || '',
@@ -606,7 +624,6 @@
     fields.processo.value = source.processo || '';
     fields.ajuizamento.value = source.ajuizamento || '';
     fields.dataAtualizacao.value = source.dataAtualizacao || new Date().toISOString().slice(0,10);
-    if (fields.enableIndexAuditLog) fields.enableIndexAuditLog.checked = !!source.enableIndexAuditLog;
     fields.observacoes.value = source.observacoes || '';
     state.lancamentos = normalizeLaunchListSafely(Array.isArray(source.lancamentos) ? source.lancamentos : []);
     state.lancamentoSelecionadoId = source.lancamentoSelecionadoId || (state.lancamentos[0] ? state.lancamentos[0].id : '');
@@ -1365,13 +1382,7 @@
         return '<span class="mini-badge">' + esc(label) + '</span>';
       }).join('');
       const hasIndexColumn = (lancamento.colunas || []).some(function(coluna){ return coluna && coluna.tipo === 'indice'; });
-      const showTechnicalLog = !!(fields.enableIndexAuditLog && fields.enableIndexAuditLog.checked);
       const indexSummaryRows = view.indexSummary.map(function(summary){
-        const technicalRows = showTechnicalLog && summary.technicalLog.length
-          ? '<details><summary>Log técnico</summary>' + summary.technicalLog.map(function(item){
-            return '<div style="font-size:10.5px">Período ' + esc(item.periodo) + ': ' + esc(item.tipo) + ' • intervalo ' + esc(item.inicio) + ' a ' + esc(item.fim) + ' • fator ' + esc(formatIndexFactor(item.fator)) + '</div>';
-          }).join('') + '</details>'
-          : '';
         return '' +
           '<div class="index-summary-row">' +
             '<strong>' + esc(summary.name) + '</strong>' +
@@ -1382,7 +1393,6 @@
             '<span>Fórmula: ' + esc(summary.formulaLabel) + '</span>' +
             '<span>Intervalo: ' + esc(summary.intervalLabel) + ' / ' + esc(summary.limitLabel) + '</span>' +
             '<span>Fator final: ' + esc(summary.finalFactorLabel) + '</span>' +
-            technicalRows +
           '</div>';
       }).join('');
       const fallbackIndexSummaryRows = hasIndexColumn && !indexSummaryRows
@@ -1423,6 +1433,10 @@
             '<div class="launch-title">' + esc(view.title) + '</div>' +
             '<div class="launch-sub">' + esc(view.periodLabel) + ' — ' + view.competenciaCount + ' competência(s)</div>' +
             (view.observacao ? '<div class="launch-sub">Observação: ' + esc(view.observacao) + '</div>' : '') +
+          '</div>' +
+          '<div style="display:flex;gap:8px;align-items:flex-start;justify-content:flex-end;opacity:.85">' +
+            '<button type="button" class="btn btn-ghost btnExportLaunchCsv" data-launch-index="' + index + '" style="padding:4px 8px;font-size:11px;line-height:1.2">CSV ↓</button>' +
+            '<button type="button" class="btn btn-ghost btnImportLaunchCsv" data-launch-index="' + index + '" style="padding:4px 8px;font-size:11px;line-height:1.2">CSV ↑</button>' +
           '</div>' +
         '</div>' +
         '<div class="launch-actions">' +
@@ -1990,18 +2004,12 @@
       data.lancamentos.forEach(function(lancamento){
         const view = mapLaunchForView(lancamento, -1);
         const indexSummaryRows = view.indexSummary.map(function(summary){
-          const technicalRows = (fields.enableIndexAuditLog && fields.enableIndexAuditLog.checked && summary.technicalLog.length)
-            ? '<details><summary>Log técnico</summary>' + summary.technicalLog.map(function(item){
-              return '<div style="font-size:9.4pt">Período ' + esc(item.periodo) + ': ' + esc(item.tipo) + ' • intervalo ' + esc(item.inicio) + ' a ' + esc(item.fim) + ' • fator ' + esc(formatIndexFactor(item.fator)) + '</div>';
-            }).join('') + '</details>'
-            : '';
           return '' +
             '<div class="report-index-summary-row">' +
               '<b>' + esc(summary.name) + '</b>' +
               (summary.columnRef ? '  Coluna: ' + esc(summary.columnRef) + '  ' : '  ') +
               'Fonte: ' + esc(summary.sourceLabel) + ' • Série: ' + esc(summary.seriesLabel) + ' • Unidade: ' + esc(summary.unitLabel) + ' • Fórmula: ' + esc(summary.formulaLabel) + ' • Intervalo: ' + esc(summary.intervalLabel) + ' / ' + esc(summary.limitLabel) + ' • Fator final: ' + esc(summary.finalFactorLabel) +
-              technicalRows +
-            '</div>';
+              '</div>';
         }).join('');
         const headers = ['Data'].concat(view.columns.map(function(coluna){ return coluna.title; }));
         const rows = view.rows.map(function(row){
@@ -2306,6 +2314,14 @@
     }
     if (target.classList.contains('btnFetchIndices')){
       updateIndicesForLaunch(launchIndex);
+      return;
+    }
+    if (target.classList.contains('btnExportLaunchCsv')){
+      exportLaunchesToCsv(launchIndex);
+      return;
+    }
+    if (target.classList.contains('btnImportLaunchCsv')){
+      triggerLaunchCsvImport(launchIndex);
       return;
     }
     if (target.classList.contains('btnEditColumn')){
@@ -2680,6 +2696,76 @@
     reader.readAsText(file, 'utf-8');
   }
 
+  function importLaunchesFromCsv(file, launchIndex){
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(){
+      try {
+        const rows = parseCsvRows(String(reader.result || ''));
+        if (rows.length < 2) throw new Error('Arquivo CSV vazio.');
+        const header = rows[0].map(function(cell){ return String(cell || '').trim().toLowerCase(); });
+        const idxLaunchId = header.indexOf('lancamento_id');
+        const idxPeriodo = header.indexOf('periodo');
+        const idxColumnId = header.indexOf('coluna_id');
+        const idxValor = header.indexOf('valor');
+        if (idxLaunchId < 0 || idxPeriodo < 0 || idxColumnId < 0 || idxValor < 0) {
+          throw new Error('Cabeçalho inválido. Use o CSV gerado pelo sistema.');
+        }
+        const allowedIds = new Set(typeof launchIndex === 'number' && state.lancamentos[launchIndex]
+          ? [String(state.lancamentos[launchIndex].id || '')]
+          : state.lancamentos.map(function(lancamento){ return String(lancamento.id || ''); }));
+        const launchById = new Map(state.lancamentos.map(function(lancamento){ return [String(lancamento.id || ''), lancamento]; }));
+        const touchedLaunches = new Set();
+        let updatedCells = 0;
+        rows.slice(1).forEach(function(cols){
+          const launchId = String(cols[idxLaunchId] || '').trim();
+          const periodo = String(cols[idxPeriodo] || '').trim();
+          const columnId = String(cols[idxColumnId] || '').trim();
+          const value = cols[idxValor];
+          if (!launchId || !periodo || !columnId) return;
+          if (!allowedIds.has(launchId)) return;
+          const lancamento = launchById.get(launchId);
+          if (!lancamento) return;
+          if (!findEditableColumn(lancamento, columnId)) return;
+          const linha = (lancamento.linhas || []).find(function(item){ return String(item.periodo || '') === periodo; });
+          if (!linha) return;
+          const parsedValue = roundMoney(value);
+          if (columnId === 'valor') linha.valor = parsedValue;
+          else linha[columnId] = parsedValue;
+          touchedLaunches.add(launchId);
+          updatedCells += 1;
+        });
+        touchedLaunches.forEach(function(launchId){
+          const lancamento = launchById.get(launchId);
+          if (lancamento) recalculateLaunch(lancamento);
+        });
+        if (!updatedCells) throw new Error('Nenhum valor foi atualizado. Revise o conteúdo do CSV.');
+        persistAndRefresh();
+        alert('Importação concluída com sucesso. ' + String(updatedCells) + ' célula(s) atualizada(s) em ' + String(touchedLaunches.size) + ' verba(s).');
+      } catch (error) {
+        alert('Não foi possível importar o arquivo CSV informado. ' + String(error && error.message || ''));
+      }
+    };
+    reader.onerror = function(){
+      alert('Falha ao ler o arquivo CSV selecionado.');
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  function triggerLaunchCsvImport(launchIndex){
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.csv,text/csv';
+    input.style.display = 'none';
+    input.addEventListener('change', function(){
+      const file = this.files && this.files[0] ? this.files[0] : null;
+      if (file) importLaunchesFromCsv(file, launchIndex);
+      document.body.removeChild(input);
+    }, { once:true });
+    document.body.appendChild(input);
+    input.click();
+  }
+
   const btnExportJson = $('btnExportJson');
   const btnImportJson = $('btnImportJson');
   const importJsonInput = $('importJsonInput');
@@ -2802,14 +2888,6 @@
       buildReport(collect());
     });
   });
-  if (fields.enableIndexAuditLog) {
-    fields.enableIndexAuditLog.addEventListener('change', function(){
-      save(collect());
-      renderLaunches();
-      buildReport(collect());
-    });
-  }
-
   const initial = load();
   fill(initial);
   state.lancamentos = normalizeLaunchListSafely(state.lancamentos);
