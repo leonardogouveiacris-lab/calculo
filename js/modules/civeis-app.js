@@ -59,6 +59,7 @@
   const honorariosEnabled = $('honorariosEnabled');
   const honorariosDescricao = $('honorariosDescricao');
   const honorariosPercentual = $('honorariosPercentual');
+  const honorariosMultiplicador = $('honorariosMultiplicador');
   const btnToggleHonorariosSelector = $('btnToggleHonorariosSelector');
   const honorariosSelectorPanel = $('honorariosSelectorPanel');
   const honorariosSelectedHost = $('honorariosSelectedHost');
@@ -444,7 +445,7 @@
   }
 
   function defaultHonorariosConfig(){
-    return { enabled:false, descricao:'Honorários', percentual:10, launchIds:[] };
+    return { enabled:false, descricao:'Honorários', percentual:10, multiplicador:1, launchIds:[] };
   }
 
   function normalizeHonorarios(config){
@@ -453,6 +454,7 @@
       enabled: !!base.enabled,
       descricao: String(base.descricao || 'Honorários').trim() || 'Honorários',
       percentual: parseBRNumber(base.percentual || 0),
+      multiplicador: parseBRNumber(base.multiplicador || 1) || 1,
       launchIds: Array.isArray(base.launchIds) ? base.launchIds.map(String).filter(Boolean) : []
     };
   }
@@ -1670,7 +1672,8 @@
     const selectedSet = new Set(honorariosConfig.launchIds);
     const selectedLaunches = launchItems.filter(function(item){ return selectedSet.has(item.id); });
     const honorariosBase = roundMoney(selectedLaunches.reduce(function(total, item){ return total + item.valorDevido; }, 0));
-    const honorariosValor = honorariosConfig.enabled ? roundMoney(honorariosBase * (honorariosConfig.percentual / 100)) : 0;
+    const honorariosValorBase = honorariosConfig.enabled ? roundMoney(honorariosBase * (honorariosConfig.percentual / 100)) : 0;
+    const honorariosValor = honorariosConfig.enabled ? roundMoney(honorariosValorBase * honorariosConfig.multiplicador) : 0;
     const custasItems = (Array.isArray(source.custas) ? source.custas : state.custas).map(normalizeCusta);
     const rows = launchItems.map(function(item){
       return {
@@ -1692,7 +1695,7 @@
       rows.push({
         kind: 'honorarios',
         id: 'honorarios',
-        verba: honorariosConfig.descricao + (honorariosConfig.percentual ? ' (' + formatNumberBR(honorariosConfig.percentual, 2, 4, true) + '%)' : ''),
+        verba: honorariosConfig.descricao + (honorariosConfig.percentual ? ' (' + formatNumberBR(honorariosConfig.percentual, 2, 4, true) + '%)' : '') + (honorariosConfig.multiplicador !== 1 ? (' × ' + formatNumberBR(honorariosConfig.multiplicador, 2, 4, true)) : ''),
         note: selectedLaunches.length
           ? ('Base composta por ' + String(selectedLaunches.length) + ' verba(s)' + (previewNames.length ? (': ' + previewNames.join('; ') + (extraCount ? ' e mais ' + String(extraCount) + '.' : '.')) : '.'))
           : 'Nenhuma verba selecionada para compor a base.',
@@ -1731,6 +1734,7 @@
       honorarios: {
         config: honorariosConfig,
         base: honorariosBase,
+        valorBase: honorariosValorBase,
         valor: honorariosValor,
         selectedLaunches: selectedLaunches
       },
@@ -1776,10 +1780,12 @@
           '<div class="summary-stats">' +
             '<div class="summary-stat"><span class="summary-stat-label">Verbas selecionadas</span><span class="summary-stat-value">' + String(summaryData.honorarios.selectedLaunches.length) + '</span></div>' +
             '<div class="summary-stat"><span class="summary-stat-label">Base</span><span class="summary-stat-value">' + esc(formatCurrencyBR(summaryData.honorarios.base)) + '</span></div>' +
+            '<div class="summary-stat"><span class="summary-stat-label">Honorários-base</span><span class="summary-stat-value">' + esc(formatCurrencyBR(summaryData.honorarios.valorBase || 0)) + '</span></div>' +
             '<div class="summary-stat"><span class="summary-stat-label">Honorários</span><span class="summary-stat-value">' + esc(formatCurrencyBR(summaryData.honorarios.valor)) + '</span></div>' +
           '</div>' +
           '<div class="summary-inline-note">Descrição: <b>' + esc(summaryData.honorarios.config.descricao || 'Honorários') + '</b>' +
             (summaryData.honorarios.config.percentual ? ' &nbsp;•&nbsp; Percentual: <b>' + esc(formatNumberBR(summaryData.honorarios.config.percentual, 2, 4, true) + '%') + '</b>' : '') +
+            ' &nbsp;•&nbsp; Multiplicador: <b>x' + esc(formatNumberBR(summaryData.honorarios.config.multiplicador, 2, 4, true)) + '</b>' +
           '</div>';
       }
     }
@@ -1933,6 +1939,7 @@
     if (honorariosEnabled) honorariosEnabled.checked = !!state.honorarios.enabled;
     if (honorariosDescricao) honorariosDescricao.value = state.honorarios.descricao || 'Honorários';
     if (honorariosPercentual) honorariosPercentual.value = state.honorarios.percentual ? formatNumberBR(state.honorarios.percentual, 2, 4, true) : '';
+    if (honorariosMultiplicador) honorariosMultiplicador.value = Number.isFinite(state.honorarios.multiplicador) ? formatNumberBR(state.honorarios.multiplicador, 2, 4, true) : '1,00';
 
     renderHonorariosSelection(summary);
     renderCustasEditor();
@@ -1972,7 +1979,7 @@
         '<tr><td class="bold" style="width:34%">Ferramenta</td><td>Cálculos Cíveis</td></tr>' +
         '<tr><td class="bold">Finalidade</td><td>Lançamentos mensais por verba, quadro de resumo, honorários e custas.</td></tr>' +
         '<tr><td class="bold">Quantidade de verbas</td><td>' + String(data.lancamentos.length) + '</td></tr>' +
-        '<tr><td class="bold">Honorários</td><td>' + (summary.honorarios.config.enabled ? ('Ativados em ' + formatNumberBR(summary.honorarios.config.percentual, 2, 4, true) + '% sobre ' + String(summary.honorarios.selectedLaunches.length) + ' verba(s).') : 'Não incluídos.') + '</td></tr>' +
+        '<tr><td class="bold">Honorários</td><td>' + (summary.honorarios.config.enabled ? ('Ativados em ' + formatNumberBR(summary.honorarios.config.percentual, 2, 4, true) + '% com multiplicador x' + formatNumberBR(summary.honorarios.config.multiplicador, 2, 4, true) + ' sobre ' + String(summary.honorarios.selectedLaunches.length) + ' verba(s).') : 'Não incluídos.') + '</td></tr>' +
         '<tr><td class="bold">Custas lançadas</td><td>' + String(summary.custas.items.length) + ' item(ns) — total de ' + esc(formatCurrencyBR(summary.custas.total)) + '</td></tr>' +
         '<tr><td class="bold">Data-base de atualização</td><td>' + esc(formatDateBR(data.dataAtualizacao)) + '</td></tr>' +
         '<tr><td class="bold">Última atualização do relatório</td><td>' + esc(data.atualizadoEm || '—') + '</td></tr>' +
@@ -2383,6 +2390,31 @@
     honorariosPercentual.addEventListener('focusout', function(){
       this.value = formatCurrencyBR(this.value);
       state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { percentual: parseBRNumber(this.value) }));
+      persistAndRefresh();
+    });
+  }
+
+  if (honorariosMultiplicador) {
+    honorariosMultiplicador.addEventListener('input', function(){
+      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { multiplicador: this.value }));
+      refreshSummaryOutputsOnly();
+    });
+    honorariosMultiplicador.addEventListener('focusin', function(){
+      this.value = formatEditableNumberBR(this.value);
+      this.select();
+    });
+    honorariosMultiplicador.addEventListener('paste', function(event){
+      event.preventDefault();
+      const pastedText = event.clipboardData ? event.clipboardData.getData('text') : '';
+      const parsedValue = parseBRNumber(pastedText);
+      this.value = formatEditableNumberBR(parsedValue);
+      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { multiplicador: parsedValue }));
+      refreshSummaryOutputsOnly();
+    });
+    honorariosMultiplicador.addEventListener('focusout', function(){
+      const parsedMultiplier = parseBRNumber(this.value);
+      this.value = formatNumberBR(parsedMultiplier || 1, 2, 4, true);
+      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { multiplicador: parsedMultiplier || 1 }));
       persistAndRefresh();
     });
   }
