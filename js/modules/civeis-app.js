@@ -260,10 +260,17 @@
       seriesLabel: sourceRule ? sourceRule.seriesLabel : 'Manual/sem série',
       unitLabel: sourceRule ? sourceRule.unitLabel : '—',
       formulaLabel: sourceRule ? sourceRule.formulaLabel : '—',
-      intervalLabel: sourceRule ? sourceRule.intervalLabel : formatLimitInterval(limit.start, limit.end),
+      intervalLabel: sourceRule ? sourceRule.intervalLabel : '',
       finalFactorLabel: formatIndexFactor(Number(coluna && coluna.__lastFactor || 1)),
       overlapLabel: (noOverlap && hasLimit) ? 'Sem incidência no período atual (limite fora da competência/data de atualização).' : ''
     };
+  }
+
+  function joinIndexIntervals(intervalLabel, limitLabel){
+    const base = String(intervalLabel || '').trim();
+    const limit = String(limitLabel || '').trim();
+    if (base && limit && base !== limit) return base + ' / ' + limit;
+    return base || limit || '—';
   }
 
   function normalizeLooseNumericText(value){
@@ -457,7 +464,9 @@
   function nextMonthKey(monthKey){ const parts = String(monthKey || '').split('-'); if (parts.length !== 2) return ''; let year = Number(parts[0]); let month = Number(parts[1]) + 1; if (month > 12){ month = 1; year += 1; } return String(year) + '-' + String(month).padStart(2, '0'); }
   function buildTaxaLegalMonthly(selicDailyList, ipca15List){ const selicMap = new Map(dailyToMonthlyEffective(selicDailyList, 11).map(function(item){ return [item.month, item.value]; })); const ipca15Map = monthlyMapFromBCB(ipca15List); const months = Array.from(new Set([].concat(Array.from(selicMap.keys()), Array.from(ipca15Map.keys())))).sort(); return months.map(function(baseMonth){ const refMonth = nextMonthKey(baseMonth); if (!refMonth || refMonth < '2024-09') return null; const percent = Math.max((Number(selicMap.get(baseMonth) || 0) - Number(ipca15Map.get(baseMonth) || 0)), 0); return { month: refMonth, value: percent }; }).filter(Boolean).sort(compareMonth); }
   function buildEc113Monthly(ipcaeList, selicDailyList){ const ipcaeMap = monthlyMapFromBCB(ipcaeList); const selicMap = new Map(dailyToMonthlyEffective(selicDailyList, 11).map(function(item){ return [item.month, item.value]; })); const months = Array.from(new Set([].concat(Array.from(ipcaeMap.keys()), Array.from(selicMap.keys())))).sort(); return months.map(function(month){ if (month <= '2021-11') return { month: month, value: Number(ipcaeMap.get(month) || 0) }; if (month >= '2021-12') return { month: month, value: Number(selicMap.get(month) || 0) }; return null; }).filter(Boolean).sort(compareMonth); }
-  function sourceAccumulationMode(sourceType){ return sourceType === 'taxa_legal' ? 'simple' : 'compound'; }
+  function sourceAccumulationMode(sourceType){
+    return sourceType === 'taxa_legal' || sourceType === 'juros_1am' ? 'simple' : 'compound';
+  }
   function makeIndexPayload(path, monthlyRates, dailyRates, dailySeriesCode){ return { calculationPath: path || 'monthly', monthlyRates: Array.isArray(monthlyRates) ? monthlyRates : [], dailyRates: Array.isArray(dailyRates) ? dailyRates : [], dailySeriesCode: dailySeriesCode || null }; }
   async function loadAutoIndices(sourceType, startDate, endDate){ if (!startDate || !endDate || sourceType === 'none') return makeIndexPayload('monthly', []); if (isCustomIndexSource(sourceType)) { const tableId = getCustomIndexTableIdFromSource(sourceType); const table = (state.indexTables || []).find(function(item){ return item && item.id === tableId; }); const startMonth = monthKeyFromISO(startDate); const endMonth = monthKeyFromISO(endDate); const monthlyRates = (table && Array.isArray(table.entries) ? table.entries : []).filter(function(entry){ return entry.month >= startMonth && entry.month <= endMonth; }).map(function(entry){ return { month: entry.month, value: Number(entry.value) || 0 }; }).sort(compareMonth); return makeIndexPayload('monthly', monthlyRates); } if (sourceType === 'ipca') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(433, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'ipcae') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(10764, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'inpc') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(188, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'igpm') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(189, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'igpdi') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(190, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'tr') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(7811, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'cdi') { const raw = await fetchSeries(4389, startDate, endDate); return makeIndexPayload('daily_compound_exact', dailyToMonthlyEffective(raw, 4389), raw, 4389); } if (sourceType === 'selic') { const rawSelic = await fetchSeries(11, startDate, endDate); return makeIndexPayload('daily_compound_exact', dailyToMonthlyEffective(rawSelic, 11), rawSelic, 11); } if (sourceType === 'taxa_legal') { const taxaLegalStart = previousMonthKey(monthKeyFromISO(startDate)); const taxaLegalStartISO = taxaLegalStart ? (taxaLegalStart + '-01') : startDate; return makeIndexPayload('monthly', buildTaxaLegalMonthly(await fetchSeries(11, taxaLegalStartISO, endDate), await fetchSeries(7478, taxaLegalStartISO, endDate))); } if (sourceType === 'ec113_2021') return makeIndexPayload('monthly', buildEc113Monthly(await fetchSeries(10764, startDate, endDate), await fetchSeries(11, startDate, endDate))); if (sourceType === 'poupanca_auto') return makeIndexPayload('monthly', buildPoupancaMonthly(await fetchSeries(7811, startDate, endDate), await fetchSeries(432, startDate, endDate))); if (sourceType === 'juros_1am') return makeIndexPayload('monthly', buildFixedMonthlyRate(startDate, endDate, 1)); if (sourceType === 'jam_auto') return makeIndexPayload('monthly', buildJamMonthly(await fetchSeries(7811, startDate, endDate))); return makeIndexPayload('monthly', []); }
   function formatPercent(value){ return formatNumberBR(value, 4, 6, true) + '%'; }
@@ -1548,7 +1557,7 @@
             '<span>Série: ' + esc(summary.seriesLabel) + '</span>' +
             '<span>Unidade: ' + esc(summary.unitLabel) + '</span>' +
             '<span>Fórmula: ' + esc(summary.formulaLabel) + '</span>' +
-            '<span>Intervalo: ' + esc(summary.intervalLabel) + ' / ' + esc(summary.limitLabel) + '</span>' +
+            '<span>Intervalo: ' + esc(joinIndexIntervals(summary.intervalLabel, summary.limitLabel)) + '</span>' +
             '<span>Fator final: ' + esc(summary.finalFactorLabel) + '</span>' +
             (summary.overlapLabel ? '<span style="color:#b54708">' + esc(summary.overlapLabel) + '</span>' : '') +
           '</div>';
@@ -2178,7 +2187,7 @@
             '<div class="report-index-summary-row">' +
               '<b>' + esc(summary.name) + '</b>' +
               (summary.columnRef ? '  Coluna: ' + esc(summary.columnRef) + '  ' : '  ') +
-              'Fonte: ' + esc(summary.sourceLabel) + ' • Série: ' + esc(summary.seriesLabel) + ' • Unidade: ' + esc(summary.unitLabel) + ' • Fórmula: ' + esc(summary.formulaLabel) + ' • Intervalo: ' + esc(summary.intervalLabel) + ' / ' + esc(summary.limitLabel) + ' • Fator final: ' + esc(summary.finalFactorLabel) +
+              'Fonte: ' + esc(summary.sourceLabel) + ' • Série: ' + esc(summary.seriesLabel) + ' • Unidade: ' + esc(summary.unitLabel) + ' • Fórmula: ' + esc(summary.formulaLabel) + ' • Intervalo: ' + esc(joinIndexIntervals(summary.intervalLabel, summary.limitLabel)) + ' • Fator final: ' + esc(summary.finalFactorLabel) +
               '</div>';
         }).join('');
         const headers = ['Data'].concat(view.columns.map(function(coluna){ return coluna.title; }));
