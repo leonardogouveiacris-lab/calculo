@@ -1501,9 +1501,9 @@
       return;
     }
     let indicesAtualizados = false;
+    const payloadByColumnId = {};
     try {
       const indexColumns = getIndexColumns(lancamento);
-      const payloadCacheBySource = {};
       for (let idx = 0; idx < indexColumns.length; idx += 1){
         const coluna = indexColumns[idx];
         const limit = getIndexLimit(coluna);
