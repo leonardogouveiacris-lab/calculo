@@ -2402,10 +2402,128 @@
     URL.revokeObjectURL(url);
   }
 
+  function downloadCsvFile(filename, content){
+    const blob = new Blob(['\ufeff' + content], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  function escapeCsvCell(value){
+    const text = String(value == null ? '' : value);
+    if (!/[;"\n\r]/.test(text)) return text;
+    return '"' + text.replace(/"/g, '""') + '"';
+  }
+
+  function parseCsvRows(text){
+    const source = String(text || '').replace(/^\ufeff/, '');
+    const rows = [];
+    let row = [];
+    let cell = '';
+    let inQuotes = false;
+    for (let index = 0; index < source.length; index += 1){
+      const char = source[index];
+      if (inQuotes) {
+        if (char === '"') {
+          if (source[index + 1] === '"') {
+            cell += '"';
+            index += 1;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          cell += char;
+        }
+        continue;
+      }
+      if (char === '"') {
+        inQuotes = true;
+        continue;
+      }
+      if (char === ';') {
+        row.push(cell);
+        cell = '';
+        continue;
+      }
+      if (char === '\n') {
+        row.push(cell);
+        rows.push(row);
+        row = [];
+        cell = '';
+        continue;
+      }
+      if (char === '\r') continue;
+      cell += char;
+    }
+    row.push(cell);
+    if (row.length > 1 || row[0] !== '') rows.push(row);
+    return rows;
+  }
+
+  function findEditableColumn(lancamento, columnId){
+    const id = String(columnId || '').trim();
+    if (!id) return null;
+    return (lancamento && Array.isArray(lancamento.colunas) ? lancamento.colunas : []).find(function(coluna){
+      return coluna && coluna.id === id && coluna.tipo !== 'formula' && coluna.tipo !== 'indice';
+    }) || null;
+  }
+
   function exportCalculationToJson(){
     const data = collect();
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     downloadJsonFile('calculo-civel-' + stamp + '.json', JSON.stringify(data, null, 2));
+  }
+
+  function exportLaunchesToCsv(){
+    if (!state.lancamentos.length) {
+      alert('Cadastre ao menos um lançamento antes de exportar o CSV.');
+      return;
+    }
+    const header = [
+      'lancamento_id',
+      'verba',
+      'periodo',
+      'data_inicial_verba',
+      'data_final_verba',
+      'observacao_verba',
+      'coluna_id',
+      'coluna_nome',
+      'tipo_coluna',
+      'valor'
+    ];
+    const lines = [header.join(';')];
+    state.lancamentos.forEach(function(lancamento){
+      normalizeLaunch(lancamento);
+      const editableColumns = (lancamento.colunas || []).filter(function(coluna){
+        return coluna && coluna.tipo !== 'formula' && coluna.tipo !== 'indice';
+      });
+      (lancamento.linhas || []).forEach(function(linha){
+        editableColumns.forEach(function(coluna){
+          const columnId = coluna.id === 'valor' ? 'valor' : coluna.id;
+          const rawValue = columnId === 'valor' ? linha.valor : linha[columnId];
+          const cells = [
+            lancamento.id || '',
+            lancamento.verba || '',
+            linha.periodo || '',
+            lancamento.dataInicial || '',
+            lancamento.dataFinal || '',
+            lancamento.observacao || '',
+            columnId,
+            coluna.nome || '',
+            coluna.tipo || 'manual',
+            formatEditableNumberBR(rawValue || 0)
+          ].map(escapeCsvCell);
+          lines.push(cells.join(';'));
+        });
+      });
+    });
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    downloadCsvFile('calculo-civel-lancamentos-' + stamp + '.csv', lines.join('\r\n'));
   }
 
   function importCalculationFromJson(file){
@@ -2427,15 +2545,77 @@
     reader.readAsText(file, 'utf-8');
   }
 
+  function importLaunchesFromCsv(file){
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(){
+      try {
+        const rows = parseCsvRows(String(reader.result || ''));
+        if (rows.length < 2) throw new Error('Arquivo CSV vazio.');
+        const header = rows[0].map(function(cell){ return String(cell || '').trim().toLowerCase(); });
+        const idxLaunchId = header.indexOf('lancamento_id');
+        const idxPeriodo = header.indexOf('periodo');
+        const idxColumnId = header.indexOf('coluna_id');
+        const idxValor = header.indexOf('valor');
+        if (idxLaunchId < 0 || idxPeriodo < 0 || idxColumnId < 0 || idxValor < 0) {
+          throw new Error('Cabeçalho inválido. Use o CSV gerado pelo sistema.');
+        }
+        const launchById = new Map(state.lancamentos.map(function(lancamento){ return [String(lancamento.id || ''), lancamento]; }));
+        const touchedLaunches = new Set();
+        let updatedCells = 0;
+        rows.slice(1).forEach(function(cols){
+          const launchId = String(cols[idxLaunchId] || '').trim();
+          const periodo = String(cols[idxPeriodo] || '').trim();
+          const columnId = String(cols[idxColumnId] || '').trim();
+          const value = cols[idxValor];
+          if (!launchId || !periodo || !columnId) return;
+          const lancamento = launchById.get(launchId);
+          if (!lancamento) return;
+          if (!findEditableColumn(lancamento, columnId)) return;
+          const linha = (lancamento.linhas || []).find(function(item){ return String(item.periodo || '') === periodo; });
+          if (!linha) return;
+          const parsedValue = roundMoney(value);
+          if (columnId === 'valor') linha.valor = parsedValue;
+          else linha[columnId] = parsedValue;
+          touchedLaunches.add(launchId);
+          updatedCells += 1;
+        });
+        touchedLaunches.forEach(function(launchId){
+          const lancamento = launchById.get(launchId);
+          if (lancamento) recalculateLaunch(lancamento);
+        });
+        if (!updatedCells) throw new Error('Nenhum valor foi atualizado. Revise o conteúdo do CSV.');
+        persistAndRefresh();
+        alert('Importação concluída com sucesso. ' + String(updatedCells) + ' célula(s) atualizada(s) em ' + String(touchedLaunches.size) + ' verba(s).');
+      } catch (error) {
+        alert('Não foi possível importar o arquivo CSV informado. ' + String(error && error.message || ''));
+      }
+    };
+    reader.onerror = function(){
+      alert('Falha ao ler o arquivo CSV selecionado.');
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
   const btnExportJson = $('btnExportJson');
   const btnImportJson = $('btnImportJson');
   const importJsonInput = $('importJsonInput');
+  const btnExportCsvLaunches = $('btnExportCsvLaunches');
+  const btnImportCsvLaunches = $('btnImportCsvLaunches');
+  const importCsvLaunchesInput = $('importCsvLaunchesInput');
 
   if (btnExportJson) btnExportJson.addEventListener('click', exportCalculationToJson);
   if (btnImportJson && importJsonInput) btnImportJson.addEventListener('click', function(){ importJsonInput.click(); });
   if (importJsonInput) importJsonInput.addEventListener('change', function(){
     const file = this.files && this.files[0] ? this.files[0] : null;
     if (file) importCalculationFromJson(file);
+    this.value = '';
+  });
+  if (btnExportCsvLaunches) btnExportCsvLaunches.addEventListener('click', exportLaunchesToCsv);
+  if (btnImportCsvLaunches && importCsvLaunchesInput) btnImportCsvLaunches.addEventListener('click', function(){ importCsvLaunchesInput.click(); });
+  if (importCsvLaunchesInput) importCsvLaunchesInput.addEventListener('change', function(){
+    const file = this.files && this.files[0] ? this.files[0] : null;
+    if (file) importLaunchesFromCsv(file);
     this.value = '';
   });
 
