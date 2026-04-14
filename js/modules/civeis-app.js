@@ -2921,9 +2921,13 @@
 
   [fields.requerente, fields.requerido, fields.processo, fields.ajuizamento, fields.dataAtualizacao, fields.observacoes].forEach(function(field){
     field.addEventListener('input', function(){
-      save(collect());
+      const data = collect();
+      save(data);
       if (field === fields.dataAtualizacao) refreshAllIndices();
-      buildReport(collect());
+      safeBuildReport(data, {
+        source: 'field-input-live-report',
+        context: { fieldId: field && field.id ? field.id : '' }
+      });
     });
   });
   const initial = load();
@@ -2931,7 +2935,7 @@
   state.lancamentos = normalizeLaunchListSafely(state.lancamentos);
   renderLaunches();
   renderSummaryPanel();
-  buildReport(collect());
+  safeBuildReport(collect(), { source: 'startup-initial-report' });
   if ($('tab-report') && $('tab-report').classList.contains('active')) renderReportDeferred();
   setTimeout(function(){
     state.lancamentos.forEach(function(lancamento, index){
