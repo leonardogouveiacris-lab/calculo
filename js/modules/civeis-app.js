@@ -232,6 +232,27 @@
     });
   }
 
+  function getIndexSourceOptionLabel(kind, source){
+    return ((INDEX_SOURCE_OPTIONS[kind] || []).find(function(opt){ return opt.value === source; }) || {}).label || source || '—';
+  }
+
+  function describeIndexCompositionDetails(coluna){
+    const kind = coluna && coluna.indexKind === 'juros' ? 'juros' : 'correcao';
+    return getIndexComposition(coluna).map(function(segment, index){
+      const sourceRule = window.CPBCBRates && typeof window.CPBCBRates.describeSourceRule === 'function'
+        ? window.CPBCBRates.describeSourceRule(segment.source)
+        : null;
+      return {
+        position: index + 1,
+        sourceLabel: getIndexSourceOptionLabel(kind, segment.source),
+        seriesLabel: sourceRule ? sourceRule.seriesLabel : 'Manual/sem série',
+        unitLabel: sourceRule ? sourceRule.unitLabel : '—',
+        formulaLabel: sourceRule ? sourceRule.formulaLabel : '—',
+        intervalLabel: joinIndexIntervals(sourceRule ? sourceRule.intervalLabel : '', formatLimitInterval(segment.start || '', segment.end || ''))
+      };
+    });
+  }
+
   function normalizeIndexSegment(segment, fallbackKind){
     const base = segment || {};
     const kind = fallbackKind === 'juros' ? 'juros' : 'correcao';
@@ -493,7 +514,37 @@
     return sourceType === 'taxa_legal' || sourceType === 'juros_1am' ? 'simple' : 'compound';
   }
   function makeIndexPayload(path, monthlyRates, dailyRates, dailySeriesCode){ return { calculationPath: path || 'monthly', monthlyRates: Array.isArray(monthlyRates) ? monthlyRates : [], dailyRates: Array.isArray(dailyRates) ? dailyRates : [], dailySeriesCode: dailySeriesCode || null }; }
-  async function loadAutoIndices(sourceType, startDate, endDate){ if (!startDate || !endDate || sourceType === 'none') return makeIndexPayload('monthly', []); if (isCustomIndexSource(sourceType)) { const tableId = getCustomIndexTableIdFromSource(sourceType); const table = (state.indexTables || []).find(function(item){ return item && item.id === tableId; }); const startMonth = monthKeyFromISO(startDate); const endMonth = monthKeyFromISO(endDate); const monthlyRates = (table && Array.isArray(table.entries) ? table.entries : []).filter(function(entry){ return entry.month >= startMonth && entry.month <= endMonth; }).map(function(entry){ return { month: entry.month, value: Number(entry.value) || 0 }; }).sort(compareMonth); return makeIndexPayload('monthly', monthlyRates); } if (sourceType === 'ipca') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(433, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'ipcae') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(10764, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'inpc') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(188, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'igpm') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(189, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'igpdi') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(190, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'tr') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(7811, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth)); if (sourceType === 'cdi') { const raw = await fetchSeries(4389, startDate, endDate); return makeIndexPayload('daily_compound_exact', dailyToMonthlyEffective(raw, 4389), raw, 4389); } if (sourceType === 'selic') { const rawSelic = await fetchSeries(11, startDate, endDate); return makeIndexPayload('daily_compound_exact', dailyToMonthlyEffective(rawSelic, 11), rawSelic, 11); } if (sourceType === 'taxa_legal') { const taxaLegalStart = previousMonthKey(monthKeyFromISO(startDate)); const taxaLegalStartISO = taxaLegalStart ? (taxaLegalStart + '-01') : startDate; return makeIndexPayload('monthly', buildTaxaLegalMonthly(await fetchSeries(11, taxaLegalStartISO, endDate), await fetchSeries(7478, taxaLegalStartISO, endDate))); } if (sourceType === 'ec113_2021') return makeIndexPayload('monthly', buildEc113Monthly(await fetchSeries(10764, startDate, endDate), await fetchSeries(11, startDate, endDate))); if (sourceType === 'poupanca_auto') return makeIndexPayload('monthly', buildPoupancaMonthly(await fetchSeries(7811, startDate, endDate), await fetchSeries(432, startDate, endDate))); if (sourceType === 'juros_1am') return makeIndexPayload('monthly', buildFixedMonthlyRate(startDate, endDate, 1)); if (sourceType === 'jam_auto') return makeIndexPayload('monthly', buildJamMonthly(await fetchSeries(7811, startDate, endDate))); return makeIndexPayload('monthly', []); }
+  async function loadAutoIndices(sourceType, startDate, endDate){
+    if (!startDate || !endDate || sourceType === 'none') return makeIndexPayload('monthly', []);
+    if (sourceType === 'ipca') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(433, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth));
+    if (sourceType === 'ipcae') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(10764, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth));
+    if (sourceType === 'inpc') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(188, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth));
+    if (sourceType === 'igpm') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(189, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth));
+    if (sourceType === 'igpdi') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(190, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth));
+    if (sourceType === 'tr') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(7811, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth));
+    if (sourceType === 'cdi') {
+      const raw = await fetchSeries(4389, startDate, endDate);
+      return makeIndexPayload('daily_compound_exact', dailyToMonthlyEffective(raw, 4389), raw, 4389);
+    }
+    if (sourceType === 'selic') {
+      const rawSelic = await fetchSeries(11, startDate, endDate);
+      return makeIndexPayload('daily_compound_exact', dailyToMonthlyEffective(rawSelic, 11), rawSelic, 11);
+    }
+    if (sourceType === 'taxa_legal') {
+      try {
+        return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(29543, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth));
+      } catch (error) {
+        const taxaLegalStart = previousMonthKey(monthKeyFromISO(startDate));
+        const taxaLegalStartISO = taxaLegalStart ? (taxaLegalStart + '-01') : startDate;
+        return makeIndexPayload('monthly', buildTaxaLegalMonthly(await fetchSeries(11, taxaLegalStartISO, endDate), await fetchSeries(7478, taxaLegalStartISO, endDate)));
+      }
+    }
+    if (sourceType === 'ec113_2021') return makeIndexPayload('monthly', buildEc113Monthly(await fetchSeries(10764, startDate, endDate), await fetchSeries(11, startDate, endDate)));
+    if (sourceType === 'poupanca_auto') return makeIndexPayload('monthly', buildPoupancaMonthly(await fetchSeries(7811, startDate, endDate), await fetchSeries(432, startDate, endDate)));
+    if (sourceType === 'juros_1am') return makeIndexPayload('monthly', buildFixedMonthlyRate(startDate, endDate, 1));
+    if (sourceType === 'jam_auto') return makeIndexPayload('monthly', buildJamMonthly(await fetchSeries(7811, startDate, endDate)));
+    return makeIndexPayload('monthly', []);
+  }
   function formatPercent(value){ return formatNumberBR(value, 4, 6, true) + '%'; }
   function formatIndexFactor(value){
     return formatNumberBR(value, 7, 7, true);
