@@ -7,10 +7,20 @@
   ns.attachPrint = function(ctx){
     const { state, fmtBRL, toDateBR, monthLabel } = ctx;
     let lastRenderedResult = null;
+    const esc = (window.CPCommon && CPCommon.escapeHtml)
+      ? CPCommon.escapeHtml
+      : function(value){
+        return String(value == null ? '' : value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      };
 
     function rowHtml(cells){
       return '<tr>' + cells.map(function(cell){
-        return '<td class="' + (cell.cls || '') + '">' + (cell.text == null ? '' : cell.text) + '</td>';
+        return '<td class="' + esc(cell.cls || '') + '">' + esc(cell.text) + '</td>';
       }).join('') + '</tr>';
     }
 
@@ -71,13 +81,13 @@
         '</tbody></table>';
         const technicalLog = result.enableAuditLog
           ? '<details style="margin:8px 0"><summary>Log técnico</summary><div style="margin-top:6px;font-size:11px;line-height:1.45">' + (block.lines || []).map(function(line){
-            return '<div><b>' + monthLabel(line.mk) + '</b>: fator_mês=' + Number((line.debug || {}).fatorMes || 1).toLocaleString('pt-BR', { minimumFractionDigits: 7, maximumFractionDigits: 7 }) + ' • fator_acumulado=' + Number((line.debug || {}).fatorAcumulado || 1).toLocaleString('pt-BR', { minimumFractionDigits: 7, maximumFractionDigits: 7 }) + ' • dias=' + ((line.debug || {}).diasAplicados || 0) + '/' + ((line.debug || {}).baseDias || 0) + ' • intervalo=' + (((line.debug || {}).effectiveStartISO) || '-') + ' a ' + (((line.debug || {}).effectiveEndISO) || '-') + '</div>';
+            return '<div><b>' + esc(monthLabel(line.mk)) + '</b>: fator_mês=' + esc(Number((line.debug || {}).fatorMes || 1).toLocaleString('pt-BR', { minimumFractionDigits: 7, maximumFractionDigits: 7 })) + ' • fator_acumulado=' + esc(Number((line.debug || {}).fatorAcumulado || 1).toLocaleString('pt-BR', { minimumFractionDigits: 7, maximumFractionDigits: 7 })) + ' • dias=' + esc((line.debug || {}).diasAplicados || 0) + '/' + esc((line.debug || {}).baseDias || 0) + ' • intervalo=' + esc(((line.debug || {}).effectiveStartISO) || '-') + ' a ' + esc(((line.debug || {}).effectiveEndISO) || '-') + '</div>';
           }).join('') + '</div></details>'
           : '';
         CPPrintLayout.appendSection(layout, { html: auditHtml + technicalLog });
         CPPrintLayout.appendTable(layout, {
-          title: 'Depósito em ' + toDateBR(block.dep.date) + ' • ' + fmtBRL(block.dep.value) + (block.dep.obs ? ' • ' + block.dep.obs : ''),
-          continuationLabel: 'Depósito em ' + toDateBR(block.dep.date) + ' (continuação)',
+          title: 'Depósito em ' + esc(toDateBR(block.dep.date)) + ' • ' + esc(fmtBRL(block.dep.value)) + (block.dep.obs ? ' • ' + esc(block.dep.obs) : ''),
+          continuationLabel: 'Depósito em ' + esc(toDateBR(block.dep.date)) + ' (continuação)',
           smallTitle: true,
           tableClass: 'report-table dep-detail-table',
           columns: [
@@ -90,7 +100,7 @@
             'Valor Atualizado'
           ],
           rows: buildDetailRows(block.dep, block.lines),
-          tfootHtml: '<tr><td colspan="6" class="bold right">Subtotal atualizado</td><td class="bold right">' + fmtBRL(block.subtotal || 0) + '</td></tr>'
+          tfootHtml: '<tr><td colspan="6" class="bold right">Subtotal atualizado</td><td class="bold right">' + esc(fmtBRL(block.subtotal || 0)) + '</td></tr>'
         });
       });
     }

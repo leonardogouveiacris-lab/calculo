@@ -6,6 +6,15 @@
     return String(value);
   }
 
+  function escapeHtml(value){
+    return safeText(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function clear(node){
     if (!node) return;
     while (node.firstChild) node.removeChild(node.firstChild);
@@ -75,6 +84,7 @@
 
   window.CPCommon = {
     safeText: safeText,
+    escapeHtml: escapeHtml,
     clear: clear,
     cell: cell,
     appendCells: appendCells,

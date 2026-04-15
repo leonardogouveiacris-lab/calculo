@@ -58,6 +58,18 @@
     return value ? 'mailto:' + value : '#';
   }
 
+  function escapeHtml(value){
+    if (global.CPCommon && typeof global.CPCommon.escapeHtml === 'function') {
+      return global.CPCommon.escapeHtml(value);
+    }
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function resolveBranding(branding){
     const data = branding || {};
     return {
@@ -139,26 +151,36 @@
   }
 
   function renderPageShell(opts){
-    const title = opts.title || '';
-    const meta = opts.meta || '';
+    const title = escapeHtml(opts.title || '');
+    const meta = escapeHtml(opts.meta || '');
     const includeTitle = opts.includeTitle !== false;
     const b = resolveBranding(opts.branding);
+    const logo = escapeHtml(b.logo || '');
+    const headerName = escapeHtml(b.header.nome || '');
+    const headerTel = escapeHtml(b.header.tel || '');
+    const headerEmail = escapeHtml(b.header.email || '');
+    const mailHref = escapeHtml(safeMail(b.header.email));
+    const footerL1 = escapeHtml(b.footer.l1 || '');
+    const footerL2 = escapeHtml(b.footer.l2 || '');
+    const footerSite = escapeHtml(b.footer.site || '');
+    const footerSiteHref = escapeHtml(safeHref(b.footer.site));
+    const footerEmp = escapeHtml(b.footer.emp || '');
     return '' +
       '<section class="page" data-page-index="' + (opts.pageIndex || 1) + '">' +
         '<div class="header">' +
-          '<img alt="Logo" class="logo" data-logo="1" src="' + b.logo + '"/>' +
+          '<img alt="Logo" class="logo" data-logo="1" src="' + logo + '"/>' +
           '<div class="contact">' +
-            '<div><b>' + b.header.nome + '</b></div>' +
-            '<div>Tel.: <span>' + b.header.tel + '</span></div>' +
-            '<div><a href="' + safeMail(b.header.email) + '" rel="noreferrer">' + b.header.email + '</a></div>' +
+            '<div><b>' + headerName + '</b></div>' +
+            '<div>Tel.: <span>' + headerTel + '</span></div>' +
+            '<div><a href="' + mailHref + '" rel="noreferrer">' + headerEmail + '</a></div>' +
           '</div>' +
         '</div>' +
         '<div class="content">' +
           (includeTitle ? '<div class="title">' + title + '</div>' + (meta ? '<div class="meta">' + meta + '</div>' : '') : '') +
         '</div>' +
         '<div class="footer">' +
-          '<div><div>' + b.footer.l1 + '</div><div>' + b.footer.l2 + '</div><div><a href="' + safeHref(b.footer.site) + '" rel="noreferrer" target="_blank">' + b.footer.site + '</a></div></div>' +
-          '<div style="text-align:right;"><div>' + b.footer.emp + '</div></div>' +
+          '<div><div>' + footerL1 + '</div><div>' + footerL2 + '</div><div><a href="' + footerSiteHref + '" rel="noreferrer" target="_blank">' + footerSite + '</a></div></div>' +
+          '<div style="text-align:right;"><div>' + footerEmp + '</div></div>' +
         '</div>' +
       '</section>';
   }
