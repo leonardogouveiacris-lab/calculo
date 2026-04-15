@@ -1763,6 +1763,7 @@
     const requestedStartISO = String(competenciaStartISO || '');
     const requestedEndISO = String(dataAtualizacaoISO || '');
     const factorLookupMode = options && options.factorLookupMode === 'range_product' ? 'range_product' : 'month';
+    const payloadMap = payloadBySource instanceof Map ? payloadBySource : new Map();
     if (!requestedStartISO || !requestedEndISO || requestedStartISO > requestedEndISO) return { factor: 1, hasOverlap: false };
     const segments = Array.isArray(composition) ? composition : [];
     let totalFactor = 1;
@@ -1770,7 +1771,7 @@
     const segmentDetails = [];
     for (let idx = 0; idx < segments.length; idx += 1){
       const segment = normalizeIndexSegment(segments[idx]);
-      const payload = payloadBySource.get(segment.source) || makeIndexPayload('monthly', []);
+      const payload = payloadMap.get(segment.source) || makeIndexPayload('monthly', []);
       const effectivePeriod = clampPeriodByLimit(requestedStartISO, requestedEndISO, { start: segment.start || '', end: segment.end || '' });
       if (!effectivePeriod) {
         segmentDetails.push({ position: idx + 1, factor: 1, hasOverlap: false });
@@ -1786,10 +1787,15 @@
       if (payload.calculationPath === 'monthly_factor_lookup'){
         const monthMapFactor = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; }));
         const factorFromTable = factorLookupMode === 'range_product'
-          ? monthRange(monthKeyFromISO(effectivePeriod.startISO), monthKeyFromISO(effectivePeriod.endISO)).reduce(function(factor, monthKey){
-              const configuredFactor = Number(monthMapFactor.get(monthKey));
-              return factor * ((Number.isFinite(configuredFactor) && configuredFactor > 0) ? configuredFactor : 1);
-            }, 1)
+          ? (function(){
+              const startMonth = monthKeyFromISO(effectivePeriod.startISO);
+              const endMonth = monthKeyFromISO(effectivePeriod.endISO);
+              if (!startMonth || !endMonth || startMonth > endMonth) return 1;
+              return monthRange(startMonth, endMonth).reduce(function(factor, monthKey){
+                const configuredFactor = Number(monthMapFactor.get(monthKey));
+                return factor * ((Number.isFinite(configuredFactor) && configuredFactor > 0) ? configuredFactor : 1);
+              }, 1);
+            })()
           : (function(){
               const targetMonth = monthKeyFromISO(effectivePeriod.startISO);
               const configuredFactor = Number(monthMapFactor.get(targetMonth));
