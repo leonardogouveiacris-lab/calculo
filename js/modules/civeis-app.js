@@ -69,6 +69,11 @@
   const summaryTableHead = $('summaryTableHead');
   const summaryTableBody = $('summaryTableBody');
   const summaryTableFoot = $('summaryTableFoot');
+  const editHonorarioModal = $('editHonorarioModal');
+  const editHonorarioId = $('editHonorarioId');
+  const editHonorarioTipo = $('editHonorarioTipo');
+  const editHonorarioSeparate = $('editHonorarioSeparate');
+  const btnDeleteHonorarioModal = $('btnDeleteHonorarioModal');
   const INDEX_SOURCE_OPTIONS = {
     correcao: [
       { value:'none', label:'Sem correção' },
@@ -657,7 +662,7 @@
   function defaultHonorarioItem(){
     return {
       id: uid('honorario'),
-      enabled: false,
+      enabled: true,
       separateInSummary: false,
       descricao: 'Honorários',
       tipo: 'percentual',
@@ -676,7 +681,7 @@
     const tipo = base.tipo === 'fixo' ? 'fixo' : 'percentual';
     return {
       id: String(base.id || uid('honorario')),
-      enabled: !!base.enabled,
+      enabled: true,
       separateInSummary: !!base.separateInSummary,
       descricao: String(base.descricao || 'Honorários').trim() || 'Honorários',
       tipo: tipo,
@@ -691,7 +696,7 @@
   }
 
   function defaultHonorariosConfig(){
-    return { items: [normalizeHonorarioItem({ enabled:false, descricao:'Honorários', tipo:'percentual', percentual:10, multiplicador:1, launchIds:[] })] };
+    return { items: [normalizeHonorarioItem({ descricao:'Honorários', tipo:'percentual', percentual:10, multiplicador:1, launchIds:[] })] };
   }
 
   function normalizeHonorarios(config){
@@ -2154,7 +2159,6 @@
     });
 
     honorariosItems.forEach(function(item){
-      if (!item.config.enabled) return;
       if (item.config.tipo === 'fixo') {
         rows.push({
           kind: 'honorarios',
@@ -2281,23 +2285,19 @@
     };
 
     if (honorariosResumo) {
-      if (!summaryData.honorarios.items.some(function(item){ return item.config.enabled; })) {
-        honorariosResumo.innerHTML = '<div class="summary-muted-copy">Honorários desativados.</div>';
-      } else {
-        const enabledItems = summaryData.honorarios.items.filter(function(item){ return item.config.enabled; });
-        honorariosResumo.innerHTML = '' +
-          '<div class="summary-stats">' +
-            '<div class="summary-stat"><span class="summary-stat-label">Itens ativos</span><span class="summary-stat-value">' + String(enabledItems.length) + '</span></div>' +
-            '<div class="summary-stat"><span class="summary-stat-label">Separados no resumo</span><span class="summary-stat-value">' + String(summaryData.separatedHonorariosCount || 0) + '</span></div>' +
-            '<div class="summary-stat"><span class="summary-stat-label">Honorários totais</span><span class="summary-stat-value">' + esc(formatCurrencyBR(summaryData.honorarios.total || 0)) + '</span></div>' +
-          '</div>' +
-          enabledItems.map(function(item){
-            if (item.config.tipo === 'fixo') {
-              return '<div class="summary-inline-note"><b>' + esc(item.config.descricao) + '</b> &nbsp;•&nbsp; Fixo: <b>' + esc(formatCurrencyBR(item.config.valorFixo)) + '</b> &nbsp;•&nbsp; Data: <b>' + esc(formatDateBR(item.config.dataBase)) + '</b> &nbsp;•&nbsp; Índice: <b>' + esc(getIndexSourceOptionLabel('correcao', item.config.indexSource)) + '</b> &nbsp;•&nbsp; Fator: <b>x' + esc(formatNumberBR(item.fatorCorrecao || 1, 4, 7, true)) + '</b> &nbsp;•&nbsp; Total: <b>' + esc(formatCurrencyBR(item.valor || 0)) + '</b></div>';
-            }
-            return '<div class="summary-inline-note"><b>' + esc(item.config.descricao) + '</b> &nbsp;•&nbsp; Verbas: <b>' + String(item.selectedLaunches.length) + '</b> &nbsp;•&nbsp; Base: <b>' + esc(formatCurrencyBR(item.base || 0)) + '</b> &nbsp;•&nbsp; Percentual: <b>' + esc(formatNumberBR(item.config.percentual, 2, 4, true) + '%') + '</b> &nbsp;•&nbsp; Multiplicador: <b>x' + esc(formatNumberBR(item.config.multiplicador, 2, 4, true)) + '</b> &nbsp;•&nbsp; Total: <b>' + esc(formatCurrencyBR(item.valor || 0)) + '</b></div>';
-          }).join('');
-      }
+      const honorariosItems = summaryData.honorarios.items;
+      honorariosResumo.innerHTML = '' +
+        '<div class="summary-stats">' +
+          '<div class="summary-stat"><span class="summary-stat-label">Itens no resumo</span><span class="summary-stat-value">' + String(honorariosItems.length) + '</span></div>' +
+          '<div class="summary-stat"><span class="summary-stat-label">Separados no resumo</span><span class="summary-stat-value">' + String(summaryData.separatedHonorariosCount || 0) + '</span></div>' +
+          '<div class="summary-stat"><span class="summary-stat-label">Honorários totais</span><span class="summary-stat-value">' + esc(formatCurrencyBR(summaryData.honorarios.total || 0)) + '</span></div>' +
+        '</div>' +
+        honorariosItems.map(function(item){
+          if (item.config.tipo === 'fixo') {
+            return '<div class="summary-inline-note"><b>' + esc(item.config.descricao) + '</b> &nbsp;•&nbsp; Fixo: <b>' + esc(formatCurrencyBR(item.config.valorFixo)) + '</b> &nbsp;•&nbsp; Data: <b>' + esc(formatDateBR(item.config.dataBase)) + '</b> &nbsp;•&nbsp; Índice: <b>' + esc(getIndexSourceOptionLabel('correcao', item.config.indexSource)) + '</b> &nbsp;•&nbsp; Fator: <b>x' + esc(formatNumberBR(item.fatorCorrecao || 1, 4, 7, true)) + '</b> &nbsp;•&nbsp; Total: <b>' + esc(formatCurrencyBR(item.valor || 0)) + '</b></div>';
+          }
+          return '<div class="summary-inline-note"><b>' + esc(item.config.descricao) + '</b> &nbsp;•&nbsp; Verbas: <b>' + String(item.selectedLaunches.length) + '</b> &nbsp;•&nbsp; Base: <b>' + esc(formatCurrencyBR(item.base || 0)) + '</b> &nbsp;•&nbsp; Percentual: <b>' + esc(formatNumberBR(item.config.percentual, 2, 4, true) + '%') + '</b> &nbsp;•&nbsp; Multiplicador: <b>x' + esc(formatNumberBR(item.config.multiplicador, 2, 4, true)) + '</b> &nbsp;•&nbsp; Total: <b>' + esc(formatCurrencyBR(item.valor || 0)) + '</b></div>';
+        }).join('');
     }
 
     if (custasResumo) {
@@ -2366,10 +2366,10 @@
       }).join('');
       return '' +
         '<div class="custa-card" data-honorario-id="' + esc(item.id) + '">' +
-          '<div class="custa-card-head"><div class="custa-card-title">Honorário ' + String(index + 1) + '</div><button type="button" class="btn btn-ghost summary-remove-btn btnRemoveHonorario" data-honorario-id="' + esc(item.id) + '">Remover</button></div>' +
+          '<div class="custa-card-head"><div class="custa-card-title">Honorário ' + String(index + 1) + '</div><button type="button" class="btn btn-ghost summary-remove-btn btnEditHonorario" data-honorario-id="' + esc(item.id) + '">Editar</button></div>' +
           '<div class="custa-grid">' +
-            '<div><label class="check-inline"><input type="checkbox" class="honorario-enabled" data-honorario-id="' + esc(item.id) + '"' + (item.enabled ? ' checked' : '') + '> Exibir no resumo</label><label class="check-inline honorario-separate-inline"><input type="checkbox" class="honorario-separate" data-honorario-id="' + esc(item.id) + '"' + (item.separateInSummary ? ' checked' : '') + (item.enabled ? '' : ' disabled') + '> Separar no resumo</label></div>' +
-            '<div class="honorario-type-wrap"><label>Tipo</label><select class="select honorario-tipo" data-honorario-id="' + esc(item.id) + '"><option value="percentual"' + (item.tipo === 'percentual' ? ' selected' : '') + '>Percentual</option><option value="fixo"' + (item.tipo === 'fixo' ? ' selected' : '') + '>Valor fixo</option></select></div>' +
+            '<div><label>Resumo</label><input type="text" readonly value="' + esc(item.separateInSummary ? 'Separado no resumo' : 'Somado no total geral') + '"></div>' +
+            '<div><label>Tipo</label><input type="text" readonly value="' + esc(item.tipo === 'fixo' ? 'Valor fixo' : 'Percentual') + '"></div>' +
             '<div><label>Descrição</label><input type="text" class="honorario-desc" data-honorario-id="' + esc(item.id) + '" value="' + esc(item.descricao || '') + '" placeholder="Ex.: Honorários de terceiro"></div>' +
           '</div>' +
           (item.tipo === 'percentual'
@@ -2443,7 +2443,7 @@
         '<tr><td class="bold" style="width:34%">Ferramenta</td><td>Cálculos Cíveis</td></tr>' +
         '<tr><td class="bold">Finalidade</td><td>Lançamentos mensais por verba, quadro de resumo, honorários e custas.</td></tr>' +
         '<tr><td class="bold">Quantidade de verbas</td><td>' + String(data.lancamentos.length) + '</td></tr>' +
-        '<tr><td class="bold">Honorários</td><td>' + (summary.honorarios.items.some(function(item){ return item.config.enabled; }) ? (String(summary.honorarios.items.filter(function(item){ return item.config.enabled; }).length) + ' item(ns) ativo(s), total de ' + esc(formatCurrencyBR(summary.honorarios.total || 0)) + '.') : 'Não incluídos.') + '</td></tr>' +
+        '<tr><td class="bold">Honorários</td><td>' + String(summary.honorarios.items.length) + ' item(ns) no resumo, total de ' + esc(formatCurrencyBR(summary.honorarios.total || 0)) + '.</td></tr>' +
         '<tr><td class="bold">Custas lançadas</td><td>' + String(summary.custas.items.length) + ' item(ns) — total de ' + esc(formatCurrencyBR(summary.custas.total)) + '</td></tr>' +
         '<tr><td class="bold">Data-base de atualização</td><td>' + esc(formatDateBR(data.dataAtualizacao)) + '</td></tr>' +
         '<tr><td class="bold">Última atualização do relatório</td><td>' + esc(data.atualizadoEm || '—') + '</td></tr>' +
@@ -2858,6 +2858,50 @@
     return (state.honorarios.items || []).findIndex(function(item){ return String(item.id) === String(honorarioId); });
   }
 
+  function openEditHonorarioModal(honorarioId){
+    const index = getHonorarioIndexById(honorarioId);
+    if (index < 0 || !editHonorarioModal) return;
+    const item = normalizeHonorarioItem(state.honorarios.items[index]);
+    if (editHonorarioId) editHonorarioId.value = item.id;
+    if (editHonorarioTipo) editHonorarioTipo.value = item.tipo === 'fixo' ? 'fixo' : 'percentual';
+    if (editHonorarioSeparate) editHonorarioSeparate.checked = !!item.separateInSummary;
+    editHonorarioModal.classList.add('open');
+    editHonorarioModal.setAttribute('aria-hidden', 'false');
+    setTimeout(function(){ if (editHonorarioTipo) editHonorarioTipo.focus(); }, 30);
+  }
+
+  function closeEditHonorarioModal(){
+    if (!editHonorarioModal) return;
+    editHonorarioModal.classList.remove('open');
+    editHonorarioModal.setAttribute('aria-hidden', 'true');
+    if (editHonorarioId) editHonorarioId.value = '';
+    if (editHonorarioTipo) editHonorarioTipo.value = 'percentual';
+    if (editHonorarioSeparate) editHonorarioSeparate.checked = false;
+  }
+
+  function saveEditHonorarioModal(){
+    const honorarioId = editHonorarioId ? editHonorarioId.value : '';
+    const index = getHonorarioIndexById(honorarioId);
+    if (index < 0) return closeEditHonorarioModal();
+    const item = normalizeHonorarioItem(state.honorarios.items[index]);
+    item.tipo = editHonorarioTipo && editHonorarioTipo.value === 'fixo' ? 'fixo' : 'percentual';
+    item.separateInSummary = !!(editHonorarioSeparate && editHonorarioSeparate.checked);
+    state.honorarios.items[index] = item;
+    if (item.tipo === 'percentual' && !item.launchIds.length) ensureHonorariosDefaultSelection();
+    closeEditHonorarioModal();
+    persistAndRefresh();
+  }
+
+  function deleteHonorarioFromModal(){
+    const honorarioId = editHonorarioId ? editHonorarioId.value : '';
+    const index = getHonorarioIndexById(honorarioId);
+    if (index < 0) return closeEditHonorarioModal();
+    state.honorarios.items.splice(index, 1);
+    if (!state.honorarios.items.length) state.honorarios.items = defaultHonorariosConfig().items;
+    closeEditHonorarioModal();
+    persistAndRefresh();
+  }
+
   async function updateHonorariosFixedFactors(dataAtualizacaoISO){
     const dataFinal = String(dataAtualizacaoISO || state.dataAtualizacao || '').trim();
     if (!dataFinal) return;
@@ -2917,10 +2961,6 @@
       const index = getHonorarioIndexById(honorarioId);
       if (index < 0) return;
       const item = normalizeHonorarioItem(state.honorarios.items[index]);
-      if (target.classList.contains('honorario-enabled')) item.enabled = !!target.checked;
-      if (target.classList.contains('honorario-enabled') && !item.enabled) item.separateInSummary = false;
-      if (target.classList.contains('honorario-separate')) item.separateInSummary = !!target.checked;
-      if (target.classList.contains('honorario-tipo')) item.tipo = target.value === 'fixo' ? 'fixo' : 'percentual';
       if (target.classList.contains('honorario-data-base')) item.dataBase = String(target.value || '');
       if (target.classList.contains('honorario-index-source')) item.indexSource = String(target.value || 'none');
       if (target.classList.contains('honorario-launch-check')) {
@@ -2931,7 +2971,7 @@
         item.launchIds = Array.from(selected);
       }
       state.honorarios.items[index] = item;
-      if (item.enabled && item.tipo === 'percentual' && !item.launchIds.length) ensureHonorariosDefaultSelection();
+      if (item.tipo === 'percentual' && !item.launchIds.length) ensureHonorariosDefaultSelection();
       persistAndRefresh();
     });
     honorariosHost.addEventListener('focusin', function(event){
@@ -2972,13 +3012,9 @@
     });
     honorariosHost.addEventListener('click', function(event){
       const target = event.target;
-      if (!target.classList.contains('btnRemoveHonorario')) return;
+      if (!target.classList.contains('btnEditHonorario')) return;
       const honorarioId = target.getAttribute('data-honorario-id');
-      const index = getHonorarioIndexById(honorarioId);
-      if (index < 0) return;
-      state.honorarios.items.splice(index, 1);
-      if (!state.honorarios.items.length) state.honorarios.items = defaultHonorariosConfig().items;
-      persistAndRefresh();
+      openEditHonorarioModal(honorarioId);
     });
   }
 
@@ -3468,6 +3504,10 @@
   $('btnCloseEditLaunchModal').addEventListener('click', closeEditLaunchModal);
   $('btnCancelEditLaunchModal').addEventListener('click', closeEditLaunchModal);
   $('btnSaveEditLaunchModal').addEventListener('click', saveEditLaunchModal);
+  if ($('btnCloseEditHonorarioModal')) $('btnCloseEditHonorarioModal').addEventListener('click', closeEditHonorarioModal);
+  if ($('btnCancelEditHonorarioModal')) $('btnCancelEditHonorarioModal').addEventListener('click', closeEditHonorarioModal);
+  if ($('btnSaveEditHonorarioModal')) $('btnSaveEditHonorarioModal').addEventListener('click', saveEditHonorarioModal);
+  if (btnDeleteHonorarioModal) btnDeleteHonorarioModal.addEventListener('click', deleteHonorarioFromModal);
   $('btnCancelColumnModal').addEventListener('click', closeColumnModal);
   $('btnSaveColumnModal').addEventListener('click', saveColumnFromModal);
   if (modalIndexKind && modalIndexSource) {
@@ -3533,11 +3573,17 @@
   editLaunchModal.addEventListener('click', function(event){
     if (event.target === editLaunchModal) closeEditLaunchModal();
   });
+  if (editHonorarioModal) {
+    editHonorarioModal.addEventListener('click', function(event){
+      if (event.target === editHonorarioModal) closeEditHonorarioModal();
+    });
+  }
 
   document.addEventListener('keydown', function(event){
     if (event.key === 'Escape' && columnModal.classList.contains('open')) closeColumnModal();
     if (event.key === 'Escape' && editColumnModal.classList.contains('open')) closeEditColumnModal();
     if (event.key === 'Escape' && editLaunchModal.classList.contains('open')) closeEditLaunchModal();
+    if (event.key === 'Escape' && editHonorarioModal && editHonorarioModal.classList.contains('open')) closeEditHonorarioModal();
     if (event.key === 'Enter' && columnModal.classList.contains('open') && (event.target === modalColumnName || event.target === modalColumnFormula || event.target === modalIndexKind || event.target === modalIndexSource || event.target === modalIndexStart || event.target === modalIndexEnd)) {
       event.preventDefault();
       saveColumnFromModal();
@@ -3549,6 +3595,10 @@
     if (event.key === 'Enter' && editLaunchModal.classList.contains('open') && (event.target === editLaunchVerba || event.target === editLaunchDataInicial || event.target === editLaunchDataFinal || event.target === editLaunchObservacao)) {
       event.preventDefault();
       saveEditLaunchModal();
+    }
+    if (event.key === 'Enter' && editHonorarioModal && editHonorarioModal.classList.contains('open') && (event.target === editHonorarioTipo || event.target === editHonorarioSeparate)) {
+      event.preventDefault();
+      saveEditHonorarioModal();
     }
   });
 
