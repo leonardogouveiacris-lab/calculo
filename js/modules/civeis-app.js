@@ -658,6 +658,7 @@
     return {
       id: uid('honorario'),
       enabled: false,
+      separateInSummary: false,
       descricao: 'Honorários',
       tipo: 'percentual',
       percentual: 10,
@@ -676,6 +677,7 @@
     return {
       id: String(base.id || uid('honorario')),
       enabled: !!base.enabled,
+      separateInSummary: !!base.separateInSummary,
       descricao: String(base.descricao || 'Honorários').trim() || 'Honorários',
       tipo: tipo,
       percentual: parseBRNumber(base.percentual || 0),
@@ -2158,10 +2160,11 @@
           kind: 'honorarios',
           id: item.config.id,
           verba: item.config.descricao + ' (valor fixo)',
-          note: 'Base: ' + formatCurrencyBR(item.config.valorFixo) + ' em ' + formatDateBR(item.config.dataBase) + '. Índice: ' + getIndexSourceOptionLabel('correcao', item.config.indexSource) + '.',
+          note: (item.config.separateInSummary ? 'Apuração separada no resumo. ' : '') + 'Base: ' + formatCurrencyBR(item.config.valorFixo) + ' em ' + formatDateBR(item.config.dataBase) + '. Índice: ' + getIndexSourceOptionLabel('correcao', item.config.indexSource) + '.',
           valorCorrigido: item.valor,
           juros: 0,
-          valorDevido: item.valor
+          valorDevido: item.valor,
+          includeInGrandTotal: !item.config.separateInSummary
         });
         return;
       }
@@ -2172,11 +2175,12 @@
         id: item.config.id,
         verba: item.config.descricao + (item.config.percentual ? ' (' + formatNumberBR(item.config.percentual, 2, 4, true) + '%)' : '') + (item.config.multiplicador !== 1 ? (' × ' + formatNumberBR(item.config.multiplicador, 2, 4, true)) : ''),
         note: item.selectedLaunches.length
-          ? ('Base composta por ' + String(item.selectedLaunches.length) + ' verba(s)' + (previewNames.length ? (': ' + previewNames.join('; ') + (extraCount ? ' e mais ' + String(extraCount) + '.' : '.')) : '.'))
+          ? ((item.config.separateInSummary ? 'Apuração separada no resumo. ' : '') + 'Base composta por ' + String(item.selectedLaunches.length) + ' verba(s)' + (previewNames.length ? (': ' + previewNames.join('; ') + (extraCount ? ' e mais ' + String(extraCount) + '.' : '.')) : '.'))
           : 'Nenhuma verba selecionada para compor a base.',
         valorCorrigido: item.valor,
         juros: 0,
-        valorDevido: item.valor
+        valorDevido: item.valor,
+        includeInGrandTotal: !item.config.separateInSummary
       });
     });
 
@@ -2188,11 +2192,30 @@
         note: 'Custas incluídas manualmente.',
         valorCorrigido: roundMoney(item.valor),
         juros: 0,
-        valorDevido: roundMoney(item.valor)
+        valorDevido: roundMoney(item.valor),
+        includeInGrandTotal: true
       });
     });
 
+    rows.forEach(function(item){
+      if (item && item.includeInGrandTotal === undefined) item.includeInGrandTotal = true;
+    });
+
     const totals = rows.reduce(function(acc, item){
+      acc.valorCorrigido += roundMoney(item.valorCorrigido);
+      acc.juros += roundMoney(item.juros);
+      acc.valorDevido += roundMoney(item.valorDevido);
+      return acc;
+    }, { valorCorrigido:0, juros:0, valorDevido:0 });
+    const grandTotals = rows.reduce(function(acc, item){
+      if (!item || item.includeInGrandTotal === false) return acc;
+      acc.valorCorrigido += roundMoney(item.valorCorrigido);
+      acc.juros += roundMoney(item.juros);
+      acc.valorDevido += roundMoney(item.valorDevido);
+      return acc;
+    }, { valorCorrigido:0, juros:0, valorDevido:0 });
+    const separatedHonorariosTotals = rows.reduce(function(acc, item){
+      if (!item || item.kind !== 'honorarios' || item.includeInGrandTotal !== false) return acc;
       acc.valorCorrigido += roundMoney(item.valorCorrigido);
       acc.juros += roundMoney(item.juros);
       acc.valorDevido += roundMoney(item.valorDevido);
@@ -2202,6 +2225,15 @@
     totals.valorCorrigido = roundMoney(totals.valorCorrigido);
     totals.juros = roundMoney(totals.juros);
     totals.valorDevido = roundMoney(totals.valorDevido);
+    grandTotals.valorCorrigido = roundMoney(grandTotals.valorCorrigido);
+    grandTotals.juros = roundMoney(grandTotals.juros);
+    grandTotals.valorDevido = roundMoney(grandTotals.valorDevido);
+    separatedHonorariosTotals.valorCorrigido = roundMoney(separatedHonorariosTotals.valorCorrigido);
+    separatedHonorariosTotals.juros = roundMoney(separatedHonorariosTotals.juros);
+    separatedHonorariosTotals.valorDevido = roundMoney(separatedHonorariosTotals.valorDevido);
+    const separatedHonorariosCount = rows.filter(function(item){
+      return item && item.kind === 'honorarios' && item.includeInGrandTotal === false;
+    }).length;
 
     return {
       rows: rows,
@@ -2214,7 +2246,10 @@
         items: custasItems,
         total: roundMoney(custasItems.reduce(function(total, item){ return total + roundMoney(item.valor); }, 0))
       },
-      totals: totals
+      totals: totals,
+      grandTotals: grandTotals,
+      separatedHonorariosTotals: separatedHonorariosTotals,
+      separatedHonorariosCount: separatedHonorariosCount
     };
   }
 
@@ -2239,10 +2274,11 @@
       return 0;
     }
 
-    const summaryTotalsByColumn = summaryColumns.reduce(function(acc, coluna){
-      acc[coluna.id] = roundMoney(summaryData.rows.reduce(function(total, row){ return total + getSummaryCellValue(row, coluna.id); }, 0));
-      return acc;
-    }, {});
+    const summaryTotalsByColumn = {
+      valorCorrigido: roundMoney(summaryData.grandTotals && Number.isFinite(summaryData.grandTotals.valorCorrigido) ? summaryData.grandTotals.valorCorrigido : 0),
+      juros: roundMoney(summaryData.grandTotals && Number.isFinite(summaryData.grandTotals.juros) ? summaryData.grandTotals.juros : 0),
+      valorDevido: roundMoney(summaryData.grandTotals && Number.isFinite(summaryData.grandTotals.valorDevido) ? summaryData.grandTotals.valorDevido : 0)
+    };
 
     if (honorariosResumo) {
       if (!summaryData.honorarios.items.some(function(item){ return item.config.enabled; })) {
@@ -2252,6 +2288,7 @@
         honorariosResumo.innerHTML = '' +
           '<div class="summary-stats">' +
             '<div class="summary-stat"><span class="summary-stat-label">Itens ativos</span><span class="summary-stat-value">' + String(enabledItems.length) + '</span></div>' +
+            '<div class="summary-stat"><span class="summary-stat-label">Separados no resumo</span><span class="summary-stat-value">' + String(summaryData.separatedHonorariosCount || 0) + '</span></div>' +
             '<div class="summary-stat"><span class="summary-stat-label">Honorários totais</span><span class="summary-stat-value">' + esc(formatCurrencyBR(summaryData.honorarios.total || 0)) + '</span></div>' +
           '</div>' +
           enabledItems.map(function(item){
@@ -2292,10 +2329,16 @@
     if (summaryTableFoot) {
       summaryTableFoot.innerHTML = '' +
         '<tr>' +
-          '<td>Total geral</td>' +
+          '<td>Total geral (sem honorários separados)</td>' +
           summaryColumns.map(function(coluna){
             return '<td class="' + esc(coluna.className) + '">' + esc(formatCurrencyBR(summaryTotalsByColumn[coluna.id] || 0)) + '</td>';
           }).join('') +
+        '</tr>' +
+        '<tr class="summary-row-separate">' +
+          '<td>Honorários separados</td>' +
+          '<td class="right">' + esc(formatCurrencyBR(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.valorCorrigido : 0)) + '</td>' +
+          '<td class="right">' + esc(formatCurrencyBR(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.juros : 0)) + '</td>' +
+          '<td class="right bold">' + esc(formatCurrencyBR(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.valorDevido : 0)) + '</td>' +
         '</tr>';
     }
 
@@ -2325,8 +2368,8 @@
         '<div class="custa-card" data-honorario-id="' + esc(item.id) + '">' +
           '<div class="custa-card-head"><div class="custa-card-title">Honorário ' + String(index + 1) + '</div><button type="button" class="btn btn-ghost summary-remove-btn btnRemoveHonorario" data-honorario-id="' + esc(item.id) + '">Remover</button></div>' +
           '<div class="custa-grid">' +
-            '<div><label class="check-inline"><input type="checkbox" class="honorario-enabled" data-honorario-id="' + esc(item.id) + '"' + (item.enabled ? ' checked' : '') + '> Incluir no resumo</label></div>' +
-            '<div><label>Tipo</label><select class="select honorario-tipo" data-honorario-id="' + esc(item.id) + '"><option value="percentual"' + (item.tipo === 'percentual' ? ' selected' : '') + '>Percentual sobre base</option><option value="fixo"' + (item.tipo === 'fixo' ? ' selected' : '') + '>Valor fixo</option></select></div>' +
+            '<div><label class="check-inline"><input type="checkbox" class="honorario-enabled" data-honorario-id="' + esc(item.id) + '"' + (item.enabled ? ' checked' : '') + '> Exibir no resumo</label><label class="check-inline honorario-separate-inline"><input type="checkbox" class="honorario-separate" data-honorario-id="' + esc(item.id) + '"' + (item.separateInSummary ? ' checked' : '') + (item.enabled ? '' : ' disabled') + '> Separar no resumo</label></div>' +
+            '<div class="honorario-type-wrap"><label>Tipo</label><select class="select honorario-tipo" data-honorario-id="' + esc(item.id) + '"><option value="percentual"' + (item.tipo === 'percentual' ? ' selected' : '') + '>Percentual</option><option value="fixo"' + (item.tipo === 'fixo' ? ' selected' : '') + '>Valor fixo</option></select></div>' +
             '<div><label>Descrição</label><input type="text" class="honorario-desc" data-honorario-id="' + esc(item.id) + '" value="' + esc(item.descricao || '') + '" placeholder="Ex.: Honorários de terceiro"></div>' +
           '</div>' +
           (item.tipo === 'percentual'
@@ -2415,7 +2458,9 @@
         '<td class="bold right">' + esc(formatCurrencyBR(row.valorDevido || 0)) + '</td>' +
       '</tr>';
     });
-    const summaryFooter = '<tr><td class="bold right">Total geral</td><td class="bold right">' + esc(formatCurrencyBR(summary.totals.valorCorrigido || 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.totals.juros || 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.totals.valorDevido || 0)) + '</td></tr>';
+    const summaryFooter = '' +
+      '<tr><td class="bold right">Total geral (sem honorários separados)</td><td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.valorCorrigido : 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.juros : 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.valorDevido : 0)) + '</td></tr>' +
+      '<tr><td class="right">Honorários separados</td><td class="right">' + esc(formatCurrencyBR(summary.separatedHonorariosTotals ? summary.separatedHonorariosTotals.valorCorrigido : 0)) + '</td><td class="right">' + esc(formatCurrencyBR(summary.separatedHonorariosTotals ? summary.separatedHonorariosTotals.juros : 0)) + '</td><td class="right">' + esc(formatCurrencyBR(summary.separatedHonorariosTotals ? summary.separatedHonorariosTotals.valorDevido : 0)) + '</td></tr>';
     CPPrintLayout.appendTable(layout, {
       title: 'Resumo do cálculo',
       columns: ['Verba', 'Valor corrigido', 'Juros', 'Valor devido'],
@@ -2873,6 +2918,8 @@
       if (index < 0) return;
       const item = normalizeHonorarioItem(state.honorarios.items[index]);
       if (target.classList.contains('honorario-enabled')) item.enabled = !!target.checked;
+      if (target.classList.contains('honorario-enabled') && !item.enabled) item.separateInSummary = false;
+      if (target.classList.contains('honorario-separate')) item.separateInSummary = !!target.checked;
       if (target.classList.contains('honorario-tipo')) item.tipo = target.value === 'fixo' ? 'fixo' : 'percentual';
       if (target.classList.contains('honorario-data-base')) item.dataBase = String(target.value || '');
       if (target.classList.contains('honorario-index-source')) item.indexSource = String(target.value || 'none');
