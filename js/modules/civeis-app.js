@@ -2326,10 +2326,16 @@
     if (summaryTableFoot) {
       summaryTableFoot.innerHTML = '' +
         '<tr>' +
-          '<td>Total geral</td>' +
+          '<td>Total geral (sem honorários separados)</td>' +
           summaryColumns.map(function(coluna){
             return '<td class="' + esc(coluna.className) + '">' + esc(formatCurrencyBR(summaryTotalsByColumn[coluna.id] || 0)) + '</td>';
           }).join('') +
+        '</tr>' +
+        '<tr class="summary-row-separate">' +
+          '<td>Honorários separados</td>' +
+          '<td class="right">' + esc(formatCurrencyBR(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.valorCorrigido : 0)) + '</td>' +
+          '<td class="right">' + esc(formatCurrencyBR(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.juros : 0)) + '</td>' +
+          '<td class="right bold">' + esc(formatCurrencyBR(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.valorDevido : 0)) + '</td>' +
         '</tr>';
     }
 
