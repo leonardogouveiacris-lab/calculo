@@ -207,29 +207,8 @@
     return (getIndexSourceOptions(kind).find(function(opt){ return opt.value === source; }) || {}).label || source || '—';
   }
 
-  function describeIndexCompositionDetails(coluna){
-    const kind = coluna && coluna.indexKind === 'juros' ? 'juros' : 'correcao';
-    return getIndexComposition(coluna).map(function(segment, index){
-      const sourceRule = window.CPBCBRates && typeof window.CPBCBRates.describeSourceRule === 'function'
-        ? window.CPBCBRates.describeSourceRule(segment.source)
-        : null;
-      return {
-        position: index + 1,
-        sourceLabel: getIndexSourceOptionLabel(kind, segment.source),
-        seriesLabel: sourceRule ? sourceRule.seriesLabel : 'Manual/sem série',
-        unitLabel: sourceRule ? sourceRule.unitLabel : '—',
-        formulaLabel: sourceRule ? sourceRule.formulaLabel : '—',
-        intervalLabel: joinIndexIntervals(sourceRule ? sourceRule.intervalLabel : '', formatLimitInterval(segment.start || '', segment.end || ''))
-      };
-    });
-  }
-
   function getIndexSourceOptionLabel(kind, source){
-    return ((INDEX_SOURCE_OPTIONS[kind] || []).find(function(opt){ return opt.value === source; }) || {}).label || source || '—';
-  }
-
-  function getIndexSourceOptionLabel(kind, source){
-    return ((INDEX_SOURCE_OPTIONS[kind] || []).find(function(opt){ return opt.value === source; }) || {}).label || source || '—';
+    return (getIndexSourceOptions(kind).find(function(opt){ return opt.value === source; }) || {}).label || source || '—';
   }
 
   function describeIndexCompositionDetails(coluna){
