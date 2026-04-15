@@ -138,8 +138,6 @@
       '<div id="modalIndexSegments" style="display:grid;gap:8px;margin-top:8px"></div>' +
       '<div class="btn-row" style="margin-top:8px">' +
         '<button type="button" class="btn btn-ghost" id="btnAddModalIndexSegment">Adicionar tabela por período</button>' +
-        '<button type="button" class="btn btn-ghost" id="btnExportIndexTemplateModal">Exportar modelo CSV</button>' +
-        '<button type="button" class="btn btn-ghost" id="btnImportIndexTableModal">Importar tabela CSV</button>' +
       '</div>' +
       '<div class="formula-help">Defina fonte e limites opcionais para acumular o fator do índice.</div>';
     modalBody.appendChild(wrap);
@@ -1839,6 +1837,7 @@
         coluna.__lastFactor = 1;
         coluna.__lastNoOverlap = false;
         coluna.__lastSegmentFactors = [];
+        coluna.__segmentFactorByPosition = new Map();
       }
       lancamento.linhas.forEach(function(linha){
         const mesCompetencia = monthKeyFromPeriodo(linha.periodo);
@@ -1852,11 +1851,21 @@
           const calculation = factorForIndexComposition(composition, payloadBySource, requestedStartISOForColumn(coluna, inicioCompetenciaISO), dataAtualizacao);
           coluna.__lastNoOverlap = !calculation.hasOverlap;
           linha[coluna.id] = Number(calculation.factor.toFixed(7));
-          coluna.__lastFactor = linha[coluna.id];
-          coluna.__lastSegmentFactors = (calculation.segmentDetails || []).map(function(item){
-            return { position: item.position, factor: Number(Number(item.factor || 1).toFixed(7)), hasOverlap: !!item.hasOverlap };
+          coluna.__lastFactor = Math.max(Number(coluna.__lastFactor || 1), linha[coluna.id]);
+          (calculation.segmentDetails || []).forEach(function(item){
+            const position = Number(item.position);
+            const factor = Number(Number(item.factor || 1).toFixed(7));
+            const hasOverlap = !!item.hasOverlap;
+            const prev = coluna.__segmentFactorByPosition.get(position);
+            if (!prev || factor > prev.factor) coluna.__segmentFactorByPosition.set(position, { position: position, factor: factor, hasOverlap: hasOverlap });
           });
         });
+      });
+      indexColumns.forEach(function(coluna){
+        if (coluna && coluna.__segmentFactorByPosition instanceof Map) {
+          coluna.__lastSegmentFactors = Array.from(coluna.__segmentFactorByPosition.values()).sort(function(a, b){ return a.position - b.position; });
+          delete coluna.__segmentFactorByPosition;
+        }
       });
       config.lastAutoRefresh = new Date().toISOString();
       lancamento.indexConfig = config;
@@ -1993,14 +2002,12 @@
     const honorariosValorBase = honorariosConfig.enabled ? roundMoney(honorariosBase * (honorariosConfig.percentual / 100)) : 0;
     const honorariosValor = honorariosConfig.enabled ? roundMoney(honorariosValorBase * honorariosConfig.multiplicador) : 0;
     const custasItems = (Array.isArray(source.custas) ? source.custas : state.custas).map(normalizeCusta);
-    const rows = launchItems.map(function(item){
+      const rows = launchItems.map(function(item){
       return {
         kind: 'verba',
         id: item.id,
         verba: item.verba,
-        note: item.hasCustomSummaryMapping
-          ? 'Resumo com colunas configuradas no modal da coluna (Correção/Juros).'
-          : '',
+        note: '',
         valorCorrigido: item.valorCorrigido,
         juros: item.juros,
         valorDevido: item.valorDevido
