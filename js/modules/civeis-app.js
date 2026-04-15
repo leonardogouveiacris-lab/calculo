@@ -106,6 +106,10 @@
     { id:'valor_devido', nome:'Valor Devido', tipo:'formula', formato:'moeda', formula:'', includeInSummary:true }
   ]);
   let state = { lancamentos: [], lancamentoSelecionadoId: '', honorarios: defaultHonorariosConfig(), custas: [], indexTables: [] };
+  const civeisModules = window.CPCiveisModules || {};
+  const civeisStateCompat = civeisModules.state && typeof civeisModules.state.loadSnapshot === 'function' && typeof civeisModules.state.saveSnapshot === 'function'
+    ? civeisModules.state
+    : null;
 
   (function ensureIndexColumnModalFields(){
     if (!columnModal || $('indexFieldWrap')) return;
@@ -904,6 +908,10 @@
   }
 
   function save(data){
+    if (civeisStateCompat) {
+      civeisStateCompat.saveSnapshot(window.localStorage, STORAGE_KEY, data);
+      return;
+    }
     if (window.CPCommon && CPCommon.storage) CPCommon.storage.save(STORAGE_KEY, data);
     else localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }
@@ -919,6 +927,9 @@
   }
 
   function load(){
+    if (civeisStateCompat) {
+      return civeisStateCompat.loadSnapshot(window.localStorage, STORAGE_KEY, LEGACY_STORAGE_KEYS);
+    }
     const current = loadFromStorageKey(STORAGE_KEY);
     if (current && Object.keys(current).length) return current;
     for (let index = 0; index < LEGACY_STORAGE_KEYS.length; index += 1){
@@ -3678,6 +3689,14 @@
       });
     });
   });
+  window.CPCiveisCompat = Object.assign({}, window.CPCiveisCompat || {}, {
+    modules: civeisModules,
+    collect: collect,
+    fill: fill,
+    save: save,
+    load: load,
+    getState: function(){ return state; }
+  });
   const initial = load();
   fill(initial);
   state.lancamentos = normalizeLaunchListSafely(state.lancamentos);
@@ -3692,4 +3711,3 @@
     });
   }, 0);
 })();
-    const factorLookupMode = options && options.factorLookupMode === 'range_product' ? 'range_product' : 'month';

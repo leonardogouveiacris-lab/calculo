@@ -33,5 +33,6 @@ if perl -0ne 'exit((/<script>\s*\(function\(\)\{/s) ? 0 : 1)' "$html_file"; then
 fi
 
 node scripts/ci/check-no-redeclare.js "$module_file"
+node scripts/ci/check-civeis-modular-smoke.js
 
 echo "OK: validação cível (módulo externo único, sem legado e sem inline extenso)."
