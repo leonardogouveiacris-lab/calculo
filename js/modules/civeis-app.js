@@ -384,8 +384,9 @@
       entries.forEach(function(entry){
         const month = normalizeMonthKey(entry.month || entry.competencia);
         const value = Number(entry.value);
+        const mode = String(entry.mode || entry.valueMode || 'percent').trim().toLowerCase() === 'factor' ? 'factor' : 'percent';
         if (!month || !Number.isFinite(value)) return;
-        existing.entriesByMonth.set(month, value);
+        existing.entriesByMonth.set(month, { value: value, mode: mode });
       });
       grouped.set(normalizedId, existing);
     });
@@ -394,7 +395,12 @@
         id: item.id,
         name: item.name,
         entries: Array.from(item.entriesByMonth.entries()).map(function(entry){
-          return { month: entry[0], value: Number(entry[1]) };
+          const payload = entry[1] && typeof entry[1] === 'object' ? entry[1] : { value: entry[1], mode: 'percent' };
+          return {
+            month: entry[0],
+            value: Number(payload.value),
+            mode: String(payload.mode || 'percent').trim().toLowerCase() === 'factor' ? 'factor' : 'percent'
+          };
         }).sort(function(a, b){ return compareMonth(a.month, b.month); })
       };
     }).filter(function(item){ return item.entries.length > 0; });
@@ -533,12 +539,13 @@
       });
       const startMonth = monthKeyFromISO(startDate);
       const endMonth = monthKeyFromISO(endDate);
-      const monthlyRates = Array.isArray(table && table.entries)
+      const normalizedEntries = Array.isArray(table && table.entries)
         ? table.entries
           .map(function(entry){
             return {
               month: normalizeMonthKey(entry && entry.month),
-              value: Number(entry && entry.value)
+              value: Number(entry && entry.value),
+              mode: String(entry && (entry.mode || entry.valueMode) || 'percent').trim().toLowerCase() === 'factor' ? 'factor' : 'percent'
             };
           })
           .filter(function(entry){
@@ -546,7 +553,13 @@
           })
           .sort(compareMonth)
         : [];
-      return makeIndexPayload('monthly', monthlyRates);
+      const hasFactorRows = normalizedEntries.some(function(entry){ return entry.mode === 'factor'; });
+      if (hasFactorRows) {
+        return makeIndexPayload('monthly_factor_lookup', normalizedEntries.map(function(entry){
+          return { month: entry.month, value: entry.mode === 'factor' ? entry.value : (1 + entry.value / 100) };
+        }));
+      }
+      return makeIndexPayload('monthly', normalizedEntries.map(function(entry){ return { month: entry.month, value: entry.value }; }));
     }
     if (sourceType === 'ipca') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(433, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth));
     if (sourceType === 'ipcae') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(10764, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth));
@@ -1770,6 +1783,15 @@
         segmentDetails.push({ position: idx + 1, factor: factorDaily, hasOverlap: true });
         continue;
       }
+      if (payload.calculationPath === 'monthly_factor_lookup'){
+        const monthMapFactor = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; }));
+        const targetMonth = monthKeyFromISO(effectivePeriod.startISO);
+        const configuredFactor = Number(monthMapFactor.get(targetMonth));
+        const factorFromTable = Number.isFinite(configuredFactor) && configuredFactor > 0 ? configuredFactor : 1;
+        totalFactor *= factorFromTable;
+        segmentDetails.push({ position: idx + 1, factor: factorFromTable, hasOverlap: true });
+        continue;
+      }
       const monthMap = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; }));
       const startMonth = monthKeyFromISO(effectivePeriod.startISO);
       const endMonth = monthKeyFromISO(effectivePeriod.endISO);
@@ -2972,7 +2994,9 @@
           throw new Error('Cabeçalho inválido. Use o modelo CSV de tabelas de índices.');
         }
         const grouped = new Map((state.indexTables || []).map(function(table){
-          return [table.id, { id: table.id, name: table.name, entriesByMonth: new Map((table.entries || []).map(function(entry){ return [entry.month, Number(entry.value) || 0]; })) }];
+          return [table.id, { id: table.id, name: table.name, entriesByMonth: new Map((table.entries || []).map(function(entry){
+            return [entry.month, { value: Number(entry.value) || 0, mode: String(entry.mode || entry.valueMode || 'percent').trim().toLowerCase() === 'factor' ? 'factor' : 'percent' }];
+          })) }];
         }));
         let importedRows = 0;
         rows.slice(1).forEach(function(cols){
@@ -2984,12 +3008,15 @@
           const percentRaw = idxPercent >= 0 ? cols[idxPercent] : '';
           const factorValue = parseBRNumber(factorRaw);
           const percentValue = parseBRNumber(percentRaw);
-          let monthlyPercent = Number.isFinite(percentValue) && String(percentRaw || '').trim() !== '' ? percentValue : null;
-          if (monthlyPercent == null && Number.isFinite(factorValue) && String(factorRaw || '').trim() !== '') monthlyPercent = (factorValue - 1) * 100;
-          if (!Number.isFinite(monthlyPercent)) return;
+          const hasFactor = String(factorRaw || '').trim() !== '' && Number.isFinite(factorValue);
+          const hasPercent = String(percentRaw || '').trim() !== '' && Number.isFinite(percentValue);
+          if (!hasFactor && !hasPercent) return;
+          const importedEntry = hasFactor
+            ? { value: Number(factorValue), mode: 'factor' }
+            : { value: Number(percentValue), mode: 'percent' };
           const current = grouped.get(tableId) || { id: tableId, name: tableName, entriesByMonth: new Map() };
           current.name = tableName;
-          current.entriesByMonth.set(month, Number(monthlyPercent));
+          current.entriesByMonth.set(month, importedEntry);
           grouped.set(tableId, current);
           importedRows += 1;
         });
@@ -2999,7 +3026,12 @@
             id: item.id,
             name: item.name,
             entries: Array.from(item.entriesByMonth.entries()).map(function(entry){
-              return { month: entry[0], value: Number(entry[1]) };
+              const payload = entry[1] && typeof entry[1] === 'object' ? entry[1] : { value: entry[1], mode: 'percent' };
+              return {
+                month: entry[0],
+                value: Number(payload.value),
+                mode: String(payload.mode || 'percent').trim().toLowerCase() === 'factor' ? 'factor' : 'percent'
+              };
             }).sort(function(a, b){ return compareMonth(a.month, b.month); })
           };
         }).sort(function(a, b){ return String(a.name || '').localeCompare(String(b.name || '')); });
