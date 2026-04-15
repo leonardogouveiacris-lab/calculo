@@ -411,6 +411,23 @@
     return formatNumberBR(value, 2, 2, false);
   }
 
+  function parseDateInputValue(value){
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return parseISODateUTC(raw) ? raw : '';
+    const brMatch = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (!brMatch) return '';
+    const iso = brMatch[3] + '-' + String(brMatch[2]).padStart(2, '0') + '-' + String(brMatch[1]).padStart(2, '0');
+    return parseISODateUTC(iso) ? iso : '';
+  }
+
+  function dateToEpochDays(value){
+    const iso = parseDateInputValue(value);
+    const date = parseISODateUTC(iso);
+    if (!date) return 0;
+    return Math.floor(date.getTime() / 86400000);
+  }
+
   function monthLabel(year, monthIndex){
     const month = String(monthIndex + 1).padStart(2, '0');
     return month + '/' + year;
@@ -985,7 +1002,7 @@
   function canColumnUseSummaryRole(coluna){
     if (!coluna) return false;
     if (coluna.tipo === 'indice') return false;
-    if (coluna.formato === 'indice' || coluna.formato === 'percentual') return false;
+    if (coluna.formato === 'indice' || coluna.formato === 'percentual' || coluna.formato === 'data') return false;
     return true;
   }
 
@@ -1207,8 +1224,12 @@
           linha[key] = evaluateFormula(coluna.formula, valuesById, valuesByLetter);
         }
         const rawValue = key === 'valor' ? linha.valor : linha[key];
-        const numericValue = Number(String(rawValue === undefined ? '' : rawValue).replace(',', '.'));
-        const safeValue = Number.isFinite(numericValue) ? numericValue : 0;
+        const safeValue = coluna.formato === 'data'
+          ? dateToEpochDays(rawValue)
+          : (function(){
+              const numericValue = Number(String(rawValue === undefined ? '' : rawValue).replace(',', '.'));
+              return Number.isFinite(numericValue) ? numericValue : 0;
+            })();
         valuesByLetter[letter] = safeValue;
         valuesById[key] = safeValue;
       });
@@ -1553,12 +1574,13 @@
     if (modalIndexEnd) modalIndexEnd.value = '';
     renderIndexSegmentList(modalIndexSegments, 'correcao', []);
     const isFormula = tipo === 'formula';
+    const isDate = tipo === 'data';
     const isIndex = tipo === 'indice';
     const isFlexibleManual = tipo === 'manual';
-    columnModalTitle.textContent = isFormula ? 'Nova coluna com fórmula' : (isIndex ? 'Nova coluna de índice' : 'Nova coluna manual');
+    columnModalTitle.textContent = isFormula ? 'Nova coluna com fórmula' : (isIndex ? 'Nova coluna de índice' : (isDate ? 'Nova coluna de data' : 'Nova coluna manual'));
     columnModalSub.textContent = isFormula
       ? 'Crie uma coluna calculada com base nas letras das colunas já existentes.'
-      : (isIndex ? 'Selecione o tipo de índice, a fonte e o limite opcional de aplicação.' : 'Crie uma coluna manual adicional. Se quiser, preencha a fórmula para gerar uma coluna calculada.');
+      : (isIndex ? 'Selecione o tipo de índice, a fonte e o limite opcional de aplicação.' : (isDate ? 'Crie uma coluna para informar datas por competência. Você pode usar essas datas em fórmulas para calcular diferença em dias.' : 'Crie uma coluna manual adicional. Se quiser, preencha a fórmula para gerar uma coluna calculada.'));
     formulaFieldWrap.style.display = (isFormula || isFlexibleManual) ? 'block' : 'none';
     if (indexFieldWrap) indexFieldWrap.style.display = isIndex ? 'block' : 'none';
     if (modalColumnName) modalColumnName.style.display = isIndex ? 'none' : 'block';
@@ -1570,7 +1592,7 @@
     }
     if (modalColumnSummaryRole) {
       modalColumnSummaryRole.value = 'none';
-      modalColumnSummaryRole.disabled = isIndex;
+      modalColumnSummaryRole.disabled = isIndex || isDate;
     }
     columnModal.classList.add('open');
     columnModal.setAttribute('aria-hidden', 'false');
@@ -1633,6 +1655,15 @@
         indexComposition: composition
       })));
       lancamento.linhas.forEach(function(linha){ linha[id] = 1; });
+    } else if (tipo === 'data') {
+      lancamento.colunas.push(normalizeColumnSummaryMeta({
+        id: id,
+        nome: nome,
+        tipo: 'manual',
+        formato: 'data',
+        summaryRole: 'none'
+      }));
+      lancamento.linhas.forEach(function(linha){ linha[id] = ''; });
     } else {
       lancamento.colunas.push(normalizeColumnSummaryMeta({
         id: id,
@@ -1688,6 +1719,7 @@
         const valueCells = row.cells.map(function(cell){
           if (cell.tipo === 'formula') return '<td><input type="text" readonly value="' + esc(cell.inputValue) + '" placeholder="Calculado automaticamente"></td>';
           if (cell.tipo === 'indice') return '<td><input type="text" readonly value="' + esc(cell.inputValue) + '" placeholder="1,0000000"></td>';
+          if (cell.formato === 'data') return '<td><input type="date" data-launch-index="' + index + '" data-row-index="' + cell.rowIndex + '" data-column-id="' + esc(cell.columnId) + '" class="valor-input" value="' + esc(cell.inputValue) + '"></td>';
           return '<td><input type="text" inputmode="decimal" data-launch-index="' + index + '" data-row-index="' + cell.rowIndex + '" data-column-id="' + esc(cell.columnId) + '" class="valor-input" value="' + esc(cell.inputValue) + '" placeholder="0,00"></td>';
         }).join('');
         return '<tr><td>' + esc(row.periodo) + '</td>' + valueCells + '</tr>';
@@ -1763,6 +1795,7 @@
         '<div class="launch-actions">' +
           '<button type="button" class="btn btn-primary btnFetchIndices" data-launch-index="' + index + '"' + (indexLoadingState[index] ? ' disabled aria-busy="true"' : '') + '>' + (indexLoadingState[index] ? 'Buscando índices...' : 'Atualizar índices') + '</button>' +
           '<button type="button" class="btn btn-ghost btnAddColumn" data-launch-index="' + index + '">Adicional Coluna</button>' +
+          '<button type="button" class="btn btn-ghost btnAddDateCol" data-launch-index="' + index + '">Adicionar coluna de data</button>' +
           '<button type="button" class="btn btn-ghost btnAddIndexCol" data-launch-index="' + index + '">Adicionar coluna de índice</button>' +
         '</div>' +
         '<div>' + badges + '</div>' +
@@ -1973,6 +2006,11 @@
 
   function displayColumnValue(coluna, valor, options){
     const opts = options || {};
+    if (coluna && coluna.formato === 'data') {
+      const iso = parseDateInputValue(valor);
+      if (opts.forInput) return iso;
+      return iso ? formatDateBR(iso) : (opts.fallbackDash ? '—' : '');
+    }
     if (coluna && coluna.formato === 'percentual') {
       if (opts.forInput) return formatNumberBR(valor || 0, 6, 6, true);
       return valor === '' || valor == null ? '—' : formatPercent(valor || 0);
@@ -2010,6 +2048,7 @@
             columnId: key,
             rowIndex: rowIndex,
             tipo: coluna.tipo,
+            formato: coluna.formato,
             displayValue: displayColumnValue(coluna.raw, rawValue, { fallbackDash:true }),
             inputValue: formatInputValueByColumn(coluna.raw, rawValue),
             rawValue: rawValue
@@ -2035,7 +2074,7 @@
         return summarizeIndexColumn(coluna, ref);
       }),
       totalCells: columns.map(function(coluna){
-        if (coluna.formato === 'percentual' || coluna.formato === 'indice') return '—';
+        if (coluna.formato === 'percentual' || coluna.formato === 'indice' || coluna.formato === 'data') return '—';
         return formatCurrencyBR(totalLancamento(lancamento, coluna.id === 'valor' ? 'valor' : coluna.id));
       })
     };
@@ -2624,6 +2663,12 @@
     if (!state.lancamentos[launchIndex] || !state.lancamentos[launchIndex].linhas[rowIndex]) return;
     const coluna = getColumnById(state.lancamentos[launchIndex], columnId);
     if (coluna && (coluna.tipo === 'formula' || coluna.tipo === 'indice')) return;
+    if (coluna && coluna.formato === 'data') {
+      const parsedDate = parseDateInputValue(target.value);
+      if (columnId === 'valor') state.lancamentos[launchIndex].linhas[rowIndex].valor = parsedDate;
+      else state.lancamentos[launchIndex].linhas[rowIndex][columnId] = parsedDate;
+      return;
+    }
     const parsedValue = parseBRNumber(target.value);
     if (columnId === 'valor') state.lancamentos[launchIndex].linhas[rowIndex].valor = parsedValue;
     else state.lancamentos[launchIndex].linhas[rowIndex][columnId] = parsedValue;
@@ -2634,6 +2679,14 @@
     if (!target.classList.contains('valor-input')) return;
     const launchIndex = Number(target.getAttribute('data-launch-index'));
     if (!state.lancamentos[launchIndex]) return;
+    const columnId = target.getAttribute('data-column-id') || 'valor';
+    const coluna = getColumnById(state.lancamentos[launchIndex], columnId);
+    if (coluna && coluna.formato === 'data') {
+      target.value = parseDateInputValue(target.value);
+      recalculateLaunch(state.lancamentos[launchIndex]);
+      persistAndRefresh();
+      return;
+    }
     target.value = formatCurrencyBR(target.value);
     recalculateLaunch(state.lancamentos[launchIndex]);
     persistAndRefresh();
@@ -2675,6 +2728,10 @@
   launchesHost.addEventListener('focusin', function(event){
     const target = event.target;
     if (!target.classList.contains('valor-input')) return;
+    const launchIndex = Number(target.getAttribute('data-launch-index'));
+    const columnId = target.getAttribute('data-column-id') || 'valor';
+    const coluna = state.lancamentos[launchIndex] ? getColumnById(state.lancamentos[launchIndex], columnId) : null;
+    if (coluna && coluna.formato === 'data') return;
     target.value = formatEditableNumberBR(target.value);
     target.select();
   });
@@ -2690,6 +2747,15 @@
     const rowIndex = Number(target.getAttribute('data-row-index'));
     const columnId = target.getAttribute('data-column-id') || 'valor';
     if (!state.lancamentos[launchIndex] || !state.lancamentos[launchIndex].linhas[rowIndex]) return;
+    const coluna = getColumnById(state.lancamentos[launchIndex], columnId);
+    if (coluna && coluna.formato === 'data') {
+      const parsedDate = parseDateInputValue(pastedText);
+      target.value = parsedDate;
+      if (columnId === 'valor') state.lancamentos[launchIndex].linhas[rowIndex].valor = parsedDate;
+      else state.lancamentos[launchIndex].linhas[rowIndex][columnId] = parsedDate;
+      refreshSummaryOutputsOnly();
+      return;
+    }
     if (columnId === 'valor') state.lancamentos[launchIndex].linhas[rowIndex].valor = parsedValue;
     else state.lancamentos[launchIndex].linhas[rowIndex][columnId] = parsedValue;
     refreshSummaryOutputsOnly();
@@ -2704,6 +2770,10 @@
     if (!state.lancamentos[launchIndex]) return;
     if (target.classList.contains('btnAddColumn')){
       openColumnModal(launchIndex, 'manual');
+      return;
+    }
+    if (target.classList.contains('btnAddDateCol')){
+      openColumnModal(launchIndex, 'data');
       return;
     }
     if (target.classList.contains('btnAddIndexCol')){
@@ -3221,7 +3291,7 @@
               columnId,
               coluna.nome || '',
               coluna.tipo || 'manual',
-              formatEditableNumberBR(rawValue || 0)
+              coluna.formato === 'data' ? (parseDateInputValue(rawValue) || '') : formatEditableNumberBR(rawValue || 0)
             ].map(escapeCsvCell);
             lines.push(cells.join(';'));
           });
@@ -3285,10 +3355,11 @@
           if (!allowedIds.has(launchId)) return;
           const lancamento = launchById.get(launchId);
           if (!lancamento) return;
-          if (!findEditableColumn(lancamento, columnId)) return;
+          const coluna = findEditableColumn(lancamento, columnId);
+          if (!coluna) return;
           const linha = (lancamento.linhas || []).find(function(item){ return String(item.periodo || '') === periodo; });
           if (!linha) return;
-          const parsedValue = roundMoney(value);
+          const parsedValue = coluna.formato === 'data' ? parseDateInputValue(value) : roundMoney(value);
           if (columnId === 'valor') linha.valor = parsedValue;
           else linha[columnId] = parsedValue;
           touchedLaunches.add(launchId);
