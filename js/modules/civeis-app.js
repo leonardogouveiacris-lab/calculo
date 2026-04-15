@@ -411,6 +411,23 @@
     return formatNumberBR(value, 2, 2, false);
   }
 
+  function parseDateInputValue(value){
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return parseISODateUTC(raw) ? raw : '';
+    const brMatch = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (!brMatch) return '';
+    const iso = brMatch[3] + '-' + String(brMatch[2]).padStart(2, '0') + '-' + String(brMatch[1]).padStart(2, '0');
+    return parseISODateUTC(iso) ? iso : '';
+  }
+
+  function dateToEpochDays(value){
+    const iso = parseDateInputValue(value);
+    const date = parseISODateUTC(iso);
+    if (!date) return 0;
+    return Math.floor(date.getTime() / 86400000);
+  }
+
   function monthLabel(year, monthIndex){
     const month = String(monthIndex + 1).padStart(2, '0');
     return month + '/' + year;
@@ -641,6 +658,7 @@
     return {
       id: uid('honorario'),
       enabled: false,
+      separateInSummary: false,
       descricao: 'Honorários',
       tipo: 'percentual',
       percentual: 10,
@@ -659,6 +677,7 @@
     return {
       id: String(base.id || uid('honorario')),
       enabled: !!base.enabled,
+      separateInSummary: !!base.separateInSummary,
       descricao: String(base.descricao || 'Honorários').trim() || 'Honorários',
       tipo: tipo,
       percentual: parseBRNumber(base.percentual || 0),
@@ -985,7 +1004,7 @@
   function canColumnUseSummaryRole(coluna){
     if (!coluna) return false;
     if (coluna.tipo === 'indice') return false;
-    if (coluna.formato === 'indice' || coluna.formato === 'percentual') return false;
+    if (coluna.formato === 'indice' || coluna.formato === 'percentual' || coluna.formato === 'data') return false;
     return true;
   }
 
@@ -1207,8 +1226,12 @@
           linha[key] = evaluateFormula(coluna.formula, valuesById, valuesByLetter);
         }
         const rawValue = key === 'valor' ? linha.valor : linha[key];
-        const numericValue = Number(String(rawValue === undefined ? '' : rawValue).replace(',', '.'));
-        const safeValue = Number.isFinite(numericValue) ? numericValue : 0;
+        const safeValue = coluna.formato === 'data'
+          ? dateToEpochDays(rawValue)
+          : (function(){
+              const numericValue = Number(String(rawValue === undefined ? '' : rawValue).replace(',', '.'));
+              return Number.isFinite(numericValue) ? numericValue : 0;
+            })();
         valuesByLetter[letter] = safeValue;
         valuesById[key] = safeValue;
       });
@@ -1553,12 +1576,13 @@
     if (modalIndexEnd) modalIndexEnd.value = '';
     renderIndexSegmentList(modalIndexSegments, 'correcao', []);
     const isFormula = tipo === 'formula';
+    const isDate = tipo === 'data';
     const isIndex = tipo === 'indice';
     const isFlexibleManual = tipo === 'manual';
-    columnModalTitle.textContent = isFormula ? 'Nova coluna com fórmula' : (isIndex ? 'Nova coluna de índice' : 'Nova coluna manual');
+    columnModalTitle.textContent = isFormula ? 'Nova coluna com fórmula' : (isIndex ? 'Nova coluna de índice' : (isDate ? 'Nova coluna de data' : 'Nova coluna manual'));
     columnModalSub.textContent = isFormula
       ? 'Crie uma coluna calculada com base nas letras das colunas já existentes.'
-      : (isIndex ? 'Selecione o tipo de índice, a fonte e o limite opcional de aplicação.' : 'Crie uma coluna manual adicional. Se quiser, preencha a fórmula para gerar uma coluna calculada.');
+      : (isIndex ? 'Selecione o tipo de índice, a fonte e o limite opcional de aplicação.' : (isDate ? 'Crie uma coluna para informar datas por competência. Você pode usar essas datas em fórmulas para calcular diferença em dias.' : 'Crie uma coluna manual adicional. Se quiser, preencha a fórmula para gerar uma coluna calculada.'));
     formulaFieldWrap.style.display = (isFormula || isFlexibleManual) ? 'block' : 'none';
     if (indexFieldWrap) indexFieldWrap.style.display = isIndex ? 'block' : 'none';
     if (modalColumnName) modalColumnName.style.display = isIndex ? 'none' : 'block';
@@ -1570,7 +1594,7 @@
     }
     if (modalColumnSummaryRole) {
       modalColumnSummaryRole.value = 'none';
-      modalColumnSummaryRole.disabled = isIndex;
+      modalColumnSummaryRole.disabled = isIndex || isDate;
     }
     columnModal.classList.add('open');
     columnModal.setAttribute('aria-hidden', 'false');
@@ -1633,6 +1657,15 @@
         indexComposition: composition
       })));
       lancamento.linhas.forEach(function(linha){ linha[id] = 1; });
+    } else if (tipo === 'data') {
+      lancamento.colunas.push(normalizeColumnSummaryMeta({
+        id: id,
+        nome: nome,
+        tipo: 'manual',
+        formato: 'data',
+        summaryRole: 'none'
+      }));
+      lancamento.linhas.forEach(function(linha){ linha[id] = ''; });
     } else {
       lancamento.colunas.push(normalizeColumnSummaryMeta({
         id: id,
@@ -1688,6 +1721,7 @@
         const valueCells = row.cells.map(function(cell){
           if (cell.tipo === 'formula') return '<td><input type="text" readonly value="' + esc(cell.inputValue) + '" placeholder="Calculado automaticamente"></td>';
           if (cell.tipo === 'indice') return '<td><input type="text" readonly value="' + esc(cell.inputValue) + '" placeholder="1,0000000"></td>';
+          if (cell.formato === 'data') return '<td><input type="date" data-launch-index="' + index + '" data-row-index="' + cell.rowIndex + '" data-column-id="' + esc(cell.columnId) + '" class="valor-input" value="' + esc(cell.inputValue) + '"></td>';
           return '<td><input type="text" inputmode="decimal" data-launch-index="' + index + '" data-row-index="' + cell.rowIndex + '" data-column-id="' + esc(cell.columnId) + '" class="valor-input" value="' + esc(cell.inputValue) + '" placeholder="0,00"></td>';
         }).join('');
         return '<tr><td>' + esc(row.periodo) + '</td>' + valueCells + '</tr>';
@@ -1763,6 +1797,7 @@
         '<div class="launch-actions">' +
           '<button type="button" class="btn btn-primary btnFetchIndices" data-launch-index="' + index + '"' + (indexLoadingState[index] ? ' disabled aria-busy="true"' : '') + '>' + (indexLoadingState[index] ? 'Buscando índices...' : 'Atualizar índices') + '</button>' +
           '<button type="button" class="btn btn-ghost btnAddColumn" data-launch-index="' + index + '">Adicional Coluna</button>' +
+          '<button type="button" class="btn btn-ghost btnAddDateCol" data-launch-index="' + index + '">Adicionar coluna de data</button>' +
           '<button type="button" class="btn btn-ghost btnAddIndexCol" data-launch-index="' + index + '">Adicionar coluna de índice</button>' +
         '</div>' +
         '<div>' + badges + '</div>' +
@@ -1973,6 +2008,11 @@
 
   function displayColumnValue(coluna, valor, options){
     const opts = options || {};
+    if (coluna && coluna.formato === 'data') {
+      const iso = parseDateInputValue(valor);
+      if (opts.forInput) return iso;
+      return iso ? formatDateBR(iso) : (opts.fallbackDash ? '—' : '');
+    }
     if (coluna && coluna.formato === 'percentual') {
       if (opts.forInput) return formatNumberBR(valor || 0, 6, 6, true);
       return valor === '' || valor == null ? '—' : formatPercent(valor || 0);
@@ -2010,6 +2050,7 @@
             columnId: key,
             rowIndex: rowIndex,
             tipo: coluna.tipo,
+            formato: coluna.formato,
             displayValue: displayColumnValue(coluna.raw, rawValue, { fallbackDash:true }),
             inputValue: formatInputValueByColumn(coluna.raw, rawValue),
             rawValue: rawValue
@@ -2035,7 +2076,7 @@
         return summarizeIndexColumn(coluna, ref);
       }),
       totalCells: columns.map(function(coluna){
-        if (coluna.formato === 'percentual' || coluna.formato === 'indice') return '—';
+        if (coluna.formato === 'percentual' || coluna.formato === 'indice' || coluna.formato === 'data') return '—';
         return formatCurrencyBR(totalLancamento(lancamento, coluna.id === 'valor' ? 'valor' : coluna.id));
       })
     };
@@ -2119,10 +2160,11 @@
           kind: 'honorarios',
           id: item.config.id,
           verba: item.config.descricao + ' (valor fixo)',
-          note: 'Base: ' + formatCurrencyBR(item.config.valorFixo) + ' em ' + formatDateBR(item.config.dataBase) + '. Índice: ' + getIndexSourceOptionLabel('correcao', item.config.indexSource) + '.',
+          note: (item.config.separateInSummary ? 'Apuração separada no resumo. ' : '') + 'Base: ' + formatCurrencyBR(item.config.valorFixo) + ' em ' + formatDateBR(item.config.dataBase) + '. Índice: ' + getIndexSourceOptionLabel('correcao', item.config.indexSource) + '.',
           valorCorrigido: item.valor,
           juros: 0,
-          valorDevido: item.valor
+          valorDevido: item.valor,
+          includeInGrandTotal: !item.config.separateInSummary
         });
         return;
       }
@@ -2133,11 +2175,12 @@
         id: item.config.id,
         verba: item.config.descricao + (item.config.percentual ? ' (' + formatNumberBR(item.config.percentual, 2, 4, true) + '%)' : '') + (item.config.multiplicador !== 1 ? (' × ' + formatNumberBR(item.config.multiplicador, 2, 4, true)) : ''),
         note: item.selectedLaunches.length
-          ? ('Base composta por ' + String(item.selectedLaunches.length) + ' verba(s)' + (previewNames.length ? (': ' + previewNames.join('; ') + (extraCount ? ' e mais ' + String(extraCount) + '.' : '.')) : '.'))
+          ? ((item.config.separateInSummary ? 'Apuração separada no resumo. ' : '') + 'Base composta por ' + String(item.selectedLaunches.length) + ' verba(s)' + (previewNames.length ? (': ' + previewNames.join('; ') + (extraCount ? ' e mais ' + String(extraCount) + '.' : '.')) : '.'))
           : 'Nenhuma verba selecionada para compor a base.',
         valorCorrigido: item.valor,
         juros: 0,
-        valorDevido: item.valor
+        valorDevido: item.valor,
+        includeInGrandTotal: !item.config.separateInSummary
       });
     });
 
@@ -2149,11 +2192,30 @@
         note: 'Custas incluídas manualmente.',
         valorCorrigido: roundMoney(item.valor),
         juros: 0,
-        valorDevido: roundMoney(item.valor)
+        valorDevido: roundMoney(item.valor),
+        includeInGrandTotal: true
       });
     });
 
+    rows.forEach(function(item){
+      if (item && item.includeInGrandTotal === undefined) item.includeInGrandTotal = true;
+    });
+
     const totals = rows.reduce(function(acc, item){
+      acc.valorCorrigido += roundMoney(item.valorCorrigido);
+      acc.juros += roundMoney(item.juros);
+      acc.valorDevido += roundMoney(item.valorDevido);
+      return acc;
+    }, { valorCorrigido:0, juros:0, valorDevido:0 });
+    const grandTotals = rows.reduce(function(acc, item){
+      if (!item || item.includeInGrandTotal === false) return acc;
+      acc.valorCorrigido += roundMoney(item.valorCorrigido);
+      acc.juros += roundMoney(item.juros);
+      acc.valorDevido += roundMoney(item.valorDevido);
+      return acc;
+    }, { valorCorrigido:0, juros:0, valorDevido:0 });
+    const separatedHonorariosTotals = rows.reduce(function(acc, item){
+      if (!item || item.kind !== 'honorarios' || item.includeInGrandTotal !== false) return acc;
       acc.valorCorrigido += roundMoney(item.valorCorrigido);
       acc.juros += roundMoney(item.juros);
       acc.valorDevido += roundMoney(item.valorDevido);
@@ -2163,6 +2225,15 @@
     totals.valorCorrigido = roundMoney(totals.valorCorrigido);
     totals.juros = roundMoney(totals.juros);
     totals.valorDevido = roundMoney(totals.valorDevido);
+    grandTotals.valorCorrigido = roundMoney(grandTotals.valorCorrigido);
+    grandTotals.juros = roundMoney(grandTotals.juros);
+    grandTotals.valorDevido = roundMoney(grandTotals.valorDevido);
+    separatedHonorariosTotals.valorCorrigido = roundMoney(separatedHonorariosTotals.valorCorrigido);
+    separatedHonorariosTotals.juros = roundMoney(separatedHonorariosTotals.juros);
+    separatedHonorariosTotals.valorDevido = roundMoney(separatedHonorariosTotals.valorDevido);
+    const separatedHonorariosCount = rows.filter(function(item){
+      return item && item.kind === 'honorarios' && item.includeInGrandTotal === false;
+    }).length;
 
     return {
       rows: rows,
@@ -2175,7 +2246,10 @@
         items: custasItems,
         total: roundMoney(custasItems.reduce(function(total, item){ return total + roundMoney(item.valor); }, 0))
       },
-      totals: totals
+      totals: totals,
+      grandTotals: grandTotals,
+      separatedHonorariosTotals: separatedHonorariosTotals,
+      separatedHonorariosCount: separatedHonorariosCount
     };
   }
 
@@ -2200,10 +2274,11 @@
       return 0;
     }
 
-    const summaryTotalsByColumn = summaryColumns.reduce(function(acc, coluna){
-      acc[coluna.id] = roundMoney(summaryData.rows.reduce(function(total, row){ return total + getSummaryCellValue(row, coluna.id); }, 0));
-      return acc;
-    }, {});
+    const summaryTotalsByColumn = {
+      valorCorrigido: roundMoney(summaryData.grandTotals && Number.isFinite(summaryData.grandTotals.valorCorrigido) ? summaryData.grandTotals.valorCorrigido : 0),
+      juros: roundMoney(summaryData.grandTotals && Number.isFinite(summaryData.grandTotals.juros) ? summaryData.grandTotals.juros : 0),
+      valorDevido: roundMoney(summaryData.grandTotals && Number.isFinite(summaryData.grandTotals.valorDevido) ? summaryData.grandTotals.valorDevido : 0)
+    };
 
     if (honorariosResumo) {
       if (!summaryData.honorarios.items.some(function(item){ return item.config.enabled; })) {
@@ -2213,6 +2288,7 @@
         honorariosResumo.innerHTML = '' +
           '<div class="summary-stats">' +
             '<div class="summary-stat"><span class="summary-stat-label">Itens ativos</span><span class="summary-stat-value">' + String(enabledItems.length) + '</span></div>' +
+            '<div class="summary-stat"><span class="summary-stat-label">Separados no resumo</span><span class="summary-stat-value">' + String(summaryData.separatedHonorariosCount || 0) + '</span></div>' +
             '<div class="summary-stat"><span class="summary-stat-label">Honorários totais</span><span class="summary-stat-value">' + esc(formatCurrencyBR(summaryData.honorarios.total || 0)) + '</span></div>' +
           '</div>' +
           enabledItems.map(function(item){
@@ -2253,10 +2329,16 @@
     if (summaryTableFoot) {
       summaryTableFoot.innerHTML = '' +
         '<tr>' +
-          '<td>Total geral</td>' +
+          '<td>Total geral (sem honorários separados)</td>' +
           summaryColumns.map(function(coluna){
             return '<td class="' + esc(coluna.className) + '">' + esc(formatCurrencyBR(summaryTotalsByColumn[coluna.id] || 0)) + '</td>';
           }).join('') +
+        '</tr>' +
+        '<tr class="summary-row-separate">' +
+          '<td>Honorários separados</td>' +
+          '<td class="right">' + esc(formatCurrencyBR(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.valorCorrigido : 0)) + '</td>' +
+          '<td class="right">' + esc(formatCurrencyBR(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.juros : 0)) + '</td>' +
+          '<td class="right bold">' + esc(formatCurrencyBR(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.valorDevido : 0)) + '</td>' +
         '</tr>';
     }
 
@@ -2286,8 +2368,8 @@
         '<div class="custa-card" data-honorario-id="' + esc(item.id) + '">' +
           '<div class="custa-card-head"><div class="custa-card-title">Honorário ' + String(index + 1) + '</div><button type="button" class="btn btn-ghost summary-remove-btn btnRemoveHonorario" data-honorario-id="' + esc(item.id) + '">Remover</button></div>' +
           '<div class="custa-grid">' +
-            '<div><label class="check-inline"><input type="checkbox" class="honorario-enabled" data-honorario-id="' + esc(item.id) + '"' + (item.enabled ? ' checked' : '') + '> Incluir no resumo</label></div>' +
-            '<div><label>Tipo</label><select class="select honorario-tipo" data-honorario-id="' + esc(item.id) + '"><option value="percentual"' + (item.tipo === 'percentual' ? ' selected' : '') + '>Percentual sobre base</option><option value="fixo"' + (item.tipo === 'fixo' ? ' selected' : '') + '>Valor fixo</option></select></div>' +
+            '<div><label class="check-inline"><input type="checkbox" class="honorario-enabled" data-honorario-id="' + esc(item.id) + '"' + (item.enabled ? ' checked' : '') + '> Exibir no resumo</label><label class="check-inline honorario-separate-inline"><input type="checkbox" class="honorario-separate" data-honorario-id="' + esc(item.id) + '"' + (item.separateInSummary ? ' checked' : '') + (item.enabled ? '' : ' disabled') + '> Separar no resumo</label></div>' +
+            '<div class="honorario-type-wrap"><label>Tipo</label><select class="select honorario-tipo" data-honorario-id="' + esc(item.id) + '"><option value="percentual"' + (item.tipo === 'percentual' ? ' selected' : '') + '>Percentual</option><option value="fixo"' + (item.tipo === 'fixo' ? ' selected' : '') + '>Valor fixo</option></select></div>' +
             '<div><label>Descrição</label><input type="text" class="honorario-desc" data-honorario-id="' + esc(item.id) + '" value="' + esc(item.descricao || '') + '" placeholder="Ex.: Honorários de terceiro"></div>' +
           '</div>' +
           (item.tipo === 'percentual'
@@ -2376,7 +2458,9 @@
         '<td class="bold right">' + esc(formatCurrencyBR(row.valorDevido || 0)) + '</td>' +
       '</tr>';
     });
-    const summaryFooter = '<tr><td class="bold right">Total geral</td><td class="bold right">' + esc(formatCurrencyBR(summary.totals.valorCorrigido || 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.totals.juros || 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.totals.valorDevido || 0)) + '</td></tr>';
+    const summaryFooter = '' +
+      '<tr><td class="bold right">Total geral (sem honorários separados)</td><td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.valorCorrigido : 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.juros : 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.valorDevido : 0)) + '</td></tr>' +
+      '<tr><td class="right">Honorários separados</td><td class="right">' + esc(formatCurrencyBR(summary.separatedHonorariosTotals ? summary.separatedHonorariosTotals.valorCorrigido : 0)) + '</td><td class="right">' + esc(formatCurrencyBR(summary.separatedHonorariosTotals ? summary.separatedHonorariosTotals.juros : 0)) + '</td><td class="right">' + esc(formatCurrencyBR(summary.separatedHonorariosTotals ? summary.separatedHonorariosTotals.valorDevido : 0)) + '</td></tr>';
     CPPrintLayout.appendTable(layout, {
       title: 'Resumo do cálculo',
       columns: ['Verba', 'Valor corrigido', 'Juros', 'Valor devido'],
@@ -2624,6 +2708,12 @@
     if (!state.lancamentos[launchIndex] || !state.lancamentos[launchIndex].linhas[rowIndex]) return;
     const coluna = getColumnById(state.lancamentos[launchIndex], columnId);
     if (coluna && (coluna.tipo === 'formula' || coluna.tipo === 'indice')) return;
+    if (coluna && coluna.formato === 'data') {
+      const parsedDate = parseDateInputValue(target.value);
+      if (columnId === 'valor') state.lancamentos[launchIndex].linhas[rowIndex].valor = parsedDate;
+      else state.lancamentos[launchIndex].linhas[rowIndex][columnId] = parsedDate;
+      return;
+    }
     const parsedValue = parseBRNumber(target.value);
     if (columnId === 'valor') state.lancamentos[launchIndex].linhas[rowIndex].valor = parsedValue;
     else state.lancamentos[launchIndex].linhas[rowIndex][columnId] = parsedValue;
@@ -2634,6 +2724,14 @@
     if (!target.classList.contains('valor-input')) return;
     const launchIndex = Number(target.getAttribute('data-launch-index'));
     if (!state.lancamentos[launchIndex]) return;
+    const columnId = target.getAttribute('data-column-id') || 'valor';
+    const coluna = getColumnById(state.lancamentos[launchIndex], columnId);
+    if (coluna && coluna.formato === 'data') {
+      target.value = parseDateInputValue(target.value);
+      recalculateLaunch(state.lancamentos[launchIndex]);
+      persistAndRefresh();
+      return;
+    }
     target.value = formatCurrencyBR(target.value);
     recalculateLaunch(state.lancamentos[launchIndex]);
     persistAndRefresh();
@@ -2675,6 +2773,10 @@
   launchesHost.addEventListener('focusin', function(event){
     const target = event.target;
     if (!target.classList.contains('valor-input')) return;
+    const launchIndex = Number(target.getAttribute('data-launch-index'));
+    const columnId = target.getAttribute('data-column-id') || 'valor';
+    const coluna = state.lancamentos[launchIndex] ? getColumnById(state.lancamentos[launchIndex], columnId) : null;
+    if (coluna && coluna.formato === 'data') return;
     target.value = formatEditableNumberBR(target.value);
     target.select();
   });
@@ -2690,6 +2792,15 @@
     const rowIndex = Number(target.getAttribute('data-row-index'));
     const columnId = target.getAttribute('data-column-id') || 'valor';
     if (!state.lancamentos[launchIndex] || !state.lancamentos[launchIndex].linhas[rowIndex]) return;
+    const coluna = getColumnById(state.lancamentos[launchIndex], columnId);
+    if (coluna && coluna.formato === 'data') {
+      const parsedDate = parseDateInputValue(pastedText);
+      target.value = parsedDate;
+      if (columnId === 'valor') state.lancamentos[launchIndex].linhas[rowIndex].valor = parsedDate;
+      else state.lancamentos[launchIndex].linhas[rowIndex][columnId] = parsedDate;
+      refreshSummaryOutputsOnly();
+      return;
+    }
     if (columnId === 'valor') state.lancamentos[launchIndex].linhas[rowIndex].valor = parsedValue;
     else state.lancamentos[launchIndex].linhas[rowIndex][columnId] = parsedValue;
     refreshSummaryOutputsOnly();
@@ -2704,6 +2815,10 @@
     if (!state.lancamentos[launchIndex]) return;
     if (target.classList.contains('btnAddColumn')){
       openColumnModal(launchIndex, 'manual');
+      return;
+    }
+    if (target.classList.contains('btnAddDateCol')){
+      openColumnModal(launchIndex, 'data');
       return;
     }
     if (target.classList.contains('btnAddIndexCol')){
@@ -2803,6 +2918,8 @@
       if (index < 0) return;
       const item = normalizeHonorarioItem(state.honorarios.items[index]);
       if (target.classList.contains('honorario-enabled')) item.enabled = !!target.checked;
+      if (target.classList.contains('honorario-enabled') && !item.enabled) item.separateInSummary = false;
+      if (target.classList.contains('honorario-separate')) item.separateInSummary = !!target.checked;
       if (target.classList.contains('honorario-tipo')) item.tipo = target.value === 'fixo' ? 'fixo' : 'percentual';
       if (target.classList.contains('honorario-data-base')) item.dataBase = String(target.value || '');
       if (target.classList.contains('honorario-index-source')) item.indexSource = String(target.value || 'none');
@@ -3221,7 +3338,7 @@
               columnId,
               coluna.nome || '',
               coluna.tipo || 'manual',
-              formatEditableNumberBR(rawValue || 0)
+              coluna.formato === 'data' ? (parseDateInputValue(rawValue) || '') : formatEditableNumberBR(rawValue || 0)
             ].map(escapeCsvCell);
             lines.push(cells.join(';'));
           });
@@ -3285,10 +3402,11 @@
           if (!allowedIds.has(launchId)) return;
           const lancamento = launchById.get(launchId);
           if (!lancamento) return;
-          if (!findEditableColumn(lancamento, columnId)) return;
+          const coluna = findEditableColumn(lancamento, columnId);
+          if (!coluna) return;
           const linha = (lancamento.linhas || []).find(function(item){ return String(item.periodo || '') === periodo; });
           if (!linha) return;
-          const parsedValue = roundMoney(value);
+          const parsedValue = coluna.formato === 'data' ? parseDateInputValue(value) : roundMoney(value);
           if (columnId === 'valor') linha.valor = parsedValue;
           else linha[columnId] = parsedValue;
           touchedLaunches.add(launchId);
