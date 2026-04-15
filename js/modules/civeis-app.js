@@ -1866,11 +1866,21 @@
           const calculation = factorForIndexComposition(composition, payloadBySource, requestedStartISOForColumn(coluna, inicioCompetenciaISO), dataAtualizacao);
           coluna.__lastNoOverlap = !calculation.hasOverlap;
           linha[coluna.id] = Number(calculation.factor.toFixed(7));
-          coluna.__lastFactor = linha[coluna.id];
-          coluna.__lastSegmentFactors = (calculation.segmentDetails || []).map(function(item){
-            return { position: item.position, factor: Number(Number(item.factor || 1).toFixed(7)), hasOverlap: !!item.hasOverlap };
+          coluna.__lastFactor = Math.max(Number(coluna.__lastFactor || 1), linha[coluna.id]);
+          (calculation.segmentDetails || []).forEach(function(item){
+            const position = Number(item.position);
+            const factor = Number(Number(item.factor || 1).toFixed(7));
+            const hasOverlap = !!item.hasOverlap;
+            const prev = coluna.__segmentFactorByPosition.get(position);
+            if (!prev || factor > prev.factor) coluna.__segmentFactorByPosition.set(position, { position: position, factor: factor, hasOverlap: hasOverlap });
           });
         });
+      });
+      indexColumns.forEach(function(coluna){
+        if (coluna && coluna.__segmentFactorByPosition instanceof Map) {
+          coluna.__lastSegmentFactors = Array.from(coluna.__segmentFactorByPosition.values()).sort(function(a, b){ return a.position - b.position; });
+          delete coluna.__segmentFactorByPosition;
+        }
       });
       config.lastAutoRefresh = new Date().toISOString();
       lancamento.indexConfig = config;
