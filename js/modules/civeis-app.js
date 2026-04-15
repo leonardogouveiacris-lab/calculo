@@ -123,7 +123,13 @@
     wrap.innerHTML = '' +
       '<label for="modalIndexKind">Tipo do índice</label>' +
       '<select id="modalIndexKind" class="select"><option value="correcao">Correção monetária</option><option value="juros">Juros</option></select>' +
-      '<label for="modalIndexSource">Fonte do índice</label>' +
+      '<div class="index-source-head">' +
+        '<label for="modalIndexSource">Fonte do índice</label>' +
+        '<div class="index-source-actions">' +
+          '<button type="button" class="btn-subtle" id="btnExportIndexTemplateModal">Modelo CSV</button>' +
+          '<button type="button" class="btn-subtle" id="btnImportIndexTableModal">Importar CSV</button>' +
+        '</div>' +
+      '</div>' +
       '<select id="modalIndexSource" class="select"></select>' +
       '<div class="row" style="margin-top:8px">' +
         '<div class="col-6"><label for="modalIndexStart">Aplicar a partir de</label><input id="modalIndexStart" type="date"></div>' +
@@ -207,10 +213,6 @@
     const kind = coluna && coluna.indexKind ? coluna.indexKind : 'correcao';
     const source = coluna && coluna.indexSource ? coluna.indexSource : '';
     return (getIndexSourceOptions(kind).find(function(opt){ return opt.value === source; }) || {}).label || source || '—';
-  }
-
-  function getIndexSourceOptionLabel(kind, source){
-    return ((INDEX_SOURCE_OPTIONS[kind] || []).find(function(opt){ return opt.value === source; }) || {}).label || source || '—';
   }
 
   function describeIndexCompositionDetails(coluna){
