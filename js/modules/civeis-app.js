@@ -1868,6 +1868,7 @@
         coluna.__lastFactor = 1;
         coluna.__summaryFactor = 1;
         coluna.__lastNoOverlap = false;
+        coluna.__segmentFactorByPosition = new Map();
         coluna.__lastSegmentFactors = [];
         coluna.__summarySegmentFactors = [];
         summaryByColumnId[coluna.id] = { maxFactor: 1, byPosition: new Map() };
@@ -1881,6 +1882,7 @@
           if (coluna.indexKind === 'juros' && composition.length && !composition[0].start) {
             composition[0] = normalizeIndexSegment(Object.assign({}, composition[0], { start: lancamento.dataInicial }), 'juros');
           }
+          if (!(coluna.__segmentFactorByPosition instanceof Map)) coluna.__segmentFactorByPosition = new Map();
           const calculation = factorForIndexComposition(composition, payloadBySource, requestedStartISOForColumn(coluna, inicioCompetenciaISO), dataAtualizacao);
           coluna.__lastNoOverlap = !calculation.hasOverlap;
           linha[coluna.id] = Number(calculation.factor.toFixed(7));
