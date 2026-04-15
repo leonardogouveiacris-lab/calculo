@@ -2591,6 +2591,14 @@
 
   let reportRenderQueued = false;
   let reportRenderCallbacks = [];
+  const FREE_TEXT_FIELD_IDS = new Set(['observacoes', 'requerente', 'requerido', 'processo']);
+  const FIELD_SAVE_DEBOUNCE_MS = 320;
+  const DATA_ATUALIZACAO_REFRESH_DEBOUNCE_MS = 360;
+  const debouncedSaveTimers = {};
+  let dataAtualizacaoRefreshTimer = null;
+  let dataAtualizacaoRefreshToken = 0;
+  let dataAtualizacaoRefreshInFlight = false;
+  let dataAtualizacaoRefreshQueued = false;
 
   function renderReportDeferred(callback){
     if (typeof callback === 'function') reportRenderCallbacks.push(callback);
@@ -2612,6 +2620,47 @@
   function openReportTabAndRender(callback){
     switchTab('report');
     renderReportDeferred(callback);
+  }
+
+  function debounceByField(fieldId, delayMs, callback){
+    if (!fieldId || typeof callback !== 'function') return;
+    clearTimeout(debouncedSaveTimers[fieldId]);
+    debouncedSaveTimers[fieldId] = setTimeout(function(){
+      delete debouncedSaveTimers[fieldId];
+      callback();
+    }, delayMs);
+  }
+
+  function setDataAtualizacaoLoading(isLoading){
+    if (!fields.dataAtualizacao) return;
+    fields.dataAtualizacao.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+    fields.dataAtualizacao.classList.toggle('is-loading', !!isLoading);
+  }
+
+  function scheduleDataAtualizacaoRefresh(){
+    dataAtualizacaoRefreshToken += 1;
+    const token = dataAtualizacaoRefreshToken;
+    clearTimeout(dataAtualizacaoRefreshTimer);
+    setDataAtualizacaoLoading(true);
+    dataAtualizacaoRefreshTimer = setTimeout(async function(){
+      if (token !== dataAtualizacaoRefreshToken) return;
+      if (dataAtualizacaoRefreshInFlight) {
+        dataAtualizacaoRefreshQueued = true;
+        return;
+      }
+      dataAtualizacaoRefreshInFlight = true;
+      try {
+        await refreshAllIndices();
+      } finally {
+        dataAtualizacaoRefreshInFlight = false;
+        if (dataAtualizacaoRefreshQueued) {
+          dataAtualizacaoRefreshQueued = false;
+          scheduleDataAtualizacaoRefresh();
+          return;
+        }
+        if (token === dataAtualizacaoRefreshToken) setDataAtualizacaoLoading(false);
+      }
+    }, DATA_ATUALIZACAO_REFRESH_DEBOUNCE_MS);
   }
 
 
@@ -3680,13 +3729,23 @@
 
   [fields.requerente, fields.requerido, fields.processo, fields.ajuizamento, fields.dataAtualizacao, fields.observacoes].forEach(function(field){
     field.addEventListener('input', function(){
-      const data = collect();
-      save(data);
-      if (field === fields.dataAtualizacao) refreshAllIndices();
-      safeBuildReport(data, {
-        source: 'field-input-live-report',
-        context: { fieldId: field && field.id ? field.id : '' }
-      });
+      const fieldId = field && field.id ? field.id : '';
+      const shouldDebounceSave = FREE_TEXT_FIELD_IDS.has(fieldId) || field === fields.dataAtualizacao;
+      if (shouldDebounceSave) {
+        debounceByField(fieldId, FIELD_SAVE_DEBOUNCE_MS, function(){
+          save(collect());
+        });
+      } else {
+        save(collect());
+      }
+      if (field === fields.dataAtualizacao) scheduleDataAtualizacaoRefresh();
+    });
+    field.addEventListener('blur', function(){
+      const fieldId = field && field.id ? field.id : '';
+      clearTimeout(debouncedSaveTimers[fieldId]);
+      delete debouncedSaveTimers[fieldId];
+      save(collect());
+      renderReportDeferred();
     });
   });
   window.CPCiveisCompat = Object.assign({}, window.CPCiveisCompat || {}, {
