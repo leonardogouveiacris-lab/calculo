@@ -741,6 +741,8 @@
     return parts.length === 2 ? (parts[1] + '-' + parts[0]) : '';
   }
 
+  const monthRangeCache = new Map();
+
   function monthRange(startMonthKey, endMonthKey){
     if (!startMonthKey || !endMonthKey || startMonthKey > endMonthKey) return [];
     const start = String(startMonthKey).split('-');
@@ -757,6 +759,14 @@
       if (month > 12){ month = 1; year += 1; }
     }
     return list;
+  }
+
+  function monthRangeCached(startMonthKey, endMonthKey){
+    const key = String(startMonthKey || '') + '|' + String(endMonthKey || '');
+    if (monthRangeCache.has(key)) return monthRangeCache.get(key);
+    const computed = monthRange(startMonthKey, endMonthKey);
+    monthRangeCache.set(key, computed);
+    return computed;
   }
 
   function parseISODateUTC(value){
@@ -835,7 +845,7 @@
     const clampedStart = effectiveStartISO.slice(0, 7);
     const clampedEnd = effectiveEndISO.slice(0, 7);
     if (!clampedStart || !clampedEnd || clampedStart > clampedEnd) return 1;
-    return monthRange(clampedStart, clampedEnd).reduce(function(factor, monthKey){
+    return monthRangeCached(clampedStart, clampedEnd).reduce(function(factor, monthKey){
       const percent = Number(monthMap.get(monthKey) || 0);
       const adjustedPercent = adjustedMonthlyPercent(percent, monthKey, effectiveStartISO, effectiveEndISO, accumulationMode);
       if (accumulationMode === 'simple') return factor + (adjustedPercent / 100);
@@ -1810,6 +1820,7 @@
     const requestedStartISO = String(competenciaStartISO || '');
     const requestedEndISO = String(dataAtualizacaoISO || '');
     const factorLookupMode = options && options.factorLookupMode === 'range_product' ? 'range_product' : 'month';
+    const segmentFactorMemo = options && options.segmentFactorMemo instanceof Map ? options.segmentFactorMemo : new Map();
     const payloadMap = payloadBySource instanceof Map ? payloadBySource : new Map();
     if (!requestedStartISO || !requestedEndISO || requestedStartISO > requestedEndISO) return { factor: 1, hasOverlap: false };
     const segments = Array.isArray(composition) ? composition : [];
@@ -1825,20 +1836,38 @@
         continue;
       }
       hasOverlap = true;
+      const segmentMode = segment.accumulationMode || sourceAccumulationMode(segment.source);
+      const segmentMemoKey = [
+        String(segment.source || ''),
+        effectivePeriod.startISO,
+        effectivePeriod.endISO,
+        segmentMode,
+        payload.calculationPath || 'monthly',
+        factorLookupMode
+      ].join('|');
+      if (segmentFactorMemo.has(segmentMemoKey)) {
+        const memoFactor = Number(segmentFactorMemo.get(segmentMemoKey));
+        totalFactor *= Number.isFinite(memoFactor) ? memoFactor : 1;
+        segmentDetails.push({ position: idx + 1, factor: Number.isFinite(memoFactor) ? memoFactor : 1, hasOverlap: true });
+        continue;
+      }
       if (payload.calculationPath === 'daily_compound_exact' && payload.dailySeriesCode){
         const factorDaily = dailyCompoundExactFactor(payload.dailyRates, payload.dailySeriesCode, effectivePeriod.startISO, effectivePeriod.endISO);
+        segmentFactorMemo.set(segmentMemoKey, factorDaily);
         totalFactor *= factorDaily;
         segmentDetails.push({ position: idx + 1, factor: factorDaily, hasOverlap: true });
         continue;
       }
       if (payload.calculationPath === 'monthly_factor_lookup'){
-        const monthMapFactor = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; }));
+        const monthMapFactor = payload.monthlyFactorLookupMap instanceof Map
+          ? payload.monthlyFactorLookupMap
+          : (payload.monthlyFactorLookupMap = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; })));
         const factorFromTable = factorLookupMode === 'range_product'
           ? (function(){
               const startMonth = monthKeyFromISO(effectivePeriod.startISO);
               const endMonth = monthKeyFromISO(effectivePeriod.endISO);
               if (!startMonth || !endMonth || startMonth > endMonth) return 1;
-              return monthRange(startMonth, endMonth).reduce(function(factor, monthKey){
+              return monthRangeCached(startMonth, endMonth).reduce(function(factor, monthKey){
                 const configuredFactor = Number(monthMapFactor.get(monthKey));
                 return factor * ((Number.isFinite(configuredFactor) && configuredFactor > 0) ? configuredFactor : 1);
               }, 1);
@@ -1848,15 +1877,18 @@
               const configuredFactor = Number(monthMapFactor.get(targetMonth));
               return Number.isFinite(configuredFactor) && configuredFactor > 0 ? configuredFactor : 1;
             })();
+        segmentFactorMemo.set(segmentMemoKey, factorFromTable);
         totalFactor *= factorFromTable;
         segmentDetails.push({ position: idx + 1, factor: factorFromTable, hasOverlap: true });
         continue;
       }
-      const monthMap = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; }));
+      const monthMap = payload.monthlyRatesMap instanceof Map
+        ? payload.monthlyRatesMap
+        : (payload.monthlyRatesMap = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; })));
       const startMonth = monthKeyFromISO(effectivePeriod.startISO);
       const endMonth = monthKeyFromISO(effectivePeriod.endISO);
-      const segmentMode = segment.accumulationMode || sourceAccumulationMode(segment.source);
       const factorMonthly = accumulateIndexFactor(monthMap, startMonth, endMonth, { start: segment.start || '', end: segment.end || '' }, segmentMode, effectivePeriod.startISO, effectivePeriod.endISO);
+      segmentFactorMemo.set(segmentMemoKey, factorMonthly);
       totalFactor *= factorMonthly;
       segmentDetails.push({ position: idx + 1, factor: factorMonthly, hasOverlap: true });
     }
@@ -1871,15 +1903,19 @@
     normalizeLaunch(lancamento);
     const config = Object.assign(defaultIndexConfig(), lancamento.indexConfig || {});
     const dataAtualizacao = fields.dataAtualizacao.value || new Date().toISOString().slice(0,10);
+    const runStartPerf = window.performance && typeof window.performance.now === 'function' ? window.performance.now() : Date.now();
     if (!monthKeyFromISO(dataAtualizacao)){
       alert('Informe a data de atualização do cálculo.');
       return;
     }
     let indicesAtualizados = false;
     const payloadByColumnId = {};
+    const precomputedFactorByColumnId = {};
+    const segmentFactorMemo = new Map();
     let sourceLoadWarnings = 0;
     try {
       const indexColumns = getIndexColumns(lancamento);
+      const shouldLogPerformance = (lancamento.linhas || []).length >= 100 && indexColumns.length >= 2;
       const summaryByColumnId = {};
       for (let idx = 0; idx < indexColumns.length; idx += 1){
         const coluna = indexColumns[idx];
@@ -1909,9 +1945,34 @@
             });
             payload = makeIndexPayload('monthly', []);
           }
+          if (payload && Array.isArray(payload.monthlyRates) && !(payload.monthlyRatesMap instanceof Map)) {
+            payload.monthlyRatesMap = new Map(payload.monthlyRates.map(function(item){ return [item.month, item.value]; }));
+          }
+          if (payload && payload.calculationPath === 'monthly_factor_lookup' && !(payload.monthlyFactorLookupMap instanceof Map)) {
+            payload.monthlyFactorLookupMap = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; }));
+          }
           payloadBySource.set(source, payload);
         }
         payloadByColumnId[coluna.id] = payloadBySource;
+        const precomputedByKey = new Map();
+        (lancamento.linhas || []).forEach(function(linha){
+          const mesCompetencia = monthKeyFromPeriodo(linha.periodo);
+          const inicioCompetenciaISO = mesCompetencia + '-01';
+          const startISO = requestedStartISOForColumn(coluna, inicioCompetenciaISO);
+          const cacheKey = composition.map(function(segment){
+            return [
+              segment.source || '',
+              segment.start || '',
+              segment.end || '',
+              segment.accumulationMode || sourceAccumulationMode(segment.source)
+            ].join('|');
+          }).join('||') + '@' + startISO + '@' + dataAtualizacao;
+          if (precomputedByKey.has(cacheKey)) return;
+          precomputedByKey.set(cacheKey, factorForIndexComposition(composition, payloadBySource, startISO, dataAtualizacao, {
+            segmentFactorMemo: segmentFactorMemo
+          }));
+        });
+        precomputedFactorByColumnId[coluna.id] = precomputedByKey;
         coluna.__lastFactor = 1;
         coluna.__summaryFactor = 1;
         coluna.__lastNoOverlap = false;
@@ -1929,8 +1990,21 @@
           if (coluna.indexKind === 'juros' && composition.length && !composition[0].start) {
             composition[0] = normalizeIndexSegment(Object.assign({}, composition[0], { start: lancamento.dataInicial }), 'juros');
           }
+          const startISO = requestedStartISOForColumn(coluna, inicioCompetenciaISO);
+          const compositionKey = composition.map(function(segment){
+            return [
+              segment.source || '',
+              segment.start || '',
+              segment.end || '',
+              segment.accumulationMode || sourceAccumulationMode(segment.source)
+            ].join('|');
+          }).join('||');
+          const factorCacheKey = compositionKey + '@' + startISO + '@' + dataAtualizacao;
           if (!(coluna.__segmentFactorByPosition instanceof Map)) coluna.__segmentFactorByPosition = new Map();
-          const calculation = factorForIndexComposition(composition, payloadBySource, requestedStartISOForColumn(coluna, inicioCompetenciaISO), dataAtualizacao);
+          const precomputed = precomputedFactorByColumnId[coluna.id] instanceof Map ? precomputedFactorByColumnId[coluna.id].get(factorCacheKey) : null;
+          const calculation = precomputed || factorForIndexComposition(composition, payloadBySource, startISO, dataAtualizacao, {
+            segmentFactorMemo: segmentFactorMemo
+          });
           coluna.__lastNoOverlap = !calculation.hasOverlap;
           linha[coluna.id] = Number(calculation.factor.toFixed(7));
           coluna.__lastFactor = Math.max(Number(coluna.__lastFactor || 1), linha[coluna.id]);
@@ -1964,6 +2038,16 @@
       lancamento.indexConfig = config;
       recalculateLaunch(lancamento);
       indicesAtualizados = true;
+      if (shouldLogPerformance) {
+        const runEndPerf = window.performance && typeof window.performance.now === 'function' ? window.performance.now() : Date.now();
+        console.info('[civeis] updateIndicesForLaunch benchmark', {
+          launchIndex: launchIndex,
+          rows: (lancamento.linhas || []).length,
+          indexColumns: indexColumns.length,
+          segmentMemoEntries: segmentFactorMemo.size,
+          elapsedMs: Number((runEndPerf - runStartPerf).toFixed(2))
+        });
+      }
     } catch (error) {
       console.error('Falha ao buscar índices automáticos (módulo cível).', {
         launchIndex: launchIndex,
