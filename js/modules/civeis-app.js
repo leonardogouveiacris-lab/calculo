@@ -236,19 +236,29 @@
     return ((INDEX_SOURCE_OPTIONS[kind] || []).find(function(opt){ return opt.value === source; }) || {}).label || source || '—';
   }
 
+  function getIndexSourceOptionLabel(kind, source){
+    return ((INDEX_SOURCE_OPTIONS[kind] || []).find(function(opt){ return opt.value === source; }) || {}).label || source || '—';
+  }
+
   function describeIndexCompositionDetails(coluna){
     const kind = coluna && coluna.indexKind === 'juros' ? 'juros' : 'correcao';
+    const factorByPosition = new Map(((coluna && Array.isArray(coluna.__lastSegmentFactors)) ? coluna.__lastSegmentFactors : []).map(function(item){
+      return [Number(item.position), Number(item.factor)];
+    }));
     return getIndexComposition(coluna).map(function(segment, index){
       const sourceRule = window.CPBCBRates && typeof window.CPBCBRates.describeSourceRule === 'function'
         ? window.CPBCBRates.describeSourceRule(segment.source)
         : null;
+      const position = index + 1;
+      const factorValue = factorByPosition.has(position) ? factorByPosition.get(position) : 1;
       return {
-        position: index + 1,
+        position: position,
         sourceLabel: getIndexSourceOptionLabel(kind, segment.source),
         seriesLabel: sourceRule ? sourceRule.seriesLabel : 'Manual/sem série',
         unitLabel: sourceRule ? sourceRule.unitLabel : '—',
         formulaLabel: sourceRule ? sourceRule.formulaLabel : '—',
-        intervalLabel: joinIndexIntervals(sourceRule ? sourceRule.intervalLabel : '', formatLimitInterval(segment.start || '', segment.end || ''))
+        intervalLabel: joinIndexIntervals(sourceRule ? sourceRule.intervalLabel : '', formatLimitInterval(segment.start || '', segment.end || '')),
+        factorLabel: formatIndexFactor(factorValue)
       };
     });
   }
@@ -1627,7 +1637,7 @@
       const indexSummaryRows = view.indexSummary.map(function(summary){
         const compositionRows = Array.isArray(summary.compositionDetails) && summary.compositionDetails.length > 1
           ? summary.compositionDetails.map(function(item){
-              return '<span>Faixa ' + item.position + ': Fonte: ' + esc(item.sourceLabel) + ' • Série: ' + esc(item.seriesLabel) + ' • Unidade: ' + esc(item.unitLabel) + ' • Fórmula: ' + esc(item.formulaLabel) + ' • Intervalo: ' + esc(item.intervalLabel) + '</span>';
+              return '<span>Faixa ' + item.position + ': Fonte: ' + esc(item.sourceLabel) + ' • Série: ' + esc(item.seriesLabel) + ' • Unidade: ' + esc(item.unitLabel) + ' • Fórmula: ' + esc(item.formulaLabel) + ' • Intervalo: ' + esc(item.intervalLabel) + ' • Fator final da faixa: ' + esc(item.factorLabel) + '</span>';
             }).join('')
           : '';
         return '' +
@@ -1722,15 +1732,20 @@
     const segments = Array.isArray(composition) ? composition : [];
     let totalFactor = 1;
     let hasOverlap = false;
+    const segmentDetails = [];
     for (let idx = 0; idx < segments.length; idx += 1){
       const segment = normalizeIndexSegment(segments[idx]);
       const payload = payloadBySource.get(segment.source) || makeIndexPayload('monthly', []);
       const effectivePeriod = clampPeriodByLimit(requestedStartISO, requestedEndISO, { start: segment.start || '', end: segment.end || '' });
-      if (!effectivePeriod) continue;
+      if (!effectivePeriod) {
+        segmentDetails.push({ position: idx + 1, factor: 1, hasOverlap: false });
+        continue;
+      }
       hasOverlap = true;
       if (payload.calculationPath === 'daily_compound_exact' && payload.dailySeriesCode){
         const factorDaily = dailyCompoundExactFactor(payload.dailyRates, payload.dailySeriesCode, effectivePeriod.startISO, effectivePeriod.endISO);
         totalFactor *= factorDaily;
+        segmentDetails.push({ position: idx + 1, factor: factorDaily, hasOverlap: true });
         continue;
       }
       const monthMap = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; }));
@@ -1739,8 +1754,9 @@
       const segmentMode = segment.accumulationMode || sourceAccumulationMode(segment.source);
       const factorMonthly = accumulateIndexFactor(monthMap, startMonth, endMonth, { start: segment.start || '', end: segment.end || '' }, segmentMode, effectivePeriod.startISO, effectivePeriod.endISO);
       totalFactor *= factorMonthly;
+      segmentDetails.push({ position: idx + 1, factor: factorMonthly, hasOverlap: true });
     }
-    return { factor: totalFactor, hasOverlap: hasOverlap };
+    return { factor: totalFactor, hasOverlap: hasOverlap, segmentDetails: segmentDetails };
   }
 
   async function updateIndicesForLaunch(launchIndex){
@@ -1778,6 +1794,7 @@
         payloadByColumnId[coluna.id] = payloadBySource;
         coluna.__lastFactor = 1;
         coluna.__lastNoOverlap = false;
+        coluna.__lastSegmentFactors = [];
       }
       lancamento.linhas.forEach(function(linha){
         const mesCompetencia = monthKeyFromPeriodo(linha.periodo);
@@ -1792,6 +1809,9 @@
           coluna.__lastNoOverlap = !calculation.hasOverlap;
           linha[coluna.id] = Number(calculation.factor.toFixed(7));
           coluna.__lastFactor = linha[coluna.id];
+          coluna.__lastSegmentFactors = (calculation.segmentDetails || []).map(function(item){
+            return { position: item.position, factor: Number(Number(item.factor || 1).toFixed(7)), hasOverlap: !!item.hasOverlap };
+          });
         });
       });
       config.lastAutoRefresh = new Date().toISOString();
@@ -2267,7 +2287,7 @@
         const indexSummaryRows = view.indexSummary.map(function(summary){
           const compositionRows = Array.isArray(summary.compositionDetails) && summary.compositionDetails.length > 1
             ? summary.compositionDetails.map(function(item){
-                return '<div class="report-index-summary-subrow">Faixa ' + item.position + ': Fonte: ' + esc(item.sourceLabel) + ' • Série: ' + esc(item.seriesLabel) + ' • Unidade: ' + esc(item.unitLabel) + ' • Fórmula: ' + esc(item.formulaLabel) + ' • Intervalo: ' + esc(item.intervalLabel) + '</div>';
+                return '<div class="report-index-summary-subrow">Faixa ' + item.position + ': Fonte: ' + esc(item.sourceLabel) + ' • Série: ' + esc(item.seriesLabel) + ' • Unidade: ' + esc(item.unitLabel) + ' • Fórmula: ' + esc(item.formulaLabel) + ' • Intervalo: ' + esc(item.intervalLabel) + ' • Fator final da faixa: ' + esc(item.factorLabel) + '</div>';
               }).join('')
             : '';
           return '' +
