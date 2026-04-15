@@ -209,6 +209,27 @@
     return (getIndexSourceOptions(kind).find(function(opt){ return opt.value === source; }) || {}).label || source || '—';
   }
 
+  function getIndexSourceOptionLabel(kind, source){
+    return ((INDEX_SOURCE_OPTIONS[kind] || []).find(function(opt){ return opt.value === source; }) || {}).label || source || '—';
+  }
+
+  function describeIndexCompositionDetails(coluna){
+    const kind = coluna && coluna.indexKind === 'juros' ? 'juros' : 'correcao';
+    return getIndexComposition(coluna).map(function(segment, index){
+      const sourceRule = window.CPBCBRates && typeof window.CPBCBRates.describeSourceRule === 'function'
+        ? window.CPBCBRates.describeSourceRule(segment.source)
+        : null;
+      return {
+        position: index + 1,
+        sourceLabel: getIndexSourceOptionLabel(kind, segment.source),
+        seriesLabel: sourceRule ? sourceRule.seriesLabel : 'Manual/sem série',
+        unitLabel: sourceRule ? sourceRule.unitLabel : '—',
+        formulaLabel: sourceRule ? sourceRule.formulaLabel : '—',
+        intervalLabel: joinIndexIntervals(sourceRule ? sourceRule.intervalLabel : '', formatLimitInterval(segment.start || '', segment.end || ''))
+      };
+    });
+  }
+
   function normalizeIndexSegment(segment, fallbackKind){
     const base = segment || {};
     const kind = fallbackKind === 'juros' ? 'juros' : 'correcao';
@@ -251,6 +272,7 @@
       ? window.CPBCBRates.describeSourceRule(coluna && coluna.indexSource)
       : null;
     const noOverlap = !!(coluna && coluna.__lastNoOverlap);
+    const compositionDetails = describeIndexCompositionDetails(coluna);
     return {
       name: String(coluna && coluna.nome || 'Índice'),
       columnRef: String(columnRef || ''),
@@ -262,7 +284,8 @@
       formulaLabel: sourceRule ? sourceRule.formulaLabel : '—',
       intervalLabel: sourceRule ? sourceRule.intervalLabel : '',
       finalFactorLabel: formatIndexFactor(Number(coluna && coluna.__lastFactor || 1)),
-      overlapLabel: (noOverlap && hasLimit) ? 'Sem incidência no período atual (limite fora da competência/data de atualização).' : ''
+      overlapLabel: (noOverlap && hasLimit) ? 'Sem incidência no período atual (limite fora da competência/data de atualização).' : '',
+      compositionDetails: compositionDetails
     };
   }
 
@@ -1549,6 +1572,11 @@
       }).join('');
       const hasIndexColumn = (lancamento.colunas || []).some(function(coluna){ return coluna && coluna.tipo === 'indice'; });
       const indexSummaryRows = view.indexSummary.map(function(summary){
+        const compositionRows = Array.isArray(summary.compositionDetails) && summary.compositionDetails.length > 1
+          ? summary.compositionDetails.map(function(item){
+              return '<span>Faixa ' + item.position + ': Fonte: ' + esc(item.sourceLabel) + ' • Série: ' + esc(item.seriesLabel) + ' • Unidade: ' + esc(item.unitLabel) + ' • Fórmula: ' + esc(item.formulaLabel) + ' • Intervalo: ' + esc(item.intervalLabel) + '</span>';
+            }).join('')
+          : '';
         return '' +
           '<div class="index-summary-row">' +
             '<strong>' + esc(summary.name) + '</strong>' +
@@ -1559,6 +1587,7 @@
             '<span>Fórmula: ' + esc(summary.formulaLabel) + '</span>' +
             '<span>Intervalo: ' + esc(joinIndexIntervals(summary.intervalLabel, summary.limitLabel)) + '</span>' +
             '<span>Fator final: ' + esc(summary.finalFactorLabel) + '</span>' +
+            compositionRows +
             (summary.overlapLabel ? '<span style="color:#b54708">' + esc(summary.overlapLabel) + '</span>' : '') +
           '</div>';
       }).join('');
@@ -2183,11 +2212,17 @@
       data.lancamentos.forEach(function(lancamento){
         const view = mapLaunchForView(lancamento, -1);
         const indexSummaryRows = view.indexSummary.map(function(summary){
+          const compositionRows = Array.isArray(summary.compositionDetails) && summary.compositionDetails.length > 1
+            ? summary.compositionDetails.map(function(item){
+                return '<div class="report-index-summary-subrow">Faixa ' + item.position + ': Fonte: ' + esc(item.sourceLabel) + ' • Série: ' + esc(item.seriesLabel) + ' • Unidade: ' + esc(item.unitLabel) + ' • Fórmula: ' + esc(item.formulaLabel) + ' • Intervalo: ' + esc(item.intervalLabel) + '</div>';
+              }).join('')
+            : '';
           return '' +
             '<div class="report-index-summary-row">' +
               '<b>' + esc(summary.name) + '</b>' +
               (summary.columnRef ? '  Coluna: ' + esc(summary.columnRef) + '  ' : '  ') +
               'Fonte: ' + esc(summary.sourceLabel) + ' • Série: ' + esc(summary.seriesLabel) + ' • Unidade: ' + esc(summary.unitLabel) + ' • Fórmula: ' + esc(summary.formulaLabel) + ' • Intervalo: ' + esc(joinIndexIntervals(summary.intervalLabel, summary.limitLabel)) + ' • Fator final: ' + esc(summary.finalFactorLabel) +
+              compositionRows +
               '</div>';
         }).join('');
         const headers = ['Data'].concat(view.columns.map(function(coluna){ return coluna.title; }));
