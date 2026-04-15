@@ -1832,6 +1832,7 @@
     const payloadByColumnId = {};
     try {
       const indexColumns = getIndexColumns(lancamento);
+      const summaryByColumnId = {};
       for (let idx = 0; idx < indexColumns.length; idx += 1){
         const coluna = indexColumns[idx];
         const composition = getIndexComposition(coluna);
@@ -1854,11 +1855,7 @@
         coluna.__lastNoOverlap = false;
         coluna.__lastSegmentFactors = [];
         coluna.__summarySegmentFactors = [];
-        const summaryCalc = factorForIndexComposition(composition, payloadBySource, lancamento.dataInicial, dataAtualizacao, { factorLookupMode: 'range_product' });
-        coluna.__summaryFactor = Number(summaryCalc.factor.toFixed(7));
-        coluna.__summarySegmentFactors = (summaryCalc.segmentDetails || []).map(function(item){
-          return { position: item.position, factor: Number(Number(item.factor || 1).toFixed(7)), hasOverlap: !!item.hasOverlap };
-        });
+        summaryByColumnId[coluna.id] = { maxFactor: 1, byPosition: new Map() };
       }
       lancamento.linhas.forEach(function(linha){
         const mesCompetencia = monthKeyFromPeriodo(linha.periodo);
@@ -1880,13 +1877,24 @@
             const prev = coluna.__segmentFactorByPosition.get(position);
             if (!prev || factor > prev.factor) coluna.__segmentFactorByPosition.set(position, { position: position, factor: factor, hasOverlap: hasOverlap });
           });
+          const summary = summaryByColumnId[coluna.id];
+          if (summary) {
+            if (linha[coluna.id] > summary.maxFactor) summary.maxFactor = linha[coluna.id];
+            (calculation.segmentDetails || []).forEach(function(item){
+              const position = Number(item.position);
+              const factor = Number(Number(item.factor || 1).toFixed(7));
+              const hasOverlap = !!item.hasOverlap;
+              const previous = summary.byPosition.get(position);
+              if (!previous || factor > previous.factor) summary.byPosition.set(position, { position: position, factor: factor, hasOverlap: hasOverlap });
+            });
+          }
         });
       });
       indexColumns.forEach(function(coluna){
-        if (coluna && coluna.__segmentFactorByPosition instanceof Map) {
-          coluna.__lastSegmentFactors = Array.from(coluna.__segmentFactorByPosition.values()).sort(function(a, b){ return a.position - b.position; });
-          delete coluna.__segmentFactorByPosition;
-        }
+        const summary = summaryByColumnId[coluna.id];
+        if (!summary) return;
+        coluna.__summaryFactor = Number(Number(summary.maxFactor || 1).toFixed(7));
+        coluna.__summarySegmentFactors = Array.from(summary.byPosition.values()).sort(function(a, b){ return a.position - b.position; });
       });
       config.lastAutoRefresh = new Date().toISOString();
       lancamento.indexConfig = config;
