@@ -526,6 +526,28 @@
   function makeIndexPayload(path, monthlyRates, dailyRates, dailySeriesCode){ return { calculationPath: path || 'monthly', monthlyRates: Array.isArray(monthlyRates) ? monthlyRates : [], dailyRates: Array.isArray(dailyRates) ? dailyRates : [], dailySeriesCode: dailySeriesCode || null }; }
   async function loadAutoIndices(sourceType, startDate, endDate){
     if (!startDate || !endDate || sourceType === 'none') return makeIndexPayload('monthly', []);
+    if (isCustomIndexSource(sourceType)) {
+      const tableId = getCustomIndexTableIdFromSource(sourceType);
+      const table = (Array.isArray(state.indexTables) ? state.indexTables : []).find(function(item){
+        return item && item.id === tableId;
+      });
+      const startMonth = monthKeyFromISO(startDate);
+      const endMonth = monthKeyFromISO(endDate);
+      const monthlyRates = Array.isArray(table && table.entries)
+        ? table.entries
+          .map(function(entry){
+            return {
+              month: normalizeMonthKey(entry && entry.month),
+              value: Number(entry && entry.value)
+            };
+          })
+          .filter(function(entry){
+            return entry.month && Number.isFinite(entry.value) && (!startMonth || entry.month >= startMonth) && (!endMonth || entry.month <= endMonth);
+          })
+          .sort(compareMonth)
+        : [];
+      return makeIndexPayload('monthly', monthlyRates);
+    }
     if (sourceType === 'ipca') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(433, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth));
     if (sourceType === 'ipcae') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(10764, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth));
     if (sourceType === 'inpc') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(188, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth));
