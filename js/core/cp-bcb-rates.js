@@ -21,7 +21,8 @@
     '4389': Object.freeze({ unitType: UNIT_ANNUAL_PERCENT_BASE_252, unitLabel: '% a.a. base 252', label: 'CDI anualizado base 252 (% a.a., SGS 4389)', formulaLabel: 'taxa_dia = (1 + v/100)^(1/252) - 1' }),
     '7478': Object.freeze({ unitType: UNIT_MONTHLY_PERCENT, unitLabel: '% a.m.', label: 'IPCA-15 mensal (SGS 7478)', formulaLabel: 'taxa_mês = v/100' }),
     '7811': Object.freeze({ unitType: UNIT_MONTHLY_PERCENT, unitLabel: '% a.m.', label: 'TR mensal (SGS 7811)', formulaLabel: 'taxa_mês = v/100' }),
-    '10764': Object.freeze({ unitType: UNIT_MONTHLY_PERCENT, unitLabel: '% a.m.', label: 'IPCA-E mensal (SGS 10764)', formulaLabel: 'taxa_mês = v/100' })
+    '10764': Object.freeze({ unitType: UNIT_MONTHLY_PERCENT, unitLabel: '% a.m.', label: 'IPCA-E mensal (SGS 10764)', formulaLabel: 'taxa_mês = v/100' }),
+    '29543': Object.freeze({ unitType: UNIT_MONTHLY_PERCENT, unitLabel: '% a.m.', label: 'Taxa Legal mensal (SGS 29543)', formulaLabel: 'taxa_mês = v/100' })
   });
 
   var sourceMeta = Object.freeze({
@@ -33,7 +34,7 @@
     tr: Object.freeze({ seriesCodes: ['7811'], ruleLabel: 'Mensal composta por competência', intervalLabel: 'Competência até data final' }),
     cdi: Object.freeze({ seriesCodes: ['4389'], ruleLabel: 'Composição diária exata', intervalLabel: 'Intervalo fechado [início, fim]' }),
     selic: Object.freeze({ seriesCodes: ['11'], ruleLabel: 'Composição diária exata', intervalLabel: 'Intervalo fechado [início, fim]' }),
-    taxa_legal: Object.freeze({ seriesCodes: ['11', '7478'], ruleLabel: 'max(Selic mês base - IPCA-15 mês base, 0), aplicado no mês seguinte', intervalLabel: 'Competência limitada por coluna' }),
+    taxa_legal: Object.freeze({ seriesCodes: ['29543'], ruleLabel: 'Série oficial mensal divulgada pelo BCB conforme Resolução CMN 5.171/2024', intervalLabel: 'Competência limitada por coluna' }),
     ec113_2021: Object.freeze({ seriesCodes: ['10764', '11'], ruleLabel: 'IPCA-E até 11/2021 e Selic a partir de 12/2021', intervalLabel: 'Competência limitada por coluna' }),
     poupanca_auto: Object.freeze({ seriesCodes: ['7811', '432'], ruleLabel: 'TR + adicional da poupança', intervalLabel: 'Competência até data final' }),
     jam_auto: Object.freeze({ seriesCodes: ['7811'], ruleLabel: 'TR + 0,25% a.m.', intervalLabel: 'Competência até data final' })
