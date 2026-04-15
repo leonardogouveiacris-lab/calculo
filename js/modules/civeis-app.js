@@ -138,8 +138,6 @@
       '<div id="modalIndexSegments" style="display:grid;gap:8px;margin-top:8px"></div>' +
       '<div class="btn-row" style="margin-top:8px">' +
         '<button type="button" class="btn btn-ghost" id="btnAddModalIndexSegment">Adicionar tabela por período</button>' +
-        '<button type="button" class="btn btn-ghost" id="btnExportIndexTemplateModal">Exportar modelo CSV</button>' +
-        '<button type="button" class="btn btn-ghost" id="btnImportIndexTableModal">Importar tabela CSV</button>' +
       '</div>' +
       '<div class="formula-help">Defina fonte e limites opcionais para acumular o fator do índice.</div>';
     modalBody.appendChild(wrap);
@@ -384,8 +382,9 @@
       entries.forEach(function(entry){
         const month = normalizeMonthKey(entry.month || entry.competencia);
         const value = Number(entry.value);
+        const mode = String(entry.mode || entry.valueMode || 'percent').trim().toLowerCase() === 'factor' ? 'factor' : 'percent';
         if (!month || !Number.isFinite(value)) return;
-        existing.entriesByMonth.set(month, value);
+        existing.entriesByMonth.set(month, { value: value, mode: mode });
       });
       grouped.set(normalizedId, existing);
     });
@@ -394,7 +393,12 @@
         id: item.id,
         name: item.name,
         entries: Array.from(item.entriesByMonth.entries()).map(function(entry){
-          return { month: entry[0], value: Number(entry[1]) };
+          const payload = entry[1] && typeof entry[1] === 'object' ? entry[1] : { value: entry[1], mode: 'percent' };
+          return {
+            month: entry[0],
+            value: Number(payload.value),
+            mode: String(payload.mode || 'percent').trim().toLowerCase() === 'factor' ? 'factor' : 'percent'
+          };
         }).sort(function(a, b){ return compareMonth(a.month, b.month); })
       };
     }).filter(function(item){ return item.entries.length > 0; });
@@ -526,6 +530,35 @@
   function makeIndexPayload(path, monthlyRates, dailyRates, dailySeriesCode){ return { calculationPath: path || 'monthly', monthlyRates: Array.isArray(monthlyRates) ? monthlyRates : [], dailyRates: Array.isArray(dailyRates) ? dailyRates : [], dailySeriesCode: dailySeriesCode || null }; }
   async function loadAutoIndices(sourceType, startDate, endDate){
     if (!startDate || !endDate || sourceType === 'none') return makeIndexPayload('monthly', []);
+    if (isCustomIndexSource(sourceType)) {
+      const tableId = getCustomIndexTableIdFromSource(sourceType);
+      const table = (Array.isArray(state.indexTables) ? state.indexTables : []).find(function(item){
+        return item && item.id === tableId;
+      });
+      const startMonth = monthKeyFromISO(startDate);
+      const endMonth = monthKeyFromISO(endDate);
+      const normalizedEntries = Array.isArray(table && table.entries)
+        ? table.entries
+          .map(function(entry){
+            return {
+              month: normalizeMonthKey(entry && entry.month),
+              value: Number(entry && entry.value),
+              mode: String(entry && (entry.mode || entry.valueMode) || 'percent').trim().toLowerCase() === 'factor' ? 'factor' : 'percent'
+            };
+          })
+          .filter(function(entry){
+            return entry.month && Number.isFinite(entry.value) && (!startMonth || entry.month >= startMonth) && (!endMonth || entry.month <= endMonth);
+          })
+          .sort(compareMonth)
+        : [];
+      const hasFactorRows = normalizedEntries.some(function(entry){ return entry.mode === 'factor'; });
+      if (hasFactorRows) {
+        return makeIndexPayload('monthly_factor_lookup', normalizedEntries.map(function(entry){
+          return { month: entry.month, value: entry.mode === 'factor' ? entry.value : (1 + entry.value / 100) };
+        }));
+      }
+      return makeIndexPayload('monthly', normalizedEntries.map(function(entry){ return { month: entry.month, value: entry.value }; }));
+    }
     if (sourceType === 'ipca') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(433, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth));
     if (sourceType === 'ipcae') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(10764, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth));
     if (sourceType === 'inpc') return makeIndexPayload('monthly', Array.from(monthlyMapFromBCB(await fetchSeries(188, startDate, endDate)).entries()).map(function(entry){ return { month: entry[0], value: entry[1] }; }).sort(compareMonth));
@@ -1748,6 +1781,15 @@
         segmentDetails.push({ position: idx + 1, factor: factorDaily, hasOverlap: true });
         continue;
       }
+      if (payload.calculationPath === 'monthly_factor_lookup'){
+        const monthMapFactor = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; }));
+        const targetMonth = monthKeyFromISO(effectivePeriod.startISO);
+        const configuredFactor = Number(monthMapFactor.get(targetMonth));
+        const factorFromTable = Number.isFinite(configuredFactor) && configuredFactor > 0 ? configuredFactor : 1;
+        totalFactor *= factorFromTable;
+        segmentDetails.push({ position: idx + 1, factor: factorFromTable, hasOverlap: true });
+        continue;
+      }
       const monthMap = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; }));
       const startMonth = monthKeyFromISO(effectivePeriod.startISO);
       const endMonth = monthKeyFromISO(effectivePeriod.endISO);
@@ -1795,6 +1837,7 @@
         coluna.__lastFactor = 1;
         coluna.__lastNoOverlap = false;
         coluna.__lastSegmentFactors = [];
+        coluna.__segmentFactorByPosition = new Map();
       }
       lancamento.linhas.forEach(function(linha){
         const mesCompetencia = monthKeyFromPeriodo(linha.periodo);
@@ -1808,11 +1851,21 @@
           const calculation = factorForIndexComposition(composition, payloadBySource, requestedStartISOForColumn(coluna, inicioCompetenciaISO), dataAtualizacao);
           coluna.__lastNoOverlap = !calculation.hasOverlap;
           linha[coluna.id] = Number(calculation.factor.toFixed(7));
-          coluna.__lastFactor = linha[coluna.id];
-          coluna.__lastSegmentFactors = (calculation.segmentDetails || []).map(function(item){
-            return { position: item.position, factor: Number(Number(item.factor || 1).toFixed(7)), hasOverlap: !!item.hasOverlap };
+          coluna.__lastFactor = Math.max(Number(coluna.__lastFactor || 1), linha[coluna.id]);
+          (calculation.segmentDetails || []).forEach(function(item){
+            const position = Number(item.position);
+            const factor = Number(Number(item.factor || 1).toFixed(7));
+            const hasOverlap = !!item.hasOverlap;
+            const prev = coluna.__segmentFactorByPosition.get(position);
+            if (!prev || factor > prev.factor) coluna.__segmentFactorByPosition.set(position, { position: position, factor: factor, hasOverlap: hasOverlap });
           });
         });
+      });
+      indexColumns.forEach(function(coluna){
+        if (coluna && coluna.__segmentFactorByPosition instanceof Map) {
+          coluna.__lastSegmentFactors = Array.from(coluna.__segmentFactorByPosition.values()).sort(function(a, b){ return a.position - b.position; });
+          delete coluna.__segmentFactorByPosition;
+        }
       });
       config.lastAutoRefresh = new Date().toISOString();
       lancamento.indexConfig = config;
@@ -1949,14 +2002,12 @@
     const honorariosValorBase = honorariosConfig.enabled ? roundMoney(honorariosBase * (honorariosConfig.percentual / 100)) : 0;
     const honorariosValor = honorariosConfig.enabled ? roundMoney(honorariosValorBase * honorariosConfig.multiplicador) : 0;
     const custasItems = (Array.isArray(source.custas) ? source.custas : state.custas).map(normalizeCusta);
-    const rows = launchItems.map(function(item){
+      const rows = launchItems.map(function(item){
       return {
         kind: 'verba',
         id: item.id,
         verba: item.verba,
-        note: item.hasCustomSummaryMapping
-          ? 'Resumo com colunas configuradas no modal da coluna (Correção/Juros).'
-          : '',
+        note: '',
         valorCorrigido: item.valorCorrigido,
         juros: item.juros,
         valorDevido: item.valorDevido
@@ -2950,7 +3001,9 @@
           throw new Error('Cabeçalho inválido. Use o modelo CSV de tabelas de índices.');
         }
         const grouped = new Map((state.indexTables || []).map(function(table){
-          return [table.id, { id: table.id, name: table.name, entriesByMonth: new Map((table.entries || []).map(function(entry){ return [entry.month, Number(entry.value) || 0]; })) }];
+          return [table.id, { id: table.id, name: table.name, entriesByMonth: new Map((table.entries || []).map(function(entry){
+            return [entry.month, { value: Number(entry.value) || 0, mode: String(entry.mode || entry.valueMode || 'percent').trim().toLowerCase() === 'factor' ? 'factor' : 'percent' }];
+          })) }];
         }));
         let importedRows = 0;
         rows.slice(1).forEach(function(cols){
@@ -2962,12 +3015,15 @@
           const percentRaw = idxPercent >= 0 ? cols[idxPercent] : '';
           const factorValue = parseBRNumber(factorRaw);
           const percentValue = parseBRNumber(percentRaw);
-          let monthlyPercent = Number.isFinite(percentValue) && String(percentRaw || '').trim() !== '' ? percentValue : null;
-          if (monthlyPercent == null && Number.isFinite(factorValue) && String(factorRaw || '').trim() !== '') monthlyPercent = (factorValue - 1) * 100;
-          if (!Number.isFinite(monthlyPercent)) return;
+          const hasFactor = String(factorRaw || '').trim() !== '' && Number.isFinite(factorValue);
+          const hasPercent = String(percentRaw || '').trim() !== '' && Number.isFinite(percentValue);
+          if (!hasFactor && !hasPercent) return;
+          const importedEntry = hasFactor
+            ? { value: Number(factorValue), mode: 'factor' }
+            : { value: Number(percentValue), mode: 'percent' };
           const current = grouped.get(tableId) || { id: tableId, name: tableName, entriesByMonth: new Map() };
           current.name = tableName;
-          current.entriesByMonth.set(month, Number(monthlyPercent));
+          current.entriesByMonth.set(month, importedEntry);
           grouped.set(tableId, current);
           importedRows += 1;
         });
@@ -2977,7 +3033,12 @@
             id: item.id,
             name: item.name,
             entries: Array.from(item.entriesByMonth.entries()).map(function(entry){
-              return { month: entry[0], value: Number(entry[1]) };
+              const payload = entry[1] && typeof entry[1] === 'object' ? entry[1] : { value: entry[1], mode: 'percent' };
+              return {
+                month: entry[0],
+                value: Number(payload.value),
+                mode: String(payload.mode || 'percent').trim().toLowerCase() === 'factor' ? 'factor' : 'percent'
+              };
             }).sort(function(a, b){ return compareMonth(a.month, b.month); })
           };
         }).sort(function(a, b){ return String(a.name || '').localeCompare(String(b.name || '')); });
