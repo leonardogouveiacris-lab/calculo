@@ -142,46 +142,19 @@ textarea{min-height:92px;resize:vertical}
             <div class="summary-panel-headrow">
               <div>
                 <h3 class="summary-panel-title">Honorários</h3>
-                <div class="summary-help">Configuração, base de cálculo e resultado em blocos mais compactos.</div>
+                <div class="summary-help">Cadastre múltiplos honorários (percentual ou valor fixo corrigido) e veja cada item separado no resumo.</div>
               </div>
+              <button class="btn" id="btnAddHonorario" type="button">Adicionar honorário</button>
             </div>
             <div class="summary-block-stack">
               <section class="summary-block">
                 <div class="summary-block-head">
                   <div>
-                    <h4 class="summary-block-title">Configuração dos honorários</h4>
-                    <div class="summary-help">Defina a descrição, o percentual e o multiplicador aplicados sobre a base selecionada.</div>
+                    <h4 class="summary-block-title">Lançamentos de honorários</h4>
+                    <div class="summary-help">Você pode incluir honorários por percentual (com base nas verbas) e por valor fixo (com data, índice e correção).</div>
                   </div>
                 </div>
-                <div class="row summary-config-row">
-                  <div class="col-4 summary-toggle-col">
-                    <label class="check-inline" for="honorariosEnabled"><input id="honorariosEnabled" type="checkbox"> Incluir honorários</label>
-                  </div>
-                  <div class="col-4"><label for="honorariosDescricao">Descrição</label><input id="honorariosDescricao" type="text" placeholder="Ex.: Honorários sucumbenciais"></div>
-                  <div class="col-4"><label for="honorariosPercentual">Percentual (%)</label><input id="honorariosPercentual" type="text" inputmode="decimal" placeholder="10,00"></div>
-                  <div class="col-4"><label for="honorariosMultiplicador">Multiplicador</label><input id="honorariosMultiplicador" type="text" inputmode="decimal" placeholder="Ex.: 2 ou 0,20"></div>
-                </div>
-              </section>
-              <section class="summary-block">
-                <div class="summary-block-head">
-                  <div>
-                    <h4 class="summary-block-title">Verbas que compõem a base</h4>
-                    <div class="summary-help">Seleção recolhível com filtro para localizar verbas rapidamente.</div>
-                  </div>
-                  <button class="btn" id="btnToggleHonorariosSelector" type="button">Selecionar verbas</button>
-                </div>
-                <div id="honorariosSelectedHost" class="summary-chiplist"></div>
-                <div id="honorariosSelectorPanel" class="summary-picker-panel is-collapsed">
-                  <div class="summary-picker-toolbar">
-                    <label for="honorariosSearch">Filtrar verbas</label>
-                    <input id="honorariosSearch" type="text" placeholder="Digite o nome da verba para localizar mais rápido">
-                  </div>
-                  <div class="summary-mini-actions">
-                    <button class="btn" id="btnHonorariosSelectAll" type="button">Selecionar todas as verbas</button>
-                    <button class="btn btn-ghost" id="btnHonorariosClear" type="button">Limpar seleção</button>
-                  </div>
-                  <div id="honorariosLaunchesHost" class="summary-checklist"></div>
-                </div>
+                <div id="honorariosHost" class="custas-list"></div>
               </section>
               <section class="summary-block">
                 <div class="summary-block-head">
