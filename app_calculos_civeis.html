@@ -99,6 +99,10 @@ textarea{min-height:92px;resize:vertical}
 .index-source-actions{display:inline-flex;align-items:center;gap:6px}
 .btn-subtle{border:none;background:transparent;box-shadow:none;color:#667085;padding:2px 4px;font-size:11px;line-height:1.2;text-decoration:underline;text-underline-offset:2px}
 .btn-subtle:hover{color:#1f2937;background:transparent;box-shadow:none}
+.summary-table{table-layout:fixed}
+.summary-table tbody td:first-child,.summary-table thead th:first-child,.summary-table tfoot td:first-child{min-width:0;max-width:52%;white-space:normal;word-break:break-word}
+.summary-table tfoot td{vertical-align:top;line-height:1.35}
+.summary-row-separate td{font-weight:600;color:#475467;background:#fcfdff}
 .print-only{display:none}
 </style><script src="js/core/cp-common.js"></script><script src="js/core/cp-bcb-rates.js"></script><script src="js/core/print-layout.js"></script></head><body>
 <header class="topbar no-print" id="hdrTopbar"><div class="topbar-inner" id="hdrTopbarInner"><div class="brand" id="hdrBrand"><img class="brand-logo" data-logo="1" src="https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png" alt="CalculoPro"/></div><div class="actions" id="hdrActions"><button class="btn" id="btnBack" type="button">Voltar ao menu</button></div></div><div class="hintbar" id="hdrHintbar"><div class="hintbar-inner" id="hdrHintbarInner"><div class="hint">Módulo inicial do cálculo cível com separação entre dados e relatório, além da lógica inicial de lançamentos por verba.</div></div></div></header>
@@ -270,7 +274,7 @@ textarea{min-height:92px;resize:vertical}
       <div id="formulaFieldWrap" style="display:none">
         <label for="modalColumnFormula">Fórmula</label>
         <input id="modalColumnFormula" type="text" placeholder="Ex.: (B+C) ou (BxD)">
-        <div class="formula-help">Use as letras das colunas já existentes no lançamento. A = Data. B = Valor. As próximas colunas seguem C, D, E... Exemplos: (B+C), (BxD), (B+C-D) e ((B+C)*D).</div>
+        <div class="formula-help">Use as letras das colunas já existentes no lançamento. A = Data. B = Valor. As próximas colunas seguem C, D, E... Exemplos: (B+C), (BxD), (B+C-D) e ((B+C)*D). Para datas, subtraia duas colunas de data (ex.: D-C) para obter a quantidade de dias.</div>
       </div>
       <label for="modalColumnSummaryRole">Resumo</label>
       <select id="modalColumnSummaryRole" class="select">
@@ -303,7 +307,7 @@ textarea{min-height:92px;resize:vertical}
       <div id="editFormulaFieldWrap" style="display:none">
         <label for="editModalColumnFormula">Fórmula</label>
         <input id="editModalColumnFormula" type="text" placeholder="Ex.: (B+C) ou (BxD)">
-        <div class="formula-help">Use as letras das colunas já existentes no lançamento. A = Data. B = Valor. As próximas colunas seguem C, D, E...</div>
+        <div class="formula-help">Use as letras das colunas já existentes no lançamento. A = Data. B = Valor. As próximas colunas seguem C, D, E... Para datas, subtraia duas colunas de data (ex.: D-C) para obter a quantidade de dias.</div>
       </div>
       <div id="editIndexFieldWrap" style="display:none">
         <div class="index-source-head">
@@ -362,6 +366,37 @@ textarea{min-height:92px;resize:vertical}
     <div class="modal-actions">
       <button type="button" class="btn btn-ghost" id="btnCancelEditLaunchModal">Cancelar</button>
       <button type="button" class="btn-primary" id="btnSaveEditLaunchModal">Salvar lançamento</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop no-print" id="editHonorarioModal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editHonorarioModalTitle">
+    <div class="modal-head">
+      <div>
+        <h3 class="modal-title" id="editHonorarioModalTitle">Editar honorário</h3>
+        <p class="modal-sub">Ajuste o tipo, a separação no resumo e remova o honorário quando necessário.</p>
+      </div>
+      <button type="button" class="modal-close" id="btnCloseEditHonorarioModal" aria-label="Fechar">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editHonorarioId">
+      <label for="editHonorarioTipo">Tipo</label>
+      <select id="editHonorarioTipo" class="select">
+        <option value="percentual">Percentual</option>
+        <option value="fixo">Valor fixo</option>
+      </select>
+      <label class="check-inline" style="margin-top:12px">
+        <input type="checkbox" id="editHonorarioSeparate">
+        Separar no resumo
+      </label>
+    </div>
+    <div class="modal-actions" style="justify-content:space-between">
+      <button type="button" class="btn btn-danger" id="btnDeleteHonorarioModal">Remover honorário</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button type="button" class="btn btn-ghost" id="btnCancelEditHonorarioModal">Cancelar</button>
+        <button type="button" class="btn-primary" id="btnSaveEditHonorarioModal">Salvar alterações</button>
+      </div>
     </div>
   </div>
 </div>
