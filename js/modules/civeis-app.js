@@ -1830,6 +1830,7 @@
     }
     let indicesAtualizados = false;
     const payloadByColumnId = {};
+    let sourceLoadWarnings = 0;
     try {
       const indexColumns = getIndexColumns(lancamento);
       const summaryByColumnId = {};
@@ -1846,7 +1847,21 @@
           const segment = composition[segIdx];
           const source = segment.source || defaultIndexSourceByKind(coluna.indexKind);
           if (payloadBySource.has(source)) continue;
-          const payload = await loadAutoIndices(source, fetchStart, dataAtualizacao);
+          let payload;
+          try {
+            payload = await loadAutoIndices(source, fetchStart, dataAtualizacao);
+          } catch (sourceError) {
+            sourceLoadWarnings += 1;
+            console.error('Falha ao carregar fonte de índice. Aplicando fallback neutro para seguir cálculo.', {
+              source: source,
+              launchIndex: launchIndex,
+              lancamentoId: lancamento && lancamento.id,
+              columnId: coluna && coluna.id,
+              error: sourceError,
+              stack: sourceError && sourceError.stack
+            });
+            payload = makeIndexPayload('monthly', []);
+          }
           payloadBySource.set(source, payload);
         }
         payloadByColumnId[coluna.id] = payloadBySource;
@@ -1913,6 +1928,9 @@
       setIndexLoading(launchIndex, false);
     }
     if (indicesAtualizados){
+      if (sourceLoadWarnings > 0) {
+        alert('Índices atualizados com aviso: ' + String(sourceLoadWarnings) + ' fonte(s) retornaram erro e foram tratadas com fator neutro.');
+      }
       persistAndRefresh({
         reportErrorMessage: 'Índices atualizados, mas houve erro ao renderizar o relatório.',
         reportErrorContext: {
