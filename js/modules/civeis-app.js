@@ -60,18 +60,9 @@
   const editLaunchSummaryValorCorrigido = $('editLaunchSummaryValorCorrigido');
   const editLaunchSummaryJuros = $('editLaunchSummaryJuros');
   const editLaunchObservacao = $('editLaunchObservacao');
-  const honorariosEnabled = $('honorariosEnabled');
-  const honorariosDescricao = $('honorariosDescricao');
-  const honorariosPercentual = $('honorariosPercentual');
-  const honorariosMultiplicador = $('honorariosMultiplicador');
-  const btnToggleHonorariosSelector = $('btnToggleHonorariosSelector');
-  const honorariosSelectorPanel = $('honorariosSelectorPanel');
-  const honorariosSelectedHost = $('honorariosSelectedHost');
-  const honorariosSearch = $('honorariosSearch');
-  const honorariosLaunchesHost = $('honorariosLaunchesHost');
+  const btnAddHonorario = $('btnAddHonorario');
+  const honorariosHost = $('honorariosHost');
   const honorariosResumo = $('honorariosResumo');
-  const btnHonorariosSelectAll = $('btnHonorariosSelectAll');
-  const btnHonorariosClear = $('btnHonorariosClear');
   const custasHost = $('custasHost');
   const custasResumo = $('custasResumo');
   const btnAddCusta = $('btnAddCusta');
@@ -110,8 +101,6 @@
     { id:'valor_devido', nome:'Valor Devido', tipo:'formula', formato:'moeda', formula:'', includeInSummary:true }
   ]);
   let state = { lancamentos: [], lancamentoSelecionadoId: '', honorarios: defaultHonorariosConfig(), custas: [], indexTables: [] };
-  let honorariosSelectorOpen = false;
-  let honorariosSearchTerm = '';
 
   (function ensureIndexColumnModalFields(){
     if (!columnModal || $('indexFieldWrap')) return;
@@ -648,19 +637,51 @@
     return Number(parseBRNumber(value).toFixed(2));
   }
 
+  function defaultHonorarioItem(){
+    return {
+      id: uid('honorario'),
+      enabled: false,
+      descricao: 'Honorários',
+      tipo: 'percentual',
+      percentual: 10,
+      multiplicador: 1,
+      launchIds: [],
+      valorFixo: 0,
+      dataBase: '',
+      indexSource: 'none',
+      fatorCorrecao: 1
+    };
+  }
+
+  function normalizeHonorarioItem(item){
+    const base = Object.assign(defaultHonorarioItem(), item || {});
+    const tipo = base.tipo === 'fixo' ? 'fixo' : 'percentual';
+    return {
+      id: String(base.id || uid('honorario')),
+      enabled: !!base.enabled,
+      descricao: String(base.descricao || 'Honorários').trim() || 'Honorários',
+      tipo: tipo,
+      percentual: parseBRNumber(base.percentual || 0),
+      multiplicador: parseBRNumber(base.multiplicador || 1) || 1,
+      launchIds: Array.isArray(base.launchIds) ? base.launchIds.map(String).filter(Boolean) : [],
+      valorFixo: roundMoney(base.valorFixo || 0),
+      dataBase: String(base.dataBase || ''),
+      indexSource: String(base.indexSource || 'none'),
+      fatorCorrecao: Number.isFinite(Number(base.fatorCorrecao)) && Number(base.fatorCorrecao) > 0 ? Number(base.fatorCorrecao) : 1
+    };
+  }
+
   function defaultHonorariosConfig(){
-    return { enabled:false, descricao:'Honorários', percentual:10, multiplicador:1, launchIds:[] };
+    return { items: [normalizeHonorarioItem({ enabled:false, descricao:'Honorários', tipo:'percentual', percentual:10, multiplicador:1, launchIds:[] })] };
   }
 
   function normalizeHonorarios(config){
-    const base = Object.assign(defaultHonorariosConfig(), config || {});
-    return {
-      enabled: !!base.enabled,
-      descricao: String(base.descricao || 'Honorários').trim() || 'Honorários',
-      percentual: parseBRNumber(base.percentual || 0),
-      multiplicador: parseBRNumber(base.multiplicador || 1) || 1,
-      launchIds: Array.isArray(base.launchIds) ? base.launchIds.map(String).filter(Boolean) : []
-    };
+    const source = config || {};
+    const legacyShape = Object.prototype.hasOwnProperty.call(source, 'enabled') || Object.prototype.hasOwnProperty.call(source, 'percentual');
+    const items = legacyShape
+      ? [normalizeHonorarioItem(source)]
+      : (Array.isArray(source.items) ? source.items.map(normalizeHonorarioItem) : []);
+    return { items: items.length ? items : defaultHonorariosConfig().items.slice() };
   }
 
   function normalizeCusta(item){
@@ -677,16 +698,23 @@
     state.lancamentos.forEach(normalizeSummaryMapping);
     state.honorarios = normalizeHonorarios(state.honorarios);
     const validLaunchIds = new Set((state.lancamentos || []).map(function(lancamento){ return String(lancamento.id || ''); }).filter(Boolean));
-    state.honorarios.launchIds = state.honorarios.launchIds.filter(function(id){ return validLaunchIds.has(String(id)); });
+    state.honorarios.items = (state.honorarios.items || []).map(function(item){
+      const normalized = normalizeHonorarioItem(item);
+      normalized.launchIds = normalized.launchIds.filter(function(id){ return validLaunchIds.has(String(id)); });
+      return normalized;
+    });
     state.custas = Array.isArray(state.custas) ? state.custas.map(normalizeCusta) : [];
   }
 
   function ensureHonorariosDefaultSelection(){
     state.honorarios = normalizeHonorarios(state.honorarios);
-    if (!state.honorarios.enabled) return;
-    if (state.honorarios.launchIds.length) return;
     if (!(state.lancamentos || []).length) return;
-    state.honorarios.launchIds = state.lancamentos.map(function(lancamento){ return lancamento.id; });
+    state.honorarios.items = state.honorarios.items.map(function(item){
+      const normalized = normalizeHonorarioItem(item);
+      if (!normalized.enabled || normalized.tipo !== 'percentual' || normalized.launchIds.length) return normalized;
+      normalized.launchIds = state.lancamentos.map(function(lancamento){ return lancamento.id; });
+      return normalized;
+    });
   }
 
   function launchNeedsIndexRefresh(lancamento){
@@ -2042,14 +2070,35 @@
   function buildCalculationSummary(data){
     const source = data || {};
     const launchItems = (Array.isArray(source.lancamentos) ? source.lancamentos : state.lancamentos).map(buildLaunchSummary);
-    const honorariosConfig = normalizeHonorarios(source.honorarios || state.honorarios);
+    const honorariosState = normalizeHonorarios(source.honorarios || state.honorarios);
     const validLaunchIds = new Set(launchItems.map(function(item){ return item.id; }));
-    honorariosConfig.launchIds = honorariosConfig.launchIds.filter(function(id){ return validLaunchIds.has(String(id)); });
-    const selectedSet = new Set(honorariosConfig.launchIds);
-    const selectedLaunches = launchItems.filter(function(item){ return selectedSet.has(item.id); });
-    const honorariosBase = roundMoney(selectedLaunches.reduce(function(total, item){ return total + item.valorDevido; }, 0));
-    const honorariosValorBase = honorariosConfig.enabled ? roundMoney(honorariosBase * (honorariosConfig.percentual / 100)) : 0;
-    const honorariosValor = honorariosConfig.enabled ? roundMoney(honorariosValorBase * honorariosConfig.multiplicador) : 0;
+    const honorariosItems = honorariosState.items.map(function(item){
+      const normalized = normalizeHonorarioItem(item);
+      normalized.launchIds = normalized.launchIds.filter(function(id){ return validLaunchIds.has(String(id)); });
+      const selectedSet = new Set(normalized.launchIds);
+      const selectedLaunches = launchItems.filter(function(launchItem){ return selectedSet.has(launchItem.id); });
+      const basePercentual = roundMoney(selectedLaunches.reduce(function(total, launchItem){ return total + launchItem.valorDevido; }, 0));
+      const valorBasePercentual = normalized.enabled && normalized.tipo === 'percentual'
+        ? roundMoney(basePercentual * (normalized.percentual / 100))
+        : 0;
+      const valorPercentual = normalized.enabled && normalized.tipo === 'percentual'
+        ? roundMoney(valorBasePercentual * normalized.multiplicador)
+        : 0;
+      const fatorCorrecao = normalized.enabled && normalized.tipo === 'fixo'
+        ? (normalized.indexSource === 'none' ? 1 : (Number(normalized.fatorCorrecao) || 1))
+        : 1;
+      const valorFixoCorrigido = normalized.enabled && normalized.tipo === 'fixo'
+        ? roundMoney(normalized.valorFixo * fatorCorrecao)
+        : 0;
+      return {
+        config: normalized,
+        selectedLaunches: selectedLaunches,
+        base: basePercentual,
+        valorBase: valorBasePercentual,
+        valor: normalized.tipo === 'fixo' ? valorFixoCorrigido : valorPercentual,
+        fatorCorrecao: fatorCorrecao
+      };
+    });
     const custasItems = (Array.isArray(source.custas) ? source.custas : state.custas).map(normalizeCusta);
       const rows = launchItems.map(function(item){
       return {
@@ -2063,21 +2112,34 @@
       };
     });
 
-    if (honorariosConfig.enabled) {
-      const previewNames = selectedLaunches.slice(0, 3).map(function(item){ return item.verba; }).filter(Boolean);
-      const extraCount = Math.max(selectedLaunches.length - previewNames.length, 0);
+    honorariosItems.forEach(function(item){
+      if (!item.config.enabled) return;
+      if (item.config.tipo === 'fixo') {
+        rows.push({
+          kind: 'honorarios',
+          id: item.config.id,
+          verba: item.config.descricao + ' (valor fixo)',
+          note: 'Base: ' + formatCurrencyBR(item.config.valorFixo) + ' em ' + formatDateBR(item.config.dataBase) + '. Índice: ' + getIndexSourceOptionLabel('correcao', item.config.indexSource) + '.',
+          valorCorrigido: item.valor,
+          juros: 0,
+          valorDevido: item.valor
+        });
+        return;
+      }
+      const previewNames = item.selectedLaunches.slice(0, 3).map(function(launchItem){ return launchItem.verba; }).filter(Boolean);
+      const extraCount = Math.max(item.selectedLaunches.length - previewNames.length, 0);
       rows.push({
         kind: 'honorarios',
-        id: 'honorarios',
-        verba: honorariosConfig.descricao + (honorariosConfig.percentual ? ' (' + formatNumberBR(honorariosConfig.percentual, 2, 4, true) + '%)' : '') + (honorariosConfig.multiplicador !== 1 ? (' × ' + formatNumberBR(honorariosConfig.multiplicador, 2, 4, true)) : ''),
-        note: selectedLaunches.length
-          ? ('Base composta por ' + String(selectedLaunches.length) + ' verba(s)' + (previewNames.length ? (': ' + previewNames.join('; ') + (extraCount ? ' e mais ' + String(extraCount) + '.' : '.')) : '.'))
+        id: item.config.id,
+        verba: item.config.descricao + (item.config.percentual ? ' (' + formatNumberBR(item.config.percentual, 2, 4, true) + '%)' : '') + (item.config.multiplicador !== 1 ? (' × ' + formatNumberBR(item.config.multiplicador, 2, 4, true)) : ''),
+        note: item.selectedLaunches.length
+          ? ('Base composta por ' + String(item.selectedLaunches.length) + ' verba(s)' + (previewNames.length ? (': ' + previewNames.join('; ') + (extraCount ? ' e mais ' + String(extraCount) + '.' : '.')) : '.'))
           : 'Nenhuma verba selecionada para compor a base.',
-        valorCorrigido: honorariosValor,
+        valorCorrigido: item.valor,
         juros: 0,
-        valorDevido: honorariosValor
+        valorDevido: item.valor
       });
-    }
+    });
 
     custasItems.forEach(function(item, index){
       rows.push({
@@ -2106,11 +2168,8 @@
       rows: rows,
       launchItems: launchItems,
       honorarios: {
-        config: honorariosConfig,
-        base: honorariosBase,
-        valorBase: honorariosValorBase,
-        valor: honorariosValor,
-        selectedLaunches: selectedLaunches
+        items: honorariosItems,
+        total: roundMoney(honorariosItems.reduce(function(total, item){ return total + roundMoney(item.valor); }, 0))
       },
       custas: {
         items: custasItems,
@@ -2147,20 +2206,21 @@
     }, {});
 
     if (honorariosResumo) {
-      if (!state.honorarios.enabled) {
+      if (!summaryData.honorarios.items.some(function(item){ return item.config.enabled; })) {
         honorariosResumo.innerHTML = '<div class="summary-muted-copy">Honorários desativados.</div>';
       } else {
+        const enabledItems = summaryData.honorarios.items.filter(function(item){ return item.config.enabled; });
         honorariosResumo.innerHTML = '' +
           '<div class="summary-stats">' +
-            '<div class="summary-stat"><span class="summary-stat-label">Verbas selecionadas</span><span class="summary-stat-value">' + String(summaryData.honorarios.selectedLaunches.length) + '</span></div>' +
-            '<div class="summary-stat"><span class="summary-stat-label">Base</span><span class="summary-stat-value">' + esc(formatCurrencyBR(summaryData.honorarios.base)) + '</span></div>' +
-            '<div class="summary-stat"><span class="summary-stat-label">Honorários-base</span><span class="summary-stat-value">' + esc(formatCurrencyBR(summaryData.honorarios.valorBase || 0)) + '</span></div>' +
-            '<div class="summary-stat"><span class="summary-stat-label">Honorários</span><span class="summary-stat-value">' + esc(formatCurrencyBR(summaryData.honorarios.valor)) + '</span></div>' +
+            '<div class="summary-stat"><span class="summary-stat-label">Itens ativos</span><span class="summary-stat-value">' + String(enabledItems.length) + '</span></div>' +
+            '<div class="summary-stat"><span class="summary-stat-label">Honorários totais</span><span class="summary-stat-value">' + esc(formatCurrencyBR(summaryData.honorarios.total || 0)) + '</span></div>' +
           '</div>' +
-          '<div class="summary-inline-note">Descrição: <b>' + esc(summaryData.honorarios.config.descricao || 'Honorários') + '</b>' +
-            (summaryData.honorarios.config.percentual ? ' &nbsp;•&nbsp; Percentual: <b>' + esc(formatNumberBR(summaryData.honorarios.config.percentual, 2, 4, true) + '%') + '</b>' : '') +
-            ' &nbsp;•&nbsp; Multiplicador: <b>x' + esc(formatNumberBR(summaryData.honorarios.config.multiplicador, 2, 4, true)) + '</b>' +
-          '</div>';
+          enabledItems.map(function(item){
+            if (item.config.tipo === 'fixo') {
+              return '<div class="summary-inline-note"><b>' + esc(item.config.descricao) + '</b> &nbsp;•&nbsp; Fixo: <b>' + esc(formatCurrencyBR(item.config.valorFixo)) + '</b> &nbsp;•&nbsp; Data: <b>' + esc(formatDateBR(item.config.dataBase)) + '</b> &nbsp;•&nbsp; Índice: <b>' + esc(getIndexSourceOptionLabel('correcao', item.config.indexSource)) + '</b> &nbsp;•&nbsp; Fator: <b>x' + esc(formatNumberBR(item.fatorCorrecao || 1, 4, 7, true)) + '</b> &nbsp;•&nbsp; Total: <b>' + esc(formatCurrencyBR(item.valor || 0)) + '</b></div>';
+            }
+            return '<div class="summary-inline-note"><b>' + esc(item.config.descricao) + '</b> &nbsp;•&nbsp; Verbas: <b>' + String(item.selectedLaunches.length) + '</b> &nbsp;•&nbsp; Base: <b>' + esc(formatCurrencyBR(item.base || 0)) + '</b> &nbsp;•&nbsp; Percentual: <b>' + esc(formatNumberBR(item.config.percentual, 2, 4, true) + '%') + '</b> &nbsp;•&nbsp; Multiplicador: <b>x' + esc(formatNumberBR(item.config.multiplicador, 2, 4, true)) + '</b> &nbsp;•&nbsp; Total: <b>' + esc(formatCurrencyBR(item.valor || 0)) + '</b></div>';
+          }).join('');
       }
     }
 
@@ -2203,85 +2263,38 @@
     return summaryData;
   }
 
-  function renderHonorariosSelection(summary){
+  function renderHonorariosEditor(summary){
+    if (!honorariosHost) return;
     const summaryData = summary || buildCalculationSummary(collect());
-    const canSelect = !!(state.honorarios.enabled && state.lancamentos.length);
-    const selectedLaunches = summaryData.honorarios.selectedLaunches || [];
-    const selectedSet = new Set((state.honorarios.launchIds || []).map(String));
     const dueById = new Map(summaryData.launchItems.map(function(item){ return [String(item.id), item.valorDevido]; }));
-
-    if (!canSelect) {
-      honorariosSelectorOpen = false;
-      honorariosSearchTerm = '';
+    if (!state.honorarios.items.length) {
+      honorariosHost.innerHTML = '<div class="summary-empty">Nenhum honorário cadastrado.</div>';
+      return;
     }
-
-    if (btnToggleHonorariosSelector) {
-      btnToggleHonorariosSelector.disabled = !canSelect;
-      btnToggleHonorariosSelector.textContent = canSelect
-        ? ((honorariosSelectorOpen ? 'Ocultar verbas' : 'Selecionar verbas') + ' (' + String(selectedLaunches.length) + ')')
-        : 'Selecionar verbas';
-    }
-
-    if (honorariosSearch) {
-      if (honorariosSearch.value !== honorariosSearchTerm) honorariosSearch.value = honorariosSearchTerm;
-      honorariosSearch.disabled = !canSelect;
-    }
-
-    if (honorariosSelectorPanel) {
-      honorariosSelectorPanel.classList.toggle('is-collapsed', !honorariosSelectorOpen || !canSelect);
-    }
-
-    if (honorariosSelectedHost) {
-      if (!state.lancamentos.length) {
-        honorariosSelectedHost.innerHTML = '<div class="summary-empty">Cadastre ao menos uma verba para selecionar a base dos honorários.</div>';
-      } else if (!state.honorarios.enabled) {
-        honorariosSelectedHost.innerHTML = '<div class="summary-empty">Ative os honorários para definir as verbas que compõem a base de cálculo.</div>';
-      } else if (!selectedLaunches.length) {
-        honorariosSelectedHost.innerHTML = '<div class="summary-empty">Nenhuma verba selecionada para compor a base.</div>';
-      } else {
-        const maxVisible = 6;
-        const chips = selectedLaunches.slice(0, maxVisible).map(function(item){
-          return '<span class="summary-chip"><span>' + esc(item.verba || 'Verba') + '</span><strong>' + esc(formatCurrencyBR(item.valorDevido || 0)) + '</strong></span>';
-        }).join('');
-        const extra = selectedLaunches.length > maxVisible
-          ? '<span class="summary-chip-more">+' + String(selectedLaunches.length - maxVisible) + ' verba(s)</span>'
-          : '';
-        honorariosSelectedHost.innerHTML = chips + extra;
-      }
-    }
-
-    if (honorariosLaunchesHost) {
-      if (!state.lancamentos.length) {
-        honorariosLaunchesHost.innerHTML = '<div class="summary-empty">Cadastre ao menos uma verba para selecionar a base dos honorários.</div>';
-      } else if (!state.honorarios.enabled) {
-        honorariosLaunchesHost.innerHTML = '<div class="summary-empty">Ative os honorários para liberar a seleção das verbas.</div>';
-      } else {
-        const searchTerm = normalizeSearchText(honorariosSearchTerm);
-        const filteredLaunches = searchTerm
-          ? state.lancamentos.filter(function(lancamento){ return normalizeSearchText(lancamento.verba || 'Verba').includes(searchTerm); })
-          : state.lancamentos.slice();
-
-        if (!filteredLaunches.length) {
-          honorariosLaunchesHost.innerHTML = '<div class="summary-empty">Nenhuma verba encontrada para o filtro informado.</div>';
-        } else {
-          honorariosLaunchesHost.innerHTML = filteredLaunches.map(function(lancamento){
-            return '' +
-              '<label class="summary-checkitem">' +
-                '<input type="checkbox" class="honorarios-launch-check" data-launch-id="' + esc(lancamento.id) + '"' + (selectedSet.has(String(lancamento.id)) ? ' checked' : '') + '>' +
-                '<span>' +
-                  '<span class="summary-checklabel">' + esc(lancamento.verba || 'Verba') + '</span>' +
-                  '<span class="summary-checksub">Valor devido atual: ' + esc(formatCurrencyBR(dueById.get(String(lancamento.id)) || 0)) + '</span>' +
-                '</span>' +
-              '</label>';
-          }).join('');
-        }
-      }
-    }
-
-    if (btnHonorariosSelectAll) btnHonorariosSelectAll.disabled = !canSelect;
-    if (btnHonorariosClear) btnHonorariosClear.disabled = !canSelect;
-
-    return summaryData;
+    honorariosHost.innerHTML = state.honorarios.items.map(function(rawItem, index){
+      const item = normalizeHonorarioItem(rawItem);
+      const launchesChecklist = state.lancamentos.length
+        ? state.lancamentos.map(function(lancamento){
+          const checked = item.launchIds.includes(String(lancamento.id)) ? ' checked' : '';
+          return '<label class="summary-checkitem"><input type="checkbox" class="honorario-launch-check" data-honorario-id="' + esc(item.id) + '" data-launch-id="' + esc(lancamento.id) + '"' + checked + '><span><span class="summary-checklabel">' + esc(lancamento.verba || 'Verba') + '</span><span class="summary-checksub">Valor devido atual: ' + esc(formatCurrencyBR(dueById.get(String(lancamento.id)) || 0)) + '</span></span></label>';
+        }).join('')
+        : '<div class="summary-empty">Cadastre ao menos uma verba para compor a base dos honorários percentuais.</div>';
+      const indexOptions = getIndexSourceOptions('correcao').map(function(option){
+        return '<option value="' + esc(option.value) + '"' + (item.indexSource === option.value ? ' selected' : '') + '>' + esc(option.label) + '</option>';
+      }).join('');
+      return '' +
+        '<div class="custa-card" data-honorario-id="' + esc(item.id) + '">' +
+          '<div class="custa-card-head"><div class="custa-card-title">Honorário ' + String(index + 1) + '</div><button type="button" class="btn btn-ghost summary-remove-btn btnRemoveHonorario" data-honorario-id="' + esc(item.id) + '">Remover</button></div>' +
+          '<div class="custa-grid">' +
+            '<div><label class="check-inline"><input type="checkbox" class="honorario-enabled" data-honorario-id="' + esc(item.id) + '"' + (item.enabled ? ' checked' : '') + '> Incluir no resumo</label></div>' +
+            '<div><label>Tipo</label><select class="select honorario-tipo" data-honorario-id="' + esc(item.id) + '"><option value="percentual"' + (item.tipo === 'percentual' ? ' selected' : '') + '>Percentual sobre base</option><option value="fixo"' + (item.tipo === 'fixo' ? ' selected' : '') + '>Valor fixo</option></select></div>' +
+            '<div><label>Descrição</label><input type="text" class="honorario-desc" data-honorario-id="' + esc(item.id) + '" value="' + esc(item.descricao || '') + '" placeholder="Ex.: Honorários de terceiro"></div>' +
+          '</div>' +
+          (item.tipo === 'percentual'
+            ? '<div class="custa-grid"><div><label>Percentual (%)</label><input type="text" inputmode="decimal" class="honorario-percentual" data-honorario-id="' + esc(item.id) + '" value="' + esc(item.percentual ? formatNumberBR(item.percentual, 2, 4, true) : '') + '" placeholder="10,00"></div><div><label>Multiplicador</label><input type="text" inputmode="decimal" class="honorario-multiplicador" data-honorario-id="' + esc(item.id) + '" value="' + esc(formatNumberBR(item.multiplicador || 1, 2, 4, true)) + '" placeholder="1,00"></div></div><div class="summary-checklist">' + launchesChecklist + '</div>'
+            : '<div class="custa-grid"><div><label>Data-base</label><input type="date" class="honorario-data-base" data-honorario-id="' + esc(item.id) + '" value="' + esc(item.dataBase || '') + '"></div><div><label>Valor fixo</label><input type="text" inputmode="decimal" class="honorario-valor-fixo" data-honorario-id="' + esc(item.id) + '" value="' + esc(item.valorFixo ? formatCurrencyBR(item.valorFixo) : '') + '" placeholder="0,00"></div><div><label>Índice de correção</label><select class="select honorario-index-source" data-honorario-id="' + esc(item.id) + '">' + indexOptions + '</select></div></div>') +
+        '</div>';
+    }).join('');
   }
 
   function renderCustasEditor(){
@@ -2310,12 +2323,7 @@
     sanitizeSummaryState();
     const summary = buildCalculationSummary(collect());
 
-    if (honorariosEnabled) honorariosEnabled.checked = !!state.honorarios.enabled;
-    if (honorariosDescricao) honorariosDescricao.value = state.honorarios.descricao || 'Honorários';
-    if (honorariosPercentual) honorariosPercentual.value = state.honorarios.percentual ? formatNumberBR(state.honorarios.percentual, 2, 4, true) : '';
-    if (honorariosMultiplicador) honorariosMultiplicador.value = Number.isFinite(state.honorarios.multiplicador) ? formatNumberBR(state.honorarios.multiplicador, 2, 4, true) : '1,00';
-
-    renderHonorariosSelection(summary);
+    renderHonorariosEditor(summary);
     renderCustasEditor();
     renderSummaryTotals(summary);
   }
@@ -2353,7 +2361,7 @@
         '<tr><td class="bold" style="width:34%">Ferramenta</td><td>Cálculos Cíveis</td></tr>' +
         '<tr><td class="bold">Finalidade</td><td>Lançamentos mensais por verba, quadro de resumo, honorários e custas.</td></tr>' +
         '<tr><td class="bold">Quantidade de verbas</td><td>' + String(data.lancamentos.length) + '</td></tr>' +
-        '<tr><td class="bold">Honorários</td><td>' + (summary.honorarios.config.enabled ? ('Ativados em ' + formatNumberBR(summary.honorarios.config.percentual, 2, 4, true) + '% com multiplicador x' + formatNumberBR(summary.honorarios.config.multiplicador, 2, 4, true) + ' sobre ' + String(summary.honorarios.selectedLaunches.length) + ' verba(s).') : 'Não incluídos.') + '</td></tr>' +
+        '<tr><td class="bold">Honorários</td><td>' + (summary.honorarios.items.some(function(item){ return item.config.enabled; }) ? (String(summary.honorarios.items.filter(function(item){ return item.config.enabled; }).length) + ' item(ns) ativo(s), total de ' + esc(formatCurrencyBR(summary.honorarios.total || 0)) + '.') : 'Não incluídos.') + '</td></tr>' +
         '<tr><td class="bold">Custas lançadas</td><td>' + String(summary.custas.items.length) + ' item(ns) — total de ' + esc(formatCurrencyBR(summary.custas.total)) + '</td></tr>' +
         '<tr><td class="bold">Data-base de atualização</td><td>' + esc(formatDateBR(data.dataAtualizacao)) + '</td></tr>' +
         '<tr><td class="bold">Última atualização do relatório</td><td>' + esc(data.atualizadoEm || '—') + '</td></tr>' +
@@ -2731,108 +2739,131 @@
     return (state.custas || []).findIndex(function(item){ return String(item.id) === String(custaId); });
   }
 
-  if (honorariosEnabled) {
-    honorariosEnabled.addEventListener('change', function(){
-      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { enabled: this.checked }));
-      if (state.honorarios.enabled) ensureHonorariosDefaultSelection();
-      persistAndRefresh();
-    });
+  function getHonorarioIndexById(honorarioId){
+    return (state.honorarios.items || []).findIndex(function(item){ return String(item.id) === String(honorarioId); });
   }
 
-  if (honorariosDescricao) {
-    honorariosDescricao.addEventListener('input', function(){
-      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { descricao: this.value }));
-      refreshSummaryOutputsOnly();
-    });
-    honorariosDescricao.addEventListener('focusout', function(){
-      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { descricao: this.value }));
-      persistAndRefresh();
-    });
+  async function updateHonorariosFixedFactors(dataAtualizacaoISO){
+    const dataFinal = String(dataAtualizacaoISO || state.dataAtualizacao || '').trim();
+    if (!dataFinal) return;
+    for (let index = 0; index < (state.honorarios.items || []).length; index += 1){
+      const item = normalizeHonorarioItem(state.honorarios.items[index]);
+      if (item.tipo !== 'fixo' || item.indexSource === 'none' || !item.dataBase || item.dataBase > dataFinal) {
+        item.fatorCorrecao = 1;
+        state.honorarios.items[index] = item;
+        continue;
+      }
+      try {
+        const payload = await loadAutoIndices(item.indexSource, item.dataBase, dataFinal);
+        if (payload.calculationPath === 'daily_compound_exact'){
+          item.fatorCorrecao = Number(dailyCompoundExactFactor(payload.dailyRates, payload.dailySeriesCode, item.dataBase, dataFinal).toFixed(7));
+        } else if (payload.calculationPath === 'monthly_factor_lookup') {
+          const monthMap = new Map((payload.monthlyRates || []).map(function(entry){ return [entry.month, Number(entry.value) || 1]; }));
+          const startMonth = monthKeyFromISO(item.dataBase);
+          const endMonth = monthKeyFromISO(dataFinal);
+          item.fatorCorrecao = Number((startMonth && endMonth ? monthRange(startMonth, endMonth).reduce(function(factor, monthKey){
+            return factor * (Number(monthMap.get(monthKey)) || 1);
+          }, 1) : 1).toFixed(7));
+        } else {
+          const monthMap = new Map((payload.monthlyRates || []).map(function(entry){ return [entry.month, Number(entry.value) || 0]; }));
+          item.fatorCorrecao = Number(accumulateIndexFactor(monthMap, monthKeyFromISO(item.dataBase), monthKeyFromISO(dataFinal), { start:'', end:'' }, sourceAccumulationMode(item.indexSource), item.dataBase, dataFinal).toFixed(7));
+        }
+      } catch (error) {
+        console.warn('Falha ao atualizar índice do honorário fixo:', error);
+        item.fatorCorrecao = 1;
+      }
+      state.honorarios.items[index] = item;
+    }
   }
 
-  if (honorariosPercentual) {
-    honorariosPercentual.addEventListener('input', function(){
-      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { percentual: this.value }));
+  if (btnAddHonorario) btnAddHonorario.addEventListener('click', function(){
+    state.honorarios = normalizeHonorarios(state.honorarios);
+    state.honorarios.items.push(normalizeHonorarioItem(defaultHonorarioItem()));
+    persistAndRefresh();
+  });
+
+  if (honorariosHost) {
+    honorariosHost.addEventListener('input', function(event){
+      const target = event.target;
+      const honorarioId = target.getAttribute('data-honorario-id');
+      const index = getHonorarioIndexById(honorarioId);
+      if (index < 0) return;
+      const item = normalizeHonorarioItem(state.honorarios.items[index]);
+      if (target.classList.contains('honorario-desc')) item.descricao = target.value;
+      if (target.classList.contains('honorario-percentual')) item.percentual = parseBRNumber(target.value);
+      if (target.classList.contains('honorario-multiplicador')) item.multiplicador = parseBRNumber(target.value) || 1;
+      if (target.classList.contains('honorario-valor-fixo')) item.valorFixo = roundMoney(target.value);
+      state.honorarios.items[index] = item;
       refreshSummaryOutputsOnly();
     });
-    honorariosPercentual.addEventListener('focusin', function(){
-      this.value = formatEditableNumberBR(this.value);
-      this.select();
+    honorariosHost.addEventListener('change', function(event){
+      const target = event.target;
+      const honorarioId = target.getAttribute('data-honorario-id');
+      const index = getHonorarioIndexById(honorarioId);
+      if (index < 0) return;
+      const item = normalizeHonorarioItem(state.honorarios.items[index]);
+      if (target.classList.contains('honorario-enabled')) item.enabled = !!target.checked;
+      if (target.classList.contains('honorario-tipo')) item.tipo = target.value === 'fixo' ? 'fixo' : 'percentual';
+      if (target.classList.contains('honorario-data-base')) item.dataBase = String(target.value || '');
+      if (target.classList.contains('honorario-index-source')) item.indexSource = String(target.value || 'none');
+      if (target.classList.contains('honorario-launch-check')) {
+        const launchId = String(target.getAttribute('data-launch-id') || '');
+        const selected = new Set(item.launchIds.map(String));
+        if (target.checked) selected.add(launchId);
+        else selected.delete(launchId);
+        item.launchIds = Array.from(selected);
+      }
+      state.honorarios.items[index] = item;
+      if (item.enabled && item.tipo === 'percentual' && !item.launchIds.length) ensureHonorariosDefaultSelection();
+      persistAndRefresh();
     });
-    honorariosPercentual.addEventListener('paste', function(event){
+    honorariosHost.addEventListener('focusin', function(event){
+      const target = event.target;
+      if (!target.classList.contains('honorario-percentual') && !target.classList.contains('honorario-multiplicador') && !target.classList.contains('honorario-valor-fixo')) return;
+      target.value = formatEditableNumberBR(target.value);
+      target.select();
+    });
+    honorariosHost.addEventListener('focusout', function(event){
+      const target = event.target;
+      const honorarioId = target.getAttribute('data-honorario-id');
+      const index = getHonorarioIndexById(honorarioId);
+      if (index < 0) return;
+      const item = normalizeHonorarioItem(state.honorarios.items[index]);
+      if (target.classList.contains('honorario-desc')) item.descricao = String(target.value || '').trim() || 'Honorários';
+      if (target.classList.contains('honorario-percentual')) { item.percentual = parseBRNumber(target.value); target.value = formatNumberBR(item.percentual, 2, 4, true); }
+      if (target.classList.contains('honorario-multiplicador')) { item.multiplicador = parseBRNumber(target.value) || 1; target.value = formatNumberBR(item.multiplicador, 2, 4, true); }
+      if (target.classList.contains('honorario-valor-fixo')) { item.valorFixo = roundMoney(target.value); target.value = formatCurrencyBR(item.valorFixo); }
+      state.honorarios.items[index] = item;
+      persistAndRefresh();
+    });
+    honorariosHost.addEventListener('paste', function(event){
+      const target = event.target;
+      if (!target.classList.contains('honorario-percentual') && !target.classList.contains('honorario-multiplicador') && !target.classList.contains('honorario-valor-fixo')) return;
       event.preventDefault();
       const pastedText = event.clipboardData ? event.clipboardData.getData('text') : '';
-      const parsedValue = parseBRNumber(pastedText);
-      this.value = formatEditableNumberBR(parsedValue);
-      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { percentual: parsedValue }));
+      const parsedValue = target.classList.contains('honorario-valor-fixo') ? roundMoney(pastedText) : parseBRNumber(pastedText);
+      target.value = formatEditableNumberBR(parsedValue);
+      const honorarioId = target.getAttribute('data-honorario-id');
+      const index = getHonorarioIndexById(honorarioId);
+      if (index < 0) return;
+      const item = normalizeHonorarioItem(state.honorarios.items[index]);
+      if (target.classList.contains('honorario-percentual')) item.percentual = parsedValue;
+      if (target.classList.contains('honorario-multiplicador')) item.multiplicador = parsedValue || 1;
+      if (target.classList.contains('honorario-valor-fixo')) item.valorFixo = parsedValue;
+      state.honorarios.items[index] = item;
       refreshSummaryOutputsOnly();
     });
-    honorariosPercentual.addEventListener('focusout', function(){
-      this.value = formatCurrencyBR(this.value);
-      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { percentual: parseBRNumber(this.value) }));
+    honorariosHost.addEventListener('click', function(event){
+      const target = event.target;
+      if (!target.classList.contains('btnRemoveHonorario')) return;
+      const honorarioId = target.getAttribute('data-honorario-id');
+      const index = getHonorarioIndexById(honorarioId);
+      if (index < 0) return;
+      state.honorarios.items.splice(index, 1);
+      if (!state.honorarios.items.length) state.honorarios.items = defaultHonorariosConfig().items;
       persistAndRefresh();
     });
   }
-
-  if (honorariosMultiplicador) {
-    honorariosMultiplicador.addEventListener('input', function(){
-      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { multiplicador: this.value }));
-      refreshSummaryOutputsOnly();
-    });
-    honorariosMultiplicador.addEventListener('focusin', function(){
-      this.value = formatEditableNumberBR(this.value);
-      this.select();
-    });
-    honorariosMultiplicador.addEventListener('paste', function(event){
-      event.preventDefault();
-      const pastedText = event.clipboardData ? event.clipboardData.getData('text') : '';
-      const parsedValue = parseBRNumber(pastedText);
-      this.value = formatEditableNumberBR(parsedValue);
-      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { multiplicador: parsedValue }));
-      refreshSummaryOutputsOnly();
-    });
-    honorariosMultiplicador.addEventListener('focusout', function(){
-      const parsedMultiplier = parseBRNumber(this.value);
-      this.value = formatNumberBR(parsedMultiplier || 1, 2, 4, true);
-      state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { multiplicador: parsedMultiplier || 1 }));
-      persistAndRefresh();
-    });
-  }
-
-  if (btnToggleHonorariosSelector) btnToggleHonorariosSelector.addEventListener('click', function(){
-    if (this.disabled) return;
-    honorariosSelectorOpen = !honorariosSelectorOpen;
-    renderSummaryPanel();
-  });
-
-  if (honorariosSearch) honorariosSearch.addEventListener('input', function(){
-    honorariosSearchTerm = this.value || '';
-    renderHonorariosSelection(buildCalculationSummary(collect()));
-  });
-
-  if (btnHonorariosSelectAll) btnHonorariosSelectAll.addEventListener('click', function(){
-    state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { enabled:true, launchIds: state.lancamentos.map(function(lancamento){ return lancamento.id; }) }));
-    honorariosSelectorOpen = true;
-    if (honorariosEnabled) honorariosEnabled.checked = true;
-    persistAndRefresh();
-  });
-
-  if (btnHonorariosClear) btnHonorariosClear.addEventListener('click', function(){
-    state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { launchIds: [] }));
-    honorariosSelectorOpen = true;
-    persistAndRefresh();
-  });
-
-  if (honorariosLaunchesHost) honorariosLaunchesHost.addEventListener('change', function(event){
-    const target = event.target;
-    if (!target.classList.contains('honorarios-launch-check')) return;
-    const launchId = String(target.getAttribute('data-launch-id') || '');
-    const selected = new Set((state.honorarios.launchIds || []).map(String));
-    if (target.checked) selected.add(launchId);
-    else selected.delete(launchId);
-    state.honorarios = normalizeHonorarios(Object.assign({}, state.honorarios, { launchIds: Array.from(selected) }));
-    persistAndRefresh();
-  });
 
   if (btnAddCusta) btnAddCusta.addEventListener('click', function(){
     state.custas = Array.isArray(state.custas) ? state.custas : [];
@@ -2910,6 +2941,7 @@
     for (let index = 0; index < state.lancamentos.length; index += 1){
       await updateIndicesForLaunch(index);
     }
+    await updateHonorariosFixedFactors(state.dataAtualizacao || '');
   }
 
   $('btnAtualizar').addEventListener('click', async function(){
