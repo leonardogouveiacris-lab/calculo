@@ -240,7 +240,8 @@
 
   function describeIndexCompositionDetails(coluna){
     const kind = coluna && coluna.indexKind === 'juros' ? 'juros' : 'correcao';
-    const factorByPosition = new Map(((coluna && Array.isArray(coluna.__lastSegmentFactors)) ? coluna.__lastSegmentFactors : []).map(function(item){
+    const summaryFactors = (coluna && Array.isArray(coluna.__summarySegmentFactors)) ? coluna.__summarySegmentFactors : coluna && Array.isArray(coluna.__lastSegmentFactors) ? coluna.__lastSegmentFactors : [];
+    const factorByPosition = new Map(summaryFactors.map(function(item){
       return [Number(item.position), Number(item.factor)];
     }));
     return getIndexComposition(coluna).map(function(segment, index){
@@ -314,7 +315,7 @@
       unitLabel: sourceRule ? sourceRule.unitLabel : '—',
       formulaLabel: sourceRule ? sourceRule.formulaLabel : '—',
       intervalLabel: sourceRule ? sourceRule.intervalLabel : '',
-      finalFactorLabel: formatIndexFactor(Number(coluna && coluna.__lastFactor || 1)),
+      finalFactorLabel: formatIndexFactor(Number(coluna && (coluna.__summaryFactor || coluna.__lastFactor) || 1)),
       overlapLabel: (noOverlap && hasLimit) ? 'Sem incidência no período atual (limite fora da competência/data de atualização).' : '',
       compositionDetails: compositionDetails
     };
@@ -1758,9 +1759,10 @@
     });
   }
 
-  function factorForIndexComposition(composition, payloadBySource, competenciaStartISO, dataAtualizacaoISO){
+  function factorForIndexComposition(composition, payloadBySource, competenciaStartISO, dataAtualizacaoISO, options){
     const requestedStartISO = String(competenciaStartISO || '');
     const requestedEndISO = String(dataAtualizacaoISO || '');
+    const factorLookupMode = options && options.factorLookupMode === 'range_product' ? 'range_product' : 'month';
     if (!requestedStartISO || !requestedEndISO || requestedStartISO > requestedEndISO) return { factor: 1, hasOverlap: false };
     const segments = Array.isArray(composition) ? composition : [];
     let totalFactor = 1;
@@ -1783,9 +1785,16 @@
       }
       if (payload.calculationPath === 'monthly_factor_lookup'){
         const monthMapFactor = new Map((payload.monthlyRates || []).map(function(item){ return [item.month, item.value]; }));
-        const targetMonth = monthKeyFromISO(effectivePeriod.startISO);
-        const configuredFactor = Number(monthMapFactor.get(targetMonth));
-        const factorFromTable = Number.isFinite(configuredFactor) && configuredFactor > 0 ? configuredFactor : 1;
+        const factorFromTable = factorLookupMode === 'range_product'
+          ? monthRange(monthKeyFromISO(effectivePeriod.startISO), monthKeyFromISO(effectivePeriod.endISO)).reduce(function(factor, monthKey){
+              const configuredFactor = Number(monthMapFactor.get(monthKey));
+              return factor * ((Number.isFinite(configuredFactor) && configuredFactor > 0) ? configuredFactor : 1);
+            }, 1)
+          : (function(){
+              const targetMonth = monthKeyFromISO(effectivePeriod.startISO);
+              const configuredFactor = Number(monthMapFactor.get(targetMonth));
+              return Number.isFinite(configuredFactor) && configuredFactor > 0 ? configuredFactor : 1;
+            })();
         totalFactor *= factorFromTable;
         segmentDetails.push({ position: idx + 1, factor: factorFromTable, hasOverlap: true });
         continue;
@@ -1835,9 +1844,15 @@
         }
         payloadByColumnId[coluna.id] = payloadBySource;
         coluna.__lastFactor = 1;
+        coluna.__summaryFactor = 1;
         coluna.__lastNoOverlap = false;
         coluna.__lastSegmentFactors = [];
-        coluna.__segmentFactorByPosition = new Map();
+        coluna.__summarySegmentFactors = [];
+        const summaryCalc = factorForIndexComposition(composition, payloadBySource, lancamento.dataInicial, dataAtualizacao, { factorLookupMode: 'range_product' });
+        coluna.__summaryFactor = Number(summaryCalc.factor.toFixed(7));
+        coluna.__summarySegmentFactors = (summaryCalc.segmentDetails || []).map(function(item){
+          return { position: item.position, factor: Number(Number(item.factor || 1).toFixed(7)), hasOverlap: !!item.hasOverlap };
+        });
       }
       lancamento.linhas.forEach(function(linha){
         const mesCompetencia = monthKeyFromPeriodo(linha.periodo);
@@ -3389,3 +3404,4 @@
     });
   }, 0);
 })();
+    const factorLookupMode = options && options.factorLookupMode === 'range_product' ? 'range_product' : 'month';
