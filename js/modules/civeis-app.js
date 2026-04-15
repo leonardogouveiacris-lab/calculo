@@ -2589,8 +2589,9 @@
   }
 
 
-  let reportRenderQueued = false;
-  let reportRenderCallbacks = [];
+  let reportBuildFrameQueued = false;
+  let reportBuildRequest = null;
+  let reportBuildCallbacks = [];
   const FREE_TEXT_FIELD_IDS = new Set(['observacoes', 'requerente', 'requerido', 'processo']);
   const FIELD_SAVE_DEBOUNCE_MS = 320;
   const DATA_ATUALIZACAO_REFRESH_DEBOUNCE_MS = 360;
@@ -2600,21 +2601,46 @@
   let dataAtualizacaoRefreshInFlight = false;
   let dataAtualizacaoRefreshQueued = false;
 
-  function renderReportDeferred(callback){
-    if (typeof callback === 'function') reportRenderCallbacks.push(callback);
-    if (reportRenderQueued) return;
-    reportRenderQueued = true;
-    requestAnimationFrame(function(){
-      requestAnimationFrame(function(){
-        safeBuildReport(collect());
-        reportRenderQueued = false;
-        var callbacks = reportRenderCallbacks.slice();
-        reportRenderCallbacks = [];
-        callbacks.forEach(function(fn){
-          try { fn(); } catch (e) {}
-        });
+  function flushReportBuildQueue(){
+    if (!reportBuildRequest) return;
+    const pending = reportBuildRequest;
+    reportBuildRequest = null;
+    const opts = pending.options || {};
+    try {
+      buildReport(pending.data);
+    } catch (error) {
+      const context = Object.assign({
+        source: opts.source || 'report-render'
+      }, opts.context || {});
+      console.error('Falha ao renderizar relatório (módulo cível).', {
+        context: context,
+        error: error,
+        stack: error && error.stack
       });
+      if (opts.alertMessage) {
+        alert(opts.alertMessage + ' Detalhe: ' + (error && error.message ? error.message : 'erro inesperado.'));
+      }
+    }
+    const callbacks = reportBuildCallbacks.slice();
+    reportBuildCallbacks = [];
+    callbacks.forEach(function(fn){
+      try { fn(); } catch (e) {}
     });
+  }
+
+  function scheduleReportBuild(){
+    if (reportBuildFrameQueued) return;
+    reportBuildFrameQueued = true;
+    const raf = window.requestAnimationFrame || function(cb){ return setTimeout(cb, 16); };
+    raf(function(){
+      reportBuildFrameQueued = false;
+      flushReportBuildQueue();
+    });
+  }
+
+  function renderReportDeferred(callback){
+    if (typeof callback === 'function') reportBuildCallbacks.push(callback);
+    safeBuildReport(collect(), { source: 'report-tab-deferred' });
   }
 
   function openReportTabAndRender(callback){
@@ -2664,36 +2690,30 @@
   }
 
 
-  function refreshSummaryOutputsOnly(){
-    sanitizeSummaryState();
-    const data = collect();
-    save(data);
-    renderSummaryTotals(buildCalculationSummary(data));
-    safeBuildReport(data);
-  }
+  let persistLightTimer = null;
+  const PERSIST_LIGHT_DEBOUNCE_MS = 180;
 
   function safeBuildReport(data, options){
-    const opts = options || {};
-    try {
-      buildReport(data);
-      return true;
-    } catch (error) {
-      const context = Object.assign({
-        source: opts.source || 'report-render'
-      }, opts.context || {});
-      console.error('Falha ao renderizar relatório (módulo cível).', {
-        context: context,
-        error: error,
-        stack: error && error.stack
-      });
-      if (opts.alertMessage) {
-        alert(opts.alertMessage + ' Detalhe: ' + (error && error.message ? error.message : 'erro inesperado.'));
-      }
-      return false;
-    }
+    reportBuildRequest = {
+      data: data,
+      options: options || {}
+    };
+    scheduleReportBuild();
   }
 
-  function persistAndRefresh(options){
+  function persistAndRefreshLight(options){
+    sanitizeSummaryState();
+    const data = collect();
+    const opts = options || {};
+    clearTimeout(persistLightTimer);
+    persistLightTimer = setTimeout(function(){
+      save(data);
+    }, Number.isFinite(opts.saveDelayMs) ? opts.saveDelayMs : PERSIST_LIGHT_DEBOUNCE_MS);
+    renderSummaryTotals(buildCalculationSummary(data));
+    return data;
+  }
+
+  function persistAndRefreshFull(options){
     sanitizeSummaryState();
     const data = collect();
     save(data);
@@ -2702,10 +2722,33 @@
     restorePendingGridFocus();
     const opts = options || {};
     safeBuildReport(data, {
-      source: 'persistAndRefresh',
+      source: 'persistAndRefreshFull',
       context: opts.reportErrorContext || {},
       alertMessage: opts.reportErrorMessage || ''
     });
+  }
+
+  function persistAndRefresh(){
+    persistAndRefreshFull.apply(null, arguments);
+  }
+
+  function persistHonorariosIncremental(options){
+    sanitizeSummaryState();
+    const data = collect();
+    save(data);
+    const summary = buildCalculationSummary(data);
+    renderHonorariosEditor(summary);
+    renderSummaryTotals(summary);
+    const opts = options || {};
+    safeBuildReport(data, {
+      source: 'persistHonorariosIncremental',
+      context: opts.reportErrorContext || {},
+      alertMessage: opts.reportErrorMessage || ''
+    });
+  }
+
+  function refreshSummaryOutputsOnly(){
+    persistAndRefreshLight();
   }
 
   function clearLaunchForm(){
@@ -3013,7 +3056,7 @@
     state.honorarios.items.splice(index, 1);
     if (!state.honorarios.items.length) state.honorarios.items = defaultHonorariosConfig().items;
     closeEditHonorarioModal();
-    persistAndRefresh();
+    persistHonorariosIncremental();
   }
 
   async function updateHonorariosFixedFactors(dataAtualizacaoISO){
@@ -3052,7 +3095,7 @@
   if (btnAddHonorario) btnAddHonorario.addEventListener('click', function(){
     state.honorarios = normalizeHonorarios(state.honorarios);
     state.honorarios.items.push(normalizeHonorarioItem(defaultHonorarioItem()));
-    persistAndRefresh();
+    persistHonorariosIncremental();
   });
 
   if (honorariosHost) {
