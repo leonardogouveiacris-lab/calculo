@@ -2164,7 +2164,7 @@
           kind: 'honorarios',
           id: item.config.id,
           verba: item.config.descricao + ' (valor fixo)',
-          note: (item.config.separateInSummary ? 'Apuração separada no resumo. ' : '') + 'Base: ' + formatCurrencyBR(item.config.valorFixo) + ' em ' + formatDateBR(item.config.dataBase) + '. Índice: ' + getIndexSourceOptionLabel('correcao', item.config.indexSource) + '.',
+          note: (item.config.separateInSummary ? 'Separado no resumo. ' : '') + 'Base fixa em ' + formatDateBR(item.config.dataBase) + '.',
           valorCorrigido: item.valor,
           juros: 0,
           valorDevido: item.valor,
@@ -2172,15 +2172,13 @@
         });
         return;
       }
-      const previewNames = item.selectedLaunches.slice(0, 3).map(function(launchItem){ return launchItem.verba; }).filter(Boolean);
-      const extraCount = Math.max(item.selectedLaunches.length - previewNames.length, 0);
       rows.push({
         kind: 'honorarios',
         id: item.config.id,
         verba: item.config.descricao + (item.config.percentual ? ' (' + formatNumberBR(item.config.percentual, 2, 4, true) + '%)' : '') + (item.config.multiplicador !== 1 ? (' × ' + formatNumberBR(item.config.multiplicador, 2, 4, true)) : ''),
-        note: item.selectedLaunches.length
-          ? ((item.config.separateInSummary ? 'Apuração separada no resumo. ' : '') + 'Base composta por ' + String(item.selectedLaunches.length) + ' verba(s)' + (previewNames.length ? (': ' + previewNames.join('; ') + (extraCount ? ' e mais ' + String(extraCount) + '.' : '.')) : '.'))
-          : 'Nenhuma verba selecionada para compor a base.',
+        note: (item.config.separateInSummary ? 'Separado no resumo. ' : '') + (item.selectedLaunches.length
+          ? ('Base composta por ' + String(item.selectedLaunches.length) + ' verba(s).')
+          : 'Nenhuma verba selecionada para compor a base.'),
         valorCorrigido: item.valor,
         juros: 0,
         valorDevido: item.valor,
@@ -2289,7 +2287,6 @@
       honorariosResumo.innerHTML = '' +
         '<div class="summary-stats">' +
           '<div class="summary-stat"><span class="summary-stat-label">Itens no resumo</span><span class="summary-stat-value">' + String(honorariosItems.length) + '</span></div>' +
-          '<div class="summary-stat"><span class="summary-stat-label">Separados no resumo</span><span class="summary-stat-value">' + String(summaryData.separatedHonorariosCount || 0) + '</span></div>' +
           '<div class="summary-stat"><span class="summary-stat-label">Honorários totais</span><span class="summary-stat-value">' + esc(formatCurrencyBR(summaryData.honorarios.total || 0)) + '</span></div>' +
         '</div>' +
         honorariosItems.map(function(item){
@@ -2367,11 +2364,7 @@
       return '' +
         '<div class="custa-card" data-honorario-id="' + esc(item.id) + '">' +
           '<div class="custa-card-head"><div class="custa-card-title">Honorário ' + String(index + 1) + '</div><button type="button" class="btn btn-ghost summary-remove-btn btnEditHonorario" data-honorario-id="' + esc(item.id) + '">Editar</button></div>' +
-          '<div class="custa-grid">' +
-            '<div><label>Resumo</label><input type="text" readonly value="' + esc(item.separateInSummary ? 'Separado no resumo' : 'Somado no total geral') + '"></div>' +
-            '<div><label>Tipo</label><input type="text" readonly value="' + esc(item.tipo === 'fixo' ? 'Valor fixo' : 'Percentual') + '"></div>' +
-            '<div><label>Descrição</label><input type="text" class="honorario-desc" data-honorario-id="' + esc(item.id) + '" value="' + esc(item.descricao || '') + '" placeholder="Ex.: Honorários de terceiro"></div>' +
-          '</div>' +
+          '<div><label>Descrição</label><input type="text" class="honorario-desc" data-honorario-id="' + esc(item.id) + '" value="' + esc(item.descricao || '') + '" placeholder="Ex.: Honorários de terceiro"></div>' +
           (item.tipo === 'percentual'
             ? '<div class="custa-grid"><div><label>Percentual (%)</label><input type="text" inputmode="decimal" class="honorario-percentual" data-honorario-id="' + esc(item.id) + '" value="' + esc(item.percentual ? formatNumberBR(item.percentual, 2, 4, true) : '') + '" placeholder="10,00"></div><div><label>Multiplicador</label><input type="text" inputmode="decimal" class="honorario-multiplicador" data-honorario-id="' + esc(item.id) + '" value="' + esc(formatNumberBR(item.multiplicador || 1, 2, 4, true)) + '" placeholder="1,00"></div></div><div class="summary-checklist">' + launchesChecklist + '</div>'
             : '<div class="custa-grid"><div><label>Data-base</label><input type="date" class="honorario-data-base" data-honorario-id="' + esc(item.id) + '" value="' + esc(item.dataBase || '') + '"></div><div><label>Valor fixo</label><input type="text" inputmode="decimal" class="honorario-valor-fixo" data-honorario-id="' + esc(item.id) + '" value="' + esc(item.valorFixo ? formatCurrencyBR(item.valorFixo) : '') + '" placeholder="0,00"></div><div><label>Índice de correção</label><select class="select honorario-index-source" data-honorario-id="' + esc(item.id) + '">' + indexOptions + '</select></div></div>') +
@@ -2458,9 +2451,7 @@
         '<td class="bold right">' + esc(formatCurrencyBR(row.valorDevido || 0)) + '</td>' +
       '</tr>';
     });
-    const summaryFooter = '' +
-      '<tr><td class="bold right">Total geral (sem honorários separados)</td><td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.valorCorrigido : 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.juros : 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.valorDevido : 0)) + '</td></tr>' +
-      '<tr><td class="right">Honorários separados</td><td class="right">' + esc(formatCurrencyBR(summary.separatedHonorariosTotals ? summary.separatedHonorariosTotals.valorCorrigido : 0)) + '</td><td class="right">' + esc(formatCurrencyBR(summary.separatedHonorariosTotals ? summary.separatedHonorariosTotals.juros : 0)) + '</td><td class="right">' + esc(formatCurrencyBR(summary.separatedHonorariosTotals ? summary.separatedHonorariosTotals.valorDevido : 0)) + '</td></tr>';
+    const summaryFooter = '<tr><td class="bold right">Total geral</td><td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.valorCorrigido : 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.juros : 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.valorDevido : 0)) + '</td></tr>';
     CPPrintLayout.appendTable(layout, {
       title: 'Resumo do cálculo',
       columns: ['Verba', 'Valor corrigido', 'Juros', 'Valor devido'],
