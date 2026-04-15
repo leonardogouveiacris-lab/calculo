@@ -2590,6 +2590,7 @@
 
 
   let reportBuildFrameQueued = false;
+  let reportBuildFrameHandle = null;
   let reportBuildRequest = null;
   let reportBuildCallbacks = [];
   const FREE_TEXT_FIELD_IDS = new Set(['observacoes', 'requerente', 'requerido', 'processo']);
@@ -2601,10 +2602,26 @@
   let dataAtualizacaoRefreshInFlight = false;
   let dataAtualizacaoRefreshQueued = false;
 
+  function isReportTabActive(){
+    const reportTab = $('tab-report');
+    return !!(reportTab && reportTab.classList.contains('active'));
+  }
+
+  function cancelPendingReportBuild(){
+    if (!reportBuildFrameQueued || reportBuildFrameHandle == null) return;
+    const cancel = window.cancelAnimationFrame || function(handle){ clearTimeout(handle); };
+    cancel(reportBuildFrameHandle);
+    reportBuildFrameQueued = false;
+    reportBuildFrameHandle = null;
+    reportBuildRequest = null;
+    reportBuildCallbacks = [];
+  }
+
   function flushReportBuildQueue(){
     if (!reportBuildRequest) return;
     const pending = reportBuildRequest;
     reportBuildRequest = null;
+    reportBuildFrameHandle = null;
     const opts = pending.options || {};
     try {
       buildReport(pending.data);
@@ -2632,13 +2649,14 @@
     if (reportBuildFrameQueued) return;
     reportBuildFrameQueued = true;
     const raf = window.requestAnimationFrame || function(cb){ return setTimeout(cb, 16); };
-    raf(function(){
+    reportBuildFrameHandle = raf(function(){
       reportBuildFrameQueued = false;
       flushReportBuildQueue();
     });
   }
 
   function renderReportDeferred(callback){
+    cancelPendingReportBuild();
     if (typeof callback === 'function') reportBuildCallbacks.push(callback);
     safeBuildReport(collect(), { source: 'report-tab-deferred' });
   }
@@ -2749,6 +2767,7 @@
 
   function refreshSummaryOutputsOnly(){
     persistAndRefreshLight();
+    if (isReportTabActive()) renderReportDeferred();
   }
 
   function clearLaunchForm(){
@@ -3788,7 +3807,7 @@
       clearTimeout(debouncedSaveTimers[fieldId]);
       delete debouncedSaveTimers[fieldId];
       save(collect());
-      renderReportDeferred();
+      if (isReportTabActive()) renderReportDeferred();
     });
   });
   window.CPCiveisCompat = Object.assign({}, window.CPCiveisCompat || {}, {
@@ -3805,7 +3824,7 @@
   renderLaunches();
   renderSummaryPanel();
   safeBuildReport(collect(), { source: 'startup-initial-report' });
-  if ($('tab-report') && $('tab-report').classList.contains('active')) renderReportDeferred();
+  if (isReportTabActive()) renderReportDeferred();
   setTimeout(function(){
     state.lancamentos.forEach(function(lancamento, index){
       if (!(launchNeedsIndexRefresh(lancamento) || !(lancamento.indexConfig && lancamento.indexConfig.lastAutoRefresh))) return;
