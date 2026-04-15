@@ -1,6 +1,14 @@
 (function(){
   var root = window.CPSolicitacoes = window.CPSolicitacoes || {};
   if (root.reportModuleLoaded) return;
+  var escapeHtml = (window.CPCommon && CPCommon.escapeHtml) ? CPCommon.escapeHtml : function(value){
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  };
 
   function getReportLogo(){
     return (root.store.logoDataUrl && String(root.store.logoDataUrl).trim()) ? root.store.logoDataUrl : CPPrintLayout.defaults.logo;
@@ -100,8 +108,18 @@
   function createSolicRowHtml(row){
     return '<tr>' + root.COLUMNS.map(function(column){
       var value = row[column] == null ? '' : String(row[column]);
-      return '<td>' + value + '</td>';
+      return '<td>' + escapeHtml(value) + '</td>';
     }).join('') + '</tr>';
+  }
+
+  function createSolicRowNode(row){
+    var tr = document.createElement('tr');
+    root.COLUMNS.forEach(function(column){
+      var td = document.createElement('td');
+      td.textContent = row[column] == null ? '' : String(row[column]);
+      tr.appendChild(td);
+    });
+    return tr;
   }
 
   function createLegacyPage(rootEl, pageIndex, metaText, includeTitle){
@@ -123,11 +141,8 @@
     var page = createLegacyPage(rootEl, pageIndex, meta, true);
     var tbody = page.querySelector('tbody');
 
-    rows.forEach(function(rowHtml){
-      var wrap = document.createElement('tbody');
-      wrap.innerHTML = rowHtml;
-      var tr = wrap.firstElementChild;
-      if (!tr) return;
+    rows.forEach(function(rowNode){
+      var tr = rowNode.cloneNode(true);
       tbody.appendChild(tr);
       if (!CPPrintLayout.pageHasRoom(page, '.footer', 8)) {
         tr.remove();
@@ -143,6 +158,7 @@
 
   function fillLayout(layout){
     var rows = root.store.currentRows.map(createSolicRowHtml);
+    var rowNodes = root.store.currentRows.map(createSolicRowNode);
     CPPrintLayout.appendTable(layout, {
       columns: root.COLUMNS,
       rows: rows,
@@ -152,7 +168,7 @@
 
     var renderedRows = layout.root.querySelectorAll('tbody tr').length;
     if (rows.length && renderedRows !== rows.length) {
-      legacyPaginate(layout.root, rows, buildMetaText());
+      legacyPaginate(layout.root, rowNodes, buildMetaText());
     }
 
     if (!rows.length) {

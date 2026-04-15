@@ -205,6 +205,14 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
   };
 
   const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+  const escapeHtml = (window.CPCommon && CPCommon.escapeHtml)
+    ? CPCommon.escapeHtml
+    : (s) => String(s == null ? "" : s)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
 
   const addMonthsISO = (iso, m) => {
     // iso: YYYY-MM-DD
@@ -228,7 +236,14 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
     if (!host) return;
     const node = document.createElement("div");
     node.className = "toast";
-    node.innerHTML = `<div>${title}</div>${detail ? `<small>${detail}</small>` : ""}`;
+    const titleNode = document.createElement("div");
+    titleNode.textContent = String(title ?? "");
+    node.appendChild(titleNode);
+    if (detail) {
+      const detailNode = document.createElement("small");
+      detailNode.textContent = String(detail);
+      node.appendChild(detailNode);
+    }
     host.appendChild(node);
     setTimeout(() => node.remove(), 3200);
   };
@@ -608,13 +623,6 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
       tbody.appendChild(tr);
     });
   }
-
-  const escapeHtml = (s) => String(s)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 
   /* =====================
      RENDER — RELATÓRIO
