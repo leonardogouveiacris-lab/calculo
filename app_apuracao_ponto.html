@@ -1,0 +1,48 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>CalculoPro — Apuração de Ponto</title><link rel="stylesheet" href="css/print-report.css"><style>
+:root{--bg:#f7f8fb;--card:#fff;--border:#e6e8ef;--border-strong:#d7dbe6;--muted:#667085;--ink:#0b1220;--soft:#f2f4f7;--soft-2:#f8fafc;--link:#2563eb;--accent:#0b1220;--shadow-soft:0 10px 26px rgba(16,24,40,.06);--radius:18px;--radius-sm:12px;--focus:0 0 0 4px rgba(37,99,235,.18)}
+*{box-sizing:border-box}body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;font-size:15px;line-height:1.5;color:var(--ink);background:radial-gradient(1200px 500px at 50% -200px, rgba(37,99,235,.08), transparent 60%),radial-gradient(900px 380px at 0% 0%, rgba(2,132,199,.06), transparent 55%),var(--bg);-webkit-font-smoothing:antialiased}
+a{color:var(--link);text-decoration:none}.topbar{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.78);backdrop-filter:blur(14px);border-bottom:1px solid var(--border)}.topbar-inner{max-width:1120px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}.brand{display:flex;align-items:center;gap:12px;min-width:280px}.brand-logo{height:42px;max-width:220px}.actions{display:flex;gap:10px;flex-wrap:wrap}
+.btn,button{appearance:none;border:1px solid var(--border);background:#fff;border-radius:12px;padding:10px 12px;font-size:13px;cursor:pointer;color:var(--ink)}.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}.hintbar{border-top:1px solid var(--border);background:rgba(255,255,255,.58)}.hintbar-inner{max-width:1120px;margin:0 auto;padding:10px 16px}.hint{font-size:12px;color:var(--muted)}
+.wrap{max-width:1120px;margin:0 auto;padding:18px 16px 64px}.tabs-head{display:flex;flex-direction:column;gap:4px;text-align:center;align-items:center;margin:10px 0 14px}.tabs-title{font-size:18px;font-weight:700}.tabs-sub{font-size:14px;color:var(--muted)}.tabs{display:flex;justify-content:center;gap:10px;margin:16px 0 18px}.tab{border:1px solid var(--border);background:rgba(255,255,255,.82);border-radius:999px;padding:10px 14px;font-size:13px;cursor:pointer}.tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.tabpane{display:none}.tabpane.active{display:block}.grid{display:grid;grid-template-columns:minmax(0,880px);justify-content:center;gap:14px}.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 16px 14px;box-shadow:var(--shadow-soft)}.card h2{margin:0 0 8px;font-size:15px;font-weight:600;padding-bottom:10px;border-bottom:1px solid var(--border)}.card-sub{margin:10px 0;font-size:12px;color:var(--muted)}
+.row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}.col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-12{grid-column:span 12}label{display:block;font-size:12px;color:var(--muted);margin:12px 0 6px}input[type="text"],input[type="date"],textarea{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px}textarea{min-height:82px}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.timeline{display:flex;gap:8px;overflow:auto;padding:4px 2px 8px}.timeline button{border-radius:999px;white-space:nowrap;padding:8px 12px;font-size:12px}.timeline button.active{background:#111827;color:#fff;border-color:#111827}
+.table-wrap{overflow:auto;border:1px solid var(--border);border-radius:16px;background:#fff}.editor-table{width:100%;border-collapse:collapse;font-size:12px;min-width:620px}.editor-table th,.editor-table td{border-bottom:1px solid var(--border);padding:8px}.editor-table thead th{background:var(--soft-2);color:#475467}.editor-table tbody tr:nth-child(even){background:#fcfdff}.editor-table input{width:100%;border:1px solid #e5e7eb;border-radius:8px;padding:6px 8px;font-size:12px}.editor-table input.readonly{background:#f8fafc}
+.report-sheet{background:#fff;border:1px solid #cfd4de;border-radius:8px;padding:10mm;margin-bottom:18px;page-break-after:always}.report-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.report-title{font-size:15pt;font-weight:700;margin:0}.report-meta{font-size:10.5pt;line-height:1.4}.legend{margin-top:8px;padding:7px;border:1px solid #d9dde6;border-radius:6px;background:#fbfcff;font-size:9.8pt}.legend-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 10px}
+.report-table{width:100%;border-collapse:collapse;font-size:9.8pt;margin-top:8px}.report-table th,.report-table td{border:1px solid #d9dde6;padding:4px 6px}.report-table th{background:#f6f8fb}.report-table tbody tr:nth-child(even){background:#fafbfd}
+.no-print{display:block}.page-note{font-size:12px;color:var(--muted)}@media (max-width:900px){.col-3,.col-4,.col-6{grid-column:span 12}.grid{grid-template-columns:1fr}}@media print{.no-print,.topbar{display:none !important}.wrap{max-width:none;padding:0}.report-sheet{border:none;border-radius:0;padding:8mm 10mm;margin:0;page-break-after:always;break-after:page}}
+</style><script src="js/core/cp-common.js"></script></head><body>
+<header class="topbar no-print"><div class="topbar-inner"><div class="brand"><img class="brand-logo" src="https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png" alt="CalculoPro"/></div><div class="actions"><button class="btn" id="btnBack" type="button">Voltar ao menu</button></div></div><div class="hintbar"><div class="hintbar-inner"><div class="hint">Módulo de apuração de ponto com fluxo híbrido: geração do período, exportação CSV-modelo, importação técnica e relatório mensal.</div></div></div></header>
+<main class="wrap">
+<div class="tabs-head no-print"><div class="tabs-title">Apuração de Ponto</div><div class="tabs-sub">Mesmo padrão visual dos módulos do pacote, com foco em importação/exportação CSV e relatório por competência.</div></div>
+<div class="tabs no-print" role="tablist"><button class="tab active" data-tab="dados" type="button">Dados</button><button class="tab" data-tab="report" type="button">Relatório</button></div>
+<section class="tabpane active" id="tab-dados">
+  <section class="grid"><section class="card"><h2>Dados do processo</h2><div class="card-sub">Identificação da demanda e período base para geração dos lançamentos diários.</div>
+    <div class="row">
+      <div class="col-6"><label for="autor">Autor</label><input id="autor" type="text" placeholder="Nome do autor"></div>
+      <div class="col-6"><label for="reu">Réu</label><input id="reu" type="text" placeholder="Nome do réu"></div>
+      <div class="col-6"><label for="processo">Nº do processo</label><input id="processo" type="text" placeholder="0000000-00.0000.0.00.0000"></div>
+      <div class="col-6"><label for="vara">Vara</label><input id="vara" type="text" placeholder="Ex.: 12ª Vara do Trabalho"></div>
+      <div class="col-3"><label for="periodoInicial">Período inicial</label><input id="periodoInicial" type="date"></div>
+      <div class="col-3"><label for="periodoFinal">Período final</label><input id="periodoFinal" type="date"></div>
+      <div class="col-6"><label for="municipio">Município (opcional)</label><input id="municipio" type="text" placeholder="Ex.: São Paulo/SP"></div>
+      <div class="col-12"><label for="obsGerais">Observações gerais</label><textarea id="obsGerais" placeholder="Anotações gerais do caso e critérios adotados."></textarea></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn-primary" id="btnGerarPeriodo" type="button">Gerar período</button>
+      <button class="btn" id="btnExportModeloCsv" type="button">Exportar CSV-modelo</button>
+      <button class="btn" id="btnImportCsv" type="button">Importar CSV preenchido</button>
+      <button class="btn" id="btnExportJson" type="button">Exportar JSON</button>
+      <button class="btn" id="btnImportJson" type="button">Importar JSON</button>
+      <input id="inputImportCsv" type="file" accept=".csv,text/csv" style="display:none">
+      <input id="inputImportJson" type="file" accept=".json,application/json" style="display:none">
+    </div>
+  </section></section>
+  <section class="grid"><section class="card"><h2>Lançamentos por competência</h2><div class="card-sub">Antes da importação, a grade mostra apenas Data e Dia. Após importar, a estrutura é reconstruída conforme o tipo de cada coluna do CSV.</div><div id="timeline" class="timeline"></div><div id="editorHost" class="table-wrap"></div></section></section>
+  <section class="grid"><section class="card"><h2>Resumo mensal das apurações</h2><div class="card-sub">Soma automática por competência das colunas classificadas como apuração.</div><div id="monthlySummary" class="table-wrap"></div></section></section>
+</section>
+<section class="tabpane" id="tab-report"><section class="grid"><section class="card no-print"><h2>Pré-visualização do relatório</h2><div class="card-sub">Uma folha por competência, com cabeçalho técnico, legenda de prefixos e tabela analítica mensal.</div><div class="btn-row"><button class="btn-primary" id="btnPrint" type="button">Imprimir relatório</button></div></section><div id="reportRoot"></div><div class="page-note no-print">Impressão preparada para A4 com quebra automática por competência.</div></section></section>
+</main>
+<script defer src="js/modules/ponto-feriados.js"></script>
+<script defer src="js/modules/ponto-app.js"></script>
+</body></html>
