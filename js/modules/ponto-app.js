@@ -14,6 +14,17 @@
   const ALLOWED_TYPES = new Set(['data','dia','entrada','saida','ocorrencia','observacao','apuracao','texto']);
   const WEEKDAYS = ['dom','seg','ter','qua','qui','sex','sáb'];
   const MONTHS = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+  const REPORT_HEADER = {
+    nome: 'Leonardo G. Cristiano',
+    tel: '(14) 99606-7654',
+    email: 'suporte@calculopro.com.br'
+  };
+  const REPORT_FOOTER = {
+    l1: 'R. Mário Gonzaga Junqueira, 25-80',
+    l2: 'Jardim Viaduto, Bauru - SP, 17055-210',
+    site: 'www.calculopro.com.br',
+    emp: 'CalculoPro Ltda. 51.540.075/0001-04'
+  };
 
   let state = { identificacao:{}, columns:[], monthOrder:[], months:{}, activeMonth:'', imported:false, prefixes:{}, feriados:window.CPPontoFeriados || [] };
 
@@ -209,19 +220,20 @@
     const legendItems = cols.filter(c=>c.type==='apuracao').map(c=>`<div><b>${state.prefixes[c.id] || c.name}</b> – ${esc(c.name)}</div>`).join('') || '<div>Sem colunas de apuração.</div>';
     root.innerHTML = state.monthOrder.map((m, index)=>{
       const rows = state.months[m] || [];
-      return `<section class="report-sheet">
-        <div class="report-sheet-head">
-          <img class="report-sheet-logo" src="https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png" alt="CalculoPro">
-          <div class="report-sheet-tag">Sistema de Apuração de Ponto</div>
+      return `<section class="page point-page">
+        <div class="header">
+          <img class="logo" data-logo="1" src="https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png" alt="CalculoPro">
+          <div class="contact"><b>${esc(REPORT_HEADER.nome)}</b><br>${esc(REPORT_HEADER.tel)}<br>${esc(REPORT_HEADER.email)}</div>
         </div>
-        <div class="report-head"><div><h2 class="report-title">Relatório Analítico de Apuração de Ponto — ${monthLabel(m)}</h2>
+        <div class="content">
+          <h2 class="report-title">Relatório Analítico de Apuração de Ponto — ${monthLabel(m)}</h2>
           <div class="report-meta"><b>Autor:</b> ${esc(fields.autor.value || '—')} · <b>Réu:</b> ${esc(fields.reu.value || '—')} · <b>Processo:</b> ${esc(fields.processo.value || '—')}<br><b>Vara:</b> ${esc(fields.vara.value || '—')} · <b>Município:</b> ${esc(fields.municipio.value || '—')} · <b>Período:</b> ${esc(fields.periodoInicial.value||'—')} a ${esc(fields.periodoFinal.value||'—')}</div>
-        </div></div>
-        <div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div>
-        ${reportTableHtml(rows, cols, grouped)}
-        <div class="report-foot">
-          <span>Documento emitido pelo módulo de Apuração de Ponto.</span>
-          <span>Página ${index + 1} de ${state.monthOrder.length} · Competência ${monthLabel(m)}</span>
+          <div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div>
+          ${reportTableHtml(rows, cols, grouped)}
+        </div>
+        <div class="footer">
+          <div>${esc(REPORT_FOOTER.l1)}<br>${esc(REPORT_FOOTER.l2)}</div>
+          <div style="text-align:right">${esc(REPORT_FOOTER.site)}<br>${esc(REPORT_FOOTER.emp)} · Página ${index + 1} de ${state.monthOrder.length}</div>
         </div>
       </section>`;
     }).join('');
