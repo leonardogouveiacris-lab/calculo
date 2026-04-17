@@ -34,6 +34,7 @@
     $('btnBack').addEventListener('click', ()=>{ window.location.href='index.html'; });
     $('btnGerarPeriodo').addEventListener('click', generatePeriod);
     $('btnExportModeloCsv').addEventListener('click', exportTemplateCsv);
+    $('btnExportGuiaCsv').addEventListener('click', exportGuideCsv);
     $('btnImportCsv').addEventListener('click', ()=>$('inputImportCsv').click());
     $('inputImportCsv').addEventListener('change', importCsv);
     $('btnPrint').addEventListener('click', ()=>window.print());
@@ -84,6 +85,33 @@
     }));
     const csv = lines.map(arr=>arr.map(csvEsc).join(';')).join('\r\n');
     downloadFile('modelo_apuracao_ponto.csv', '\ufeff'+csv, 'text/csv;charset=utf-8;');
+  }
+
+  function exportGuideCsv(){
+    const guideRows = [
+      ['topico','item','descricao'],
+      ['tipos','data','Campo de data do lançamento diário. Necessário para agrupar por competência.'],
+      ['tipos','dia','Dia da semana (seg, ter, qua...).'],
+      ['tipos','entrada','Campo de marcação de entrada. Recebe máscara de hora na interface (0800 → 08:00).'],
+      ['tipos','saida','Campo de marcação de saída. Recebe máscara de hora na interface (1730 → 17:30).'],
+      ['tipos','ocorrencia','Campo textual para ocorrências da jornada.'],
+      ['tipos','observacao','Campo textual para observações complementares.'],
+      ['tipos','apuracao','Coluna numérica/de horas para resultados mensais e relatório.'],
+      ['tipos','texto','Campo livre auxiliar sem tratamento especial.'],
+      ['orientacao','dd/mm/aaaa','Sugestão para coluna tipo data.'],
+      ['orientacao','seg/ter/qua...','Sugestão para coluna tipo dia.'],
+      ['orientacao','hhmm','Sugestão para entrada/saída, com máscara no HTML após importação.'],
+      ['orientacao','texto livre','Use para ocorrência/observação/texto.'],
+      ['orientacao','fórmula/editável','Use quando o cálculo vier por fórmula do Excel, mas pode ser sobrescrito manualmente.'],
+      ['orientacao','manual','Preenchimento livre sem fórmula obrigatória.'],
+      ['regras','linha 1','Tipos técnicos das colunas (obrigatório).'],
+      ['regras','linha 2','Nome visível de cada coluna (obrigatório).'],
+      ['regras','linha 3','Orientação de uso da coluna (recomendado).'],
+      ['regras','linha 4+','Dados diários da apuração.'],
+      ['regras','carga','A coluna Carga deve permanecer livre para ajuste do usuário, sem regra automática.']
+    ];
+    const csv = guideRows.map(arr=>arr.map(csvEsc).join(';')).join('\r\n');
+    downloadFile('guia_colunas_apuracao_ponto.csv', '\ufeff'+csv, 'text/csv;charset=utf-8;');
   }
 
   async function importCsv(ev){
@@ -179,14 +207,22 @@
     const cols = state.columns;
     const grouped = groupCols(cols);
     const legendItems = cols.filter(c=>c.type==='apuracao').map(c=>`<div><b>${state.prefixes[c.id] || c.name}</b> – ${esc(c.name)}</div>`).join('') || '<div>Sem colunas de apuração.</div>';
-    root.innerHTML = state.monthOrder.map(m=>{
+    root.innerHTML = state.monthOrder.map((m, index)=>{
       const rows = state.months[m] || [];
       return `<section class="report-sheet">
+        <div class="report-sheet-head">
+          <img class="report-sheet-logo" src="https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png" alt="CalculoPro">
+          <div class="report-sheet-tag">Sistema de Apuração de Ponto</div>
+        </div>
         <div class="report-head"><div><h2 class="report-title">Relatório Analítico de Apuração de Ponto — ${monthLabel(m)}</h2>
           <div class="report-meta"><b>Autor:</b> ${esc(fields.autor.value || '—')} · <b>Réu:</b> ${esc(fields.reu.value || '—')} · <b>Processo:</b> ${esc(fields.processo.value || '—')}<br><b>Vara:</b> ${esc(fields.vara.value || '—')} · <b>Município:</b> ${esc(fields.municipio.value || '—')} · <b>Período:</b> ${esc(fields.periodoInicial.value||'—')} a ${esc(fields.periodoFinal.value||'—')}</div>
         </div></div>
         <div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div>
         ${reportTableHtml(rows, cols, grouped)}
+        <div class="report-foot">
+          <span>Documento emitido pelo módulo de Apuração de Ponto.</span>
+          <span>Página ${index + 1} de ${state.monthOrder.length} · Competência ${monthLabel(m)}</span>
+        </div>
       </section>`;
     }).join('');
   }
