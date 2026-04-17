@@ -45,6 +45,7 @@
     $('btnBack').addEventListener('click', ()=>{ window.location.href='index.html'; });
     $('btnGerarPeriodo').addEventListener('click', generatePeriod);
     $('btnExportModeloCsv').addEventListener('click', exportTemplateCsv);
+    $('btnExportGuiaCsv').addEventListener('click', exportGuideCsv);
     $('btnImportCsv').addEventListener('click', ()=>$('inputImportCsv').click());
     $('inputImportCsv').addEventListener('change', importCsv);
     $('btnPrint').addEventListener('click', ()=>window.print());
@@ -88,18 +89,6 @@
     syncIdentificacao();
     const types = DEFAULT_TEMPLATE.map(c=>c[0]); const names = DEFAULT_TEMPLATE.map(c=>c[1]); const guides = DEFAULT_TEMPLATE.map(c=>c[2]);
     const lines = [types, names, guides];
-    const guideNotes = [
-      'GUIA: tipos aceitos -> data, dia, entrada, saída, ocorrência, observação, apuração e texto.',
-      'GUIA: linha 1 = tipo técnico | linha 2 = nome visível | linha 3 = orientação da coluna.',
-      'GUIA: a partir da linha seguinte, preencha os dados diários (Data e Dia já vêm prontos).',
-      'GUIA: horários em hhmm (0800 -> 08:00 após importação na interface).',
-      'GUIA: colunas de apuração podem receber fórmula/editável; a coluna Carga deve ficar livre para ajuste.'
-    ];
-    guideNotes.forEach((note)=>{
-      const row = names.map(()=> '');
-      row[0] = note;
-      lines.push(row);
-    });
     state.monthOrder.forEach(k=> state.months[k].forEach(r=>{
       const row = names.map(()=> '');
       row[0] = r.data; row[1] = r.dia;
@@ -107,6 +96,33 @@
     }));
     const csv = lines.map(arr=>arr.map(csvEsc).join(';')).join('\r\n');
     downloadFile('modelo_apuracao_ponto.csv', '\ufeff'+csv, 'text/csv;charset=utf-8;');
+  }
+
+  function exportGuideCsv(){
+    const guideRows = [
+      ['topico','item','descricao'],
+      ['tipos','data','Campo de data do lançamento diário. Necessário para agrupar por competência.'],
+      ['tipos','dia','Dia da semana (seg, ter, qua...).'],
+      ['tipos','entrada','Campo de marcação de entrada. Recebe máscara de hora na interface (0800 → 08:00).'],
+      ['tipos','saida','Campo de marcação de saída. Recebe máscara de hora na interface (1730 → 17:30).'],
+      ['tipos','ocorrencia','Campo textual para ocorrências da jornada.'],
+      ['tipos','observacao','Campo textual para observações complementares.'],
+      ['tipos','apuracao','Coluna numérica/de horas para resultados mensais e relatório.'],
+      ['tipos','texto','Campo livre auxiliar sem tratamento especial.'],
+      ['orientacao','dd/mm/aaaa','Sugestão para coluna tipo data.'],
+      ['orientacao','seg/ter/qua...','Sugestão para coluna tipo dia.'],
+      ['orientacao','hhmm','Sugestão para entrada/saída, com máscara no HTML após importação.'],
+      ['orientacao','texto livre','Use para ocorrência/observação/texto.'],
+      ['orientacao','fórmula/editável','Use quando o cálculo vier por fórmula do Excel, mas pode ser sobrescrito manualmente.'],
+      ['orientacao','manual','Preenchimento livre sem fórmula obrigatória.'],
+      ['regras','linha 1','Tipos técnicos das colunas (obrigatório).'],
+      ['regras','linha 2','Nome visível de cada coluna (obrigatório).'],
+      ['regras','linha 3','Orientação de uso da coluna (recomendado).'],
+      ['regras','linha 4+','Dados diários da apuração.'],
+      ['regras','carga','A coluna Carga deve permanecer livre para ajuste do usuário, sem regra automática.']
+    ];
+    const csv = guideRows.map(arr=>arr.map(csvEsc).join(';')).join('\r\n');
+    downloadFile('guia_colunas_apuracao_ponto.csv', '\ufeff'+csv, 'text/csv;charset=utf-8;');
   }
 
   async function importCsv(ev){
