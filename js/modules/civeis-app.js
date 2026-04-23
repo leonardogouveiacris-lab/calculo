@@ -2556,6 +2556,8 @@
               '</div>';
         }).join('');
         const headers = ['Data'].concat(view.columns.map(function(coluna){ return coluna.title; }));
+        const effectiveColumnCount = 1 + view.columns.length;
+        const launchCompactLevel = effectiveColumnCount >= 12 ? 'ultra-compact' : (effectiveColumnCount >= 9 ? 'compact' : '');
         const rows = view.rows.map(function(row){
           const cols = row.cells.map(function(cell){
             return '<td class="right">' + esc(cell.displayValue || '—') + '</td>';
@@ -2580,6 +2582,7 @@
           rows: rows,
           tfootHtml: '<tr><td class="bold right">Total da verba</td>' + totalCells + '</tr>',
           tableClass: 'report-table report-launch-table',
+          compactLevel: launchCompactLevel,
           continuationLabel: esc(view.title) + ' (continuação)'
         });
       });
