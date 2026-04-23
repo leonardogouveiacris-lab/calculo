@@ -211,6 +211,11 @@ body[data-report-context] #cpPrintHost .process-info-table td:last-child{
   margin-top:3px;
 }
 
+#reportRoot.cp-report-root .page .summary-row-separate td{
+  background:#f8fafc;
+  border-top:1px dashed #b8c3d7;
+}
+
 #reportRoot.cp-report-root .page .footer{
   position:absolute;
   left:var(--cp-print-pad-x);

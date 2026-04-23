@@ -2517,15 +2517,29 @@
       '</tbody></table>'
     });
 
-    const summaryRows = (summary.rows.length ? summary.rows : [{ verba:'Nenhum item resumido até o momento.', note:'', valorCorrigido:0, juros:0, valorDevido:0 }]).map(function(row){
-      return '<tr>' +
+    const summaryBaseRows = summary.rows.length ? summary.rows : [{ verba:'Nenhum item resumido até o momento.', note:'', valorCorrigido:0, juros:0, valorDevido:0 }];
+    const summaryRegularRows = summaryBaseRows.filter(function(row){
+      return !(row && row.kind === 'honorarios' && row.includeInGrandTotal === false);
+    });
+    const summarySeparatedRows = summaryBaseRows.filter(function(row){
+      return row && row.kind === 'honorarios' && row.includeInGrandTotal === false;
+    });
+    const summaryRows = summaryRegularRows.concat(summarySeparatedRows).map(function(row){
+      const rowClass = row && row.kind === 'honorarios' && row.includeInGrandTotal === false ? ' class="summary-row-separate"' : '';
+      return '<tr' + rowClass + '>' +
         '<td>' + esc(row.verba || '—') + (row.note ? '<span class="summary-row-note">' + esc(row.note) + '</span>' : '') + '</td>' +
         '<td class="right">' + esc(formatCurrencyBR(row.valorCorrigido || 0)) + '</td>' +
         '<td class="right">' + esc(formatCurrencyBR(row.juros || 0)) + '</td>' +
         '<td class="bold right">' + esc(formatCurrencyBR(row.valorDevido || 0)) + '</td>' +
       '</tr>';
     });
-    const summaryFooter = '<tr><td class="bold right">Total geral</td><td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.valorCorrigido : 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.juros : 0)) + '</td><td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.valorDevido : 0)) + '</td></tr>';
+    const summaryFooter = '' +
+      '<tr>' +
+        '<td class="bold right">Total geral (sem honorários separados)</td>' +
+        '<td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.valorCorrigido : 0)) + '</td>' +
+        '<td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.juros : 0)) + '</td>' +
+        '<td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.valorDevido : 0)) + '</td>' +
+      '</tr>';
     CPPrintLayout.appendTable(layout, {
       title: 'Resumo do cálculo',
       columns: ['Verba', 'Valor corrigido', 'Juros', 'Valor devido'],
