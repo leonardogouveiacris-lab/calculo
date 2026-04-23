@@ -72,6 +72,7 @@
   const editHonorarioModal = $('editHonorarioModal');
   const editHonorarioId = $('editHonorarioId');
   const editHonorarioTipo = $('editHonorarioTipo');
+  const editHonorarioOperacao = $('editHonorarioOperacao');
   const editHonorarioSeparate = $('editHonorarioSeparate');
   const btnDeleteHonorarioModal = $('btnDeleteHonorarioModal');
   const INDEX_SOURCE_OPTIONS = {
@@ -652,6 +653,7 @@
       percentual: 10,
       multiplicador: 1,
       launchIds: [],
+      operacao: 'acrescer',
       valorFixo: 0,
       dataBase: '',
       indexSource: 'none',
@@ -662,6 +664,7 @@
   function normalizeHonorarioItem(item){
     const base = Object.assign(defaultHonorarioItem(), item || {});
     const tipo = base.tipo === 'fixo' ? 'fixo' : 'percentual';
+    const operacao = base.operacao === 'deduzir' ? 'deduzir' : 'acrescer';
     return {
       id: String(base.id || uid('honorario')),
       enabled: true,
@@ -671,6 +674,7 @@
       percentual: parseBRNumber(base.percentual || 0),
       multiplicador: parseBRNumber(base.multiplicador || 1) || 1,
       launchIds: Array.isArray(base.launchIds) ? base.launchIds.map(String).filter(Boolean) : [],
+      operacao: operacao,
       valorFixo: roundMoney(base.valorFixo || 0),
       dataBase: String(base.dataBase || ''),
       indexSource: String(base.indexSource || 'none'),
@@ -2210,12 +2214,16 @@
       const valorFixoCorrigido = normalized.enabled && normalized.tipo === 'fixo'
         ? roundMoney(normalized.valorFixo * fatorCorrecao)
         : 0;
+      const valorCalculado = normalized.tipo === 'fixo' ? valorFixoCorrigido : valorPercentual;
+      const valorFinal = normalized.operacao === 'deduzir'
+        ? -Math.abs(valorCalculado)
+        : Math.abs(valorCalculado);
       return {
         config: normalized,
         selectedLaunches: selectedLaunches,
         base: basePercentual,
         valorBase: valorBasePercentual,
-        valor: normalized.tipo === 'fixo' ? valorFixoCorrigido : valorPercentual,
+        valor: roundMoney(valorFinal),
         fatorCorrecao: fatorCorrecao
       };
     });
@@ -2238,7 +2246,7 @@
           kind: 'honorarios',
           id: item.config.id,
           verba: item.config.descricao + ' (valor fixo)',
-          note: (item.config.separateInSummary ? 'Separado no resumo. ' : '') + 'Base fixa em ' + formatDateBR(item.config.dataBase) + '.',
+          note: (item.config.separateInSummary ? 'Separado no resumo. ' : '') + (item.config.operacao === 'deduzir' ? 'Deduzido do crédito apurado. ' : 'Acrescido ao crédito apurado. ') + 'Base fixa em ' + formatDateBR(item.config.dataBase) + '.',
           valorCorrigido: item.valor,
           juros: 0,
           valorDevido: item.valor,
@@ -2250,7 +2258,7 @@
         kind: 'honorarios',
         id: item.config.id,
         verba: item.config.descricao + (item.config.percentual ? ' (' + formatNumberBR(item.config.percentual, 2, 4, true) + '%)' : '') + (item.config.multiplicador !== 1 ? (' × ' + formatNumberBR(item.config.multiplicador, 2, 4, true)) : ''),
-        note: (item.config.separateInSummary ? 'Separado no resumo. ' : '') + (item.selectedLaunches.length
+        note: (item.config.separateInSummary ? 'Separado no resumo. ' : '') + (item.config.operacao === 'deduzir' ? 'Deduzido do crédito apurado. ' : 'Acrescido ao crédito apurado. ') + (item.selectedLaunches.length
           ? ('Base composta por ' + String(item.selectedLaunches.length) + ' verba(s).')
           : 'Nenhuma verba selecionada para compor a base.'),
         valorCorrigido: item.valor,
@@ -2342,6 +2350,9 @@
       { id:'juros', nome:'Juros', className:'right' },
       { id:'valorDevido', nome:'Valor devido', className:'right bold' }
     ];
+    function formatSummaryMoney(value){
+      return '<span class="summary-money">' + esc(formatCurrencyBR(value)) + '</span>';
+    }
 
     function getSummaryCellValue(row, columnId){
       if (columnId === 'valorCorrigido' && Number.isFinite(row.valorCorrigido)) return roundMoney(row.valorCorrigido);
@@ -2361,13 +2372,13 @@
       honorariosResumo.innerHTML = '' +
         '<div class="summary-stats">' +
           '<div class="summary-stat"><span class="summary-stat-label">Itens no resumo</span><span class="summary-stat-value">' + String(honorariosItems.length) + '</span></div>' +
-          '<div class="summary-stat"><span class="summary-stat-label">Honorários totais</span><span class="summary-stat-value">' + esc(formatCurrencyBR(summaryData.honorarios.total || 0)) + '</span></div>' +
+          '<div class="summary-stat"><span class="summary-stat-label">Honorários totais</span><span class="summary-stat-value">' + formatSummaryMoney(summaryData.honorarios.total || 0) + '</span></div>' +
         '</div>' +
         honorariosItems.map(function(item){
           if (item.config.tipo === 'fixo') {
-            return '<div class="summary-inline-note"><b>' + esc(item.config.descricao) + '</b> &nbsp;•&nbsp; Fixo: <b>' + esc(formatCurrencyBR(item.config.valorFixo)) + '</b> &nbsp;•&nbsp; Data: <b>' + esc(formatDateBR(item.config.dataBase)) + '</b> &nbsp;•&nbsp; Índice: <b>' + esc(getIndexSourceOptionLabel('correcao', item.config.indexSource)) + '</b> &nbsp;•&nbsp; Fator: <b>x' + esc(formatNumberBR(item.fatorCorrecao || 1, 4, 7, true)) + '</b> &nbsp;•&nbsp; Total: <b>' + esc(formatCurrencyBR(item.valor || 0)) + '</b></div>';
+            return '<div class="summary-inline-note"><b>' + esc(item.config.descricao) + '</b> &nbsp;•&nbsp; Operação: <b>' + esc(item.config.operacao === 'deduzir' ? 'Dedução' : 'Acréscimo') + '</b> &nbsp;•&nbsp; Fixo: <b>' + esc(formatCurrencyBR(item.config.valorFixo)) + '</b> &nbsp;•&nbsp; Data: <b>' + esc(formatDateBR(item.config.dataBase)) + '</b> &nbsp;•&nbsp; Índice: <b>' + esc(getIndexSourceOptionLabel('correcao', item.config.indexSource)) + '</b> &nbsp;•&nbsp; Fator: <b>x' + esc(formatNumberBR(item.fatorCorrecao || 1, 4, 7, true)) + '</b> &nbsp;•&nbsp; Total: <b>' + esc(formatCurrencyBR(item.valor || 0)) + '</b></div>';
           }
-          return '<div class="summary-inline-note"><b>' + esc(item.config.descricao) + '</b> &nbsp;•&nbsp; Verbas: <b>' + String(item.selectedLaunches.length) + '</b> &nbsp;•&nbsp; Base: <b>' + esc(formatCurrencyBR(item.base || 0)) + '</b> &nbsp;•&nbsp; Percentual: <b>' + esc(formatNumberBR(item.config.percentual, 2, 4, true) + '%') + '</b> &nbsp;•&nbsp; Multiplicador: <b>x' + esc(formatNumberBR(item.config.multiplicador, 2, 4, true)) + '</b> &nbsp;•&nbsp; Total: <b>' + esc(formatCurrencyBR(item.valor || 0)) + '</b></div>';
+          return '<div class="summary-inline-note"><b>' + esc(item.config.descricao) + '</b> &nbsp;•&nbsp; Operação: <b>' + esc(item.config.operacao === 'deduzir' ? 'Dedução' : 'Acréscimo') + '</b> &nbsp;•&nbsp; Verbas: <b>' + String(item.selectedLaunches.length) + '</b> &nbsp;•&nbsp; Base: <b>' + esc(formatCurrencyBR(item.base || 0)) + '</b> &nbsp;•&nbsp; Percentual: <b>' + esc(formatNumberBR(item.config.percentual, 2, 4, true) + '%') + '</b> &nbsp;•&nbsp; Multiplicador: <b>x' + esc(formatNumberBR(item.config.multiplicador, 2, 4, true)) + '</b> &nbsp;•&nbsp; Total: <b>' + esc(formatCurrencyBR(item.valor || 0)) + '</b></div>';
         }).join('');
     }
 
@@ -2391,7 +2402,7 @@
           '<tr class="summary-row summary-row-' + esc(row.kind) + '">' +
             '<td>' + esc(row.verba || '—') + (row.note ? '<span class="summary-row-note">' + esc(row.note) + '</span>' : '') + '</td>' +
             summaryColumns.map(function(coluna){
-              return '<td class="' + esc(coluna.className) + '">' + esc(formatCurrencyBR(getSummaryCellValue(row, coluna.id))) + '</td>';
+              return '<td class="' + esc(coluna.className) + '">' + formatSummaryMoney(getSummaryCellValue(row, coluna.id)) + '</td>';
             }).join('') +
           '</tr>';
       }).join('') : '<tr><td colspan="' + String(summaryColumns.length + 1) + '" class="center">Nenhum item resumido até o momento.</td></tr>';
@@ -2402,14 +2413,14 @@
         '<tr>' +
           '<td>Total geral (sem honorários separados)</td>' +
           summaryColumns.map(function(coluna){
-            return '<td class="' + esc(coluna.className) + '">' + esc(formatCurrencyBR(summaryTotalsByColumn[coluna.id] || 0)) + '</td>';
+            return '<td class="' + esc(coluna.className) + '">' + formatSummaryMoney(summaryTotalsByColumn[coluna.id] || 0) + '</td>';
           }).join('') +
         '</tr>' +
         '<tr class="summary-row-separate">' +
           '<td>Honorários separados</td>' +
-          '<td class="right">' + esc(formatCurrencyBR(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.valorCorrigido : 0)) + '</td>' +
-          '<td class="right">' + esc(formatCurrencyBR(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.juros : 0)) + '</td>' +
-          '<td class="right bold">' + esc(formatCurrencyBR(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.valorDevido : 0)) + '</td>' +
+          '<td class="right">' + formatSummaryMoney(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.valorCorrigido : 0) + '</td>' +
+          '<td class="right">' + formatSummaryMoney(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.juros : 0) + '</td>' +
+          '<td class="right bold">' + formatSummaryMoney(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.valorDevido : 0) + '</td>' +
         '</tr>';
     }
 
@@ -3057,6 +3068,7 @@
     const item = normalizeHonorarioItem(state.honorarios.items[index]);
     if (editHonorarioId) editHonorarioId.value = item.id;
     if (editHonorarioTipo) editHonorarioTipo.value = item.tipo === 'fixo' ? 'fixo' : 'percentual';
+    if (editHonorarioOperacao) editHonorarioOperacao.value = item.operacao === 'deduzir' ? 'deduzir' : 'acrescer';
     if (editHonorarioSeparate) editHonorarioSeparate.checked = !!item.separateInSummary;
     editHonorarioModal.classList.add('open');
     editHonorarioModal.setAttribute('aria-hidden', 'false');
@@ -3069,6 +3081,7 @@
     editHonorarioModal.setAttribute('aria-hidden', 'true');
     if (editHonorarioId) editHonorarioId.value = '';
     if (editHonorarioTipo) editHonorarioTipo.value = 'percentual';
+    if (editHonorarioOperacao) editHonorarioOperacao.value = 'acrescer';
     if (editHonorarioSeparate) editHonorarioSeparate.checked = false;
   }
 
@@ -3078,6 +3091,7 @@
     if (index < 0) return closeEditHonorarioModal();
     const item = normalizeHonorarioItem(state.honorarios.items[index]);
     item.tipo = editHonorarioTipo && editHonorarioTipo.value === 'fixo' ? 'fixo' : 'percentual';
+    item.operacao = editHonorarioOperacao && editHonorarioOperacao.value === 'deduzir' ? 'deduzir' : 'acrescer';
     item.separateInSummary = !!(editHonorarioSeparate && editHonorarioSeparate.checked);
     state.honorarios.items[index] = item;
     if (item.tipo === 'percentual' && !item.launchIds.length) ensureHonorariosDefaultSelection();
@@ -3789,7 +3803,7 @@
       event.preventDefault();
       saveEditLaunchModal();
     }
-    if (event.key === 'Enter' && editHonorarioModal && editHonorarioModal.classList.contains('open') && (event.target === editHonorarioTipo || event.target === editHonorarioSeparate)) {
+    if (event.key === 'Enter' && editHonorarioModal && editHonorarioModal.classList.contains('open') && (event.target === editHonorarioTipo || event.target === editHonorarioOperacao || event.target === editHonorarioSeparate)) {
       event.preventDefault();
       saveEditHonorarioModal();
     }
