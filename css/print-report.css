@@ -178,6 +178,20 @@ body[data-report-context] #cpPrintHost .print-header .logo{
 #reportRoot.cp-report-root .page .report-table td:last-child{ border-right:none; }
 #reportRoot.cp-report-root .page .report-table tbody tr:last-child td{ border-bottom:none; }
 
+#reportRoot.cp-report-root .page .report-table.report-launch-table.is-compact th,
+#reportRoot.cp-report-root .page .report-table.report-launch-table.is-compact td{
+  font-size:9.6pt;
+  line-height:1.28;
+  padding:5px 6px;
+}
+
+#reportRoot.cp-report-root .page .report-table.report-launch-table.is-ultra-compact th,
+#reportRoot.cp-report-root .page .report-table.report-launch-table.is-ultra-compact td{
+  font-size:8.9pt;
+  line-height:1.2;
+  padding:4px 5px;
+}
+
 #reportRoot.cp-report-root .page .process-info-table td:first-child,
 body[data-report-context] #cpPrintHost .process-info-table td:first-child{
   width:34%;

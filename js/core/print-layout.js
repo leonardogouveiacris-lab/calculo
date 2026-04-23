@@ -303,11 +303,28 @@
     return appendMeasured(layout, html, opts);
   }
 
+  function resolveCompactTableClass(compactLevel){
+    if (compactLevel == null || compactLevel === false) return '';
+    if (typeof compactLevel === 'string') {
+      const normalized = compactLevel.trim().toLowerCase();
+      if (!normalized) return '';
+      if (normalized === 'is-ultra-compact' || normalized === 'ultra-compact' || normalized === 'ultra' || normalized === '2') return 'is-ultra-compact';
+      if (normalized === 'is-compact' || normalized === 'compact' || normalized === '1') return 'is-compact';
+      return normalized;
+    }
+    const numeric = Number(compactLevel);
+    if (!Number.isFinite(numeric) || numeric <= 0) return '';
+    return numeric >= 2 ? 'is-ultra-compact' : 'is-compact';
+  }
+
   function buildTableHtml(columns, rows, opts){
+    const options = opts || {};
     const head = '<thead><tr>' + columns.map(function(col){ return '<th>' + col + '</th>'; }).join('') + '</tr></thead>';
     const body = '<tbody>' + rows.join('') + '</tbody>';
-    const cls = opts.tableClass || 'report-table';
-    return '<table class="' + cls + '">' + head + body + (opts.tfootHtml ? '<tfoot>' + opts.tfootHtml + '</tfoot>' : '') + '</table>';
+    const baseClass = options.tableClass || 'report-table';
+    const compactClass = resolveCompactTableClass(options.compactLevel);
+    const cls = (baseClass + (compactClass ? ' ' + compactClass : '')).trim();
+    return '<table class="' + cls + '">' + head + body + (options.tfootHtml ? '<tfoot>' + options.tfootHtml + '</tfoot>' : '') + '</table>';
   }
 
   function appendTable(layout, tableSpec){
@@ -331,6 +348,7 @@
         while (end > start) {
           const html = title + buildTableHtml(columns, rows.slice(start, end), {
             tableClass: spec.tableClass,
+            compactLevel: spec.compactLevel,
             tfootHtml: end === rows.length ? (spec.tfootHtml || '') : ''
           });
           const blockNodes = toNodes(html);
@@ -345,6 +363,7 @@
           const forcedEnd = Math.min(rows.length, start + 1);
           appendMeasured(layout, title + buildTableHtml(columns, rows.slice(start, forcedEnd), {
             tableClass: spec.tableClass,
+            compactLevel: spec.compactLevel,
             tfootHtml: forcedEnd >= rows.length ? (spec.tfootHtml || '') : ''
           }));
           cursor = forcedEnd;
@@ -362,6 +381,7 @@
       const heading = title && continued && spec.continuationLabel ? '<div class="sec-title sec-title-small">' + spec.continuationLabel + '</div>' : title;
       appendMeasured(layout, heading + buildTableHtml(columns, rows.slice(start, end), {
         tableClass: spec.tableClass,
+        compactLevel: spec.compactLevel,
         tfootHtml: isLast ? (spec.tfootHtml || '') : ''
       }));
 
