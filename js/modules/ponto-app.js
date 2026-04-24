@@ -25,6 +25,8 @@
     site: 'www.calculopro.com.br',
     emp: 'CalculoPro Ltda. 51.540.075/0001-04'
   };
+  const PRINT_CONTEXT = 'apuracao-ponto-print';
+  const PRINT_TITLE = 'Relatório - Apuração de Ponto';
 
   let state = {
     identificacao:{}, columns:[], monthOrder:[], months:{}, activeMonth:'', imported:false, prefixes:{}, feriados:window.CPPontoFeriados || [],
@@ -50,7 +52,7 @@
     $('btnExportModeloCsv').addEventListener('click', exportTemplateCsv);
     $('btnImportCsv').addEventListener('click', ()=>$('inputImportCsv').click());
     $('inputImportCsv').addEventListener('change', importCsv);
-    $('btnPrint').addEventListener('click', ()=>window.print());
+    $('btnPrint').addEventListener('click', printReport);
     $('btnExportJson').addEventListener('click', exportJson);
     $('btnImportJson').addEventListener('click', ()=>$('inputImportJson').click());
     $('inputImportJson').addEventListener('change', importJson);
@@ -245,13 +247,68 @@
     });
   }
 
+  function buildReportMeta(){
+    return `<b>Autor:</b> ${esc(fields.autor.value || '—')} · <b>Réu:</b> ${esc(fields.reu.value || '—')} · <b>Processo:</b> ${esc(fields.processo.value || '—')}<br><b>Vara:</b> ${esc(fields.vara.value || '—')} · <b>Município:</b> ${esc(fields.municipio.value || '—')} · <b>Período:</b> ${esc(fields.periodoInicial.value||'—')} a ${esc(fields.periodoFinal.value||'—')}`;
+  }
+
+  function getReportBranding(){
+    return {
+      header: { nome:REPORT_HEADER.nome, tel:REPORT_HEADER.tel, email:REPORT_HEADER.email },
+      footer: { l1:REPORT_FOOTER.l1, l2:REPORT_FOOTER.l2, site:REPORT_FOOTER.site, emp:REPORT_FOOTER.emp }
+    };
+  }
+
+  function buildReportLayout(){
+    if (!window.CPPrintLayout || !CPPrintLayout.createLayout) return null;
+    const root = $('reportRoot');
+    return CPPrintLayout.createLayout({
+      root,
+      title: 'Relatório Analítico de Apuração de Ponto',
+      meta: buildReportMeta(),
+      branding: getReportBranding(),
+      contextName: PRINT_CONTEXT,
+      documentTitle: PRINT_TITLE
+    });
+  }
+
+  function fillReportLayout(layout){
+    const cols = state.columns;
+    const grouped = groupCols(cols);
+    state.monthOrder.forEach((m, index)=>{
+      if (index > 0) CPPrintLayout.createPage(layout, { includeTitle:false });
+      const rows = state.months[m] || [];
+      const legendItems = cols
+        .filter(c=>c.type==='apuracao')
+        .map(c=>`<div><b>${state.prefixes[c.id] || c.name}</b> – ${esc(c.name)}</div>`)
+        .join('') || '<div>Sem colunas de apuração.</div>';
+      CPPrintLayout.appendSection(layout, {
+        title: `Relatório Analítico de Apuração de Ponto — ${monthLabel(m)}`,
+        html: `<div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div>`
+      });
+      CPPrintLayout.appendTable(layout, {
+        columns: reportTableColumns(grouped),
+        rows: reportTableRows(rows, cols, grouped),
+        tableClass: 'report-table',
+        continuationLabel: `Relatório Analítico de Apuração de Ponto — ${monthLabel(m)} (continuação)`
+      });
+    });
+  }
+
   function renderReport(){
     const root = $('reportRoot');
     if (!state.monthOrder.length){ root.innerHTML = ''; return; }
+    const layout = buildReportLayout();
+    if (!layout){ root.innerHTML = renderLegacyReportHtml(); return; }
+
+    fillReportLayout(layout);
+    CPPrintLayout.applyReportBranding(root, getReportBranding());
+  }
+
+  function renderLegacyReportHtml(){
     const cols = state.columns;
     const grouped = groupCols(cols);
     const legendItems = cols.filter(c=>c.type==='apuracao').map(c=>`<div><b>${state.prefixes[c.id] || c.name}</b> – ${esc(c.name)}</div>`).join('') || '<div>Sem colunas de apuração.</div>';
-    root.innerHTML = state.monthOrder.map((m, index)=>{
+    return state.monthOrder.map((m, index)=>{
       const rows = state.months[m] || [];
       return `<section class="page point-page">
         <div class="header">
@@ -260,7 +317,7 @@
         </div>
         <div class="content">
           <h2 class="report-title">Relatório Analítico de Apuração de Ponto — ${monthLabel(m)}</h2>
-          <div class="report-meta"><b>Autor:</b> ${esc(fields.autor.value || '—')} · <b>Réu:</b> ${esc(fields.reu.value || '—')} · <b>Processo:</b> ${esc(fields.processo.value || '—')}<br><b>Vara:</b> ${esc(fields.vara.value || '—')} · <b>Município:</b> ${esc(fields.municipio.value || '—')} · <b>Período:</b> ${esc(fields.periodoInicial.value||'—')} a ${esc(fields.periodoFinal.value||'—')}</div>
+          <div class="report-meta">${buildReportMeta()}</div>
           <div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div>
           ${reportTableHtml(rows, cols, grouped)}
         </div>
@@ -270,6 +327,28 @@
         </div>
       </section>`;
     }).join('');
+  }
+
+  function reportTableColumns(grouped){
+    return ['Data', 'Sem.']
+      .concat(grouped.horarios.map(c=>c.name))
+      .concat(grouped.textos.map(c=>c.name))
+      .concat(grouped.apuracoes.map(c=>state.prefixes[c.id] || c.name));
+  }
+
+  function reportTableRows(rows, cols, grouped){
+    const orderedCols = grouped.horarios.concat(grouped.textos).concat(grouped.apuracoes);
+    return rows.map((r)=>`<tr><td>${esc(findValueByType(cols,r,'data'))}</td><td>${esc(findValueByType(cols,r,'dia'))}</td>${orderedCols.map(c=>`<td>${esc(formatCell(c,r[c.id]||''))}</td>`).join('')}</tr>`);
+  }
+
+  function printReport(){
+    if (!state.monthOrder.length){ alert('Gere ou importe dados antes de imprimir.'); return; }
+    const reportRoot = $('reportRoot');
+    if (!reportRoot || !window.CPPrintLayout || !CPPrintLayout.finalizeAndPrint){ window.print(); return; }
+    const layout = buildReportLayout();
+    if (!layout){ window.print(); return; }
+    fillReportLayout(layout);
+    CPPrintLayout.finalizeAndPrint(layout, { contextName: PRINT_CONTEXT, title: PRINT_TITLE });
   }
 
   function reportTableHtml(rows, cols, grouped){
