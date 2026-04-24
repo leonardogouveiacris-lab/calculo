@@ -25,8 +25,13 @@
     site: 'www.calculopro.com.br',
     emp: 'CalculoPro Ltda. 51.540.075/0001-04'
   };
+  const PRINT_CONTEXT = 'apuracao-ponto-print';
+  const PRINT_TITLE = 'Relatório - Apuração de Ponto';
 
-  let state = { identificacao:{}, columns:[], monthOrder:[], months:{}, activeMonth:'', imported:false, prefixes:{}, feriados:window.CPPontoFeriados || [] };
+  let state = {
+    identificacao:{}, columns:[], monthOrder:[], months:{}, activeMonth:'', imported:false, prefixes:{}, feriados:window.CPPontoFeriados || [],
+    summaryOptions:{ apurarDiferencas:false }, paidByMonth:{}
+  };
 
   function init(){
     bindTabs(); bindActions(); load(); renderAll();
@@ -57,6 +62,10 @@
     $('btnExportJson').addEventListener('click', exportJson);
     $('btnImportJson').addEventListener('click', ()=>$('inputImportJson').click());
     $('inputImportJson').addEventListener('change', importJson);
+    $('toggleDifferences').addEventListener('change', (e)=>{
+      state.summaryOptions.apurarDiferencas = !!e.target.checked;
+      save(); renderMonthlySummary();
+    });
     Object.values(fields).forEach(el=>el && el.addEventListener('input', ()=>{ syncIdentificacao(); save(); renderReport(); }));
   }
 
@@ -79,13 +88,14 @@
     const end = parseISO(fields.periodoFinal.value);
     if (!start || !end || start > end){ alert('Informe um período válido.'); return; }
     state.columns = [{ id:'data', type:'data', name:'Data', guide:'dd/mm/aaaa' }, { id:'dia', type:'dia', name:'Dia', guide:'seg/ter/qua...' }];
-    state.months = {}; state.monthOrder = []; state.imported = false; state.prefixes = {};
+    state.months = {}; state.monthOrder = []; state.imported = false; state.prefixes = {}; state.paidByMonth = {};
     for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)){
       const iso = toISO(d); const monthKey = iso.slice(0,7);
       if (!state.months[monthKey]) { state.months[monthKey] = []; state.monthOrder.push(monthKey); }
       state.months[monthKey].push({ data: formatDateBR(iso), dia: WEEKDAYS[d.getDay()] });
     }
     state.activeMonth = state.monthOrder[0] || '';
+    reconcilePaidByMonth();
     save(); renderAll();
   }
 
@@ -141,7 +151,7 @@
       months[mk].push(obj);
     });
     state.columns = cols; state.months = months; state.monthOrder = order.sort(); state.activeMonth = state.monthOrder[0] || ''; state.imported = true;
-    recalcPrefixes(); save(); renderAll();
+    recalcPrefixes(); reconcilePaidByMonth(); save(); renderAll();
   }
 
   function recalcPrefixes(){
@@ -192,14 +202,102 @@
 
   function renderMonthlySummary(){
     const host = $('monthlySummary');
+    const diffEnabled = !!(state.summaryOptions && state.summaryOptions.apurarDiferencas);
     const apCols = state.columns.filter(c=>c.type==='apuracao');
     if (!apCols.length || !state.monthOrder.length){ host.innerHTML = '<div style="padding:12px;color:#667085">Sem colunas de apuração disponíveis para resumo.</div>'; return; }
-    const head = `<tr><th>Competência</th>${apCols.map(c=>`<th>${esc(state.prefixes[c.id] || c.name)}</th>`).join('')}</tr>`;
+    if (!diffEnabled){
+      const head = `<tr><th>Competência</th>${apCols.map(c=>`<th>${esc(state.prefixes[c.id] || c.name)}</th>`).join('')}</tr>`;
+      const body = state.monthOrder.map(m=>{
+        const sums = apCols.map(c=>formatMinutes(sumApuracaoMinutes(state.months[m], c.id)));
+        return `<tr><td>${monthLabel(m)}</td>${sums.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`;
+      }).join('');
+      host.innerHTML = `<table class="editor-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+      return;
+    }
+    const head1 = `<tr><th rowspan="2">Competência</th>${apCols.map(c=>`<th colspan="3">${esc(state.prefixes[c.id] || c.name)}</th>`).join('')}</tr>`;
+    const head2 = `<tr>${apCols.map(()=>'<th>Apurado</th><th>Pago</th><th>Diferença</th>').join('')}</tr>`;
     const body = state.monthOrder.map(m=>{
-      const sums = apCols.map(c=>sumApuracao(state.months[m], c.id));
-      return `<tr><td>${monthLabel(m)}</td>${sums.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`;
+      const colsHtml = apCols.map(c=>{
+        const apuradoMin = sumApuracaoMinutes(state.months[m], c.id);
+        const paidVal = getPaidValue(m, c.id);
+        const paidMin = parseDurationToMinutes(paidVal);
+        const diffMin = apuradoMin - paidMin;
+        return `<td>${esc(formatMinutes(apuradoMin))}</td>
+          <td><input data-paid="1" data-month="${m}" data-col="${c.id}" value="${esc(paidVal)}" placeholder="00:00" inputmode="numeric"></td>
+          <td>${esc(formatMinutes(diffMin))}</td>`;
+      }).join('');
+      return `<tr><td>${monthLabel(m)}</td>${colsHtml}</tr>`;
     }).join('');
-    host.innerHTML = `<table class="editor-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+    host.innerHTML = `<table class="editor-table"><thead>${head1}${head2}</thead><tbody>${body}</tbody></table>`;
+    host.querySelectorAll('input[data-paid]').forEach((input)=>{
+      input.addEventListener('input', (e)=>{
+        e.target.value = maskTime(e.target.value);
+        if (e.target.classList.contains('invalid')) e.target.classList.remove('invalid');
+      });
+      input.addEventListener('change', (e)=>{
+        const monthKey = e.target.dataset.month;
+        const colId = e.target.dataset.col;
+        const normalized = normalizePaidDuration(e.target.value);
+        if (normalized === null){
+          e.target.classList.add('invalid');
+          e.target.title = 'Informe hora válida em hh:mm (minutos entre 00 e 59).';
+          return;
+        }
+        e.target.classList.remove('invalid');
+        e.target.title = '';
+        setPaidValue(monthKey, colId, normalized);
+        e.target.value = normalized;
+        save();
+        renderMonthlySummary();
+      });
+    });
+  }
+
+  function buildReportMeta(){
+    return `<b>Autor:</b> ${esc(fields.autor.value || '—')} · <b>Réu:</b> ${esc(fields.reu.value || '—')} · <b>Processo:</b> ${esc(fields.processo.value || '—')}<br><b>Vara:</b> ${esc(fields.vara.value || '—')} · <b>Município:</b> ${esc(fields.municipio.value || '—')} · <b>Período:</b> ${esc(fields.periodoInicial.value||'—')} a ${esc(fields.periodoFinal.value||'—')}`;
+  }
+
+  function getReportBranding(){
+    return {
+      header: { nome:REPORT_HEADER.nome, tel:REPORT_HEADER.tel, email:REPORT_HEADER.email },
+      footer: { l1:REPORT_FOOTER.l1, l2:REPORT_FOOTER.l2, site:REPORT_FOOTER.site, emp:REPORT_FOOTER.emp }
+    };
+  }
+
+  function buildReportLayout(){
+    if (!window.CPPrintLayout || !CPPrintLayout.createLayout) return null;
+    const root = $('reportRoot');
+    return CPPrintLayout.createLayout({
+      root,
+      title: 'Relatório Analítico de Apuração de Ponto',
+      meta: buildReportMeta(),
+      branding: getReportBranding(),
+      contextName: PRINT_CONTEXT,
+      documentTitle: PRINT_TITLE
+    });
+  }
+
+  function fillReportLayout(layout){
+    const cols = state.columns;
+    const grouped = groupCols(cols);
+    state.monthOrder.forEach((m, index)=>{
+      if (index > 0) CPPrintLayout.createPage(layout, { includeTitle:false });
+      const rows = state.months[m] || [];
+      const legendItems = cols
+        .filter(c=>c.type==='apuracao')
+        .map(c=>`<div><b>${state.prefixes[c.id] || c.name}</b> – ${esc(c.name)}</div>`)
+        .join('') || '<div>Sem colunas de apuração.</div>';
+      CPPrintLayout.appendSection(layout, {
+        title: `Relatório Analítico de Apuração de Ponto — ${monthLabel(m)}`,
+        html: `<div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div>`
+      });
+      CPPrintLayout.appendTable(layout, {
+        columns: reportTableColumns(grouped),
+        rows: reportTableRows(rows, cols, grouped),
+        tableClass: 'report-table',
+        continuationLabel: `Relatório Analítico de Apuração de Ponto — ${monthLabel(m)} (continuação)`
+      });
+    });
   }
 
   function renderReport(){
@@ -282,10 +380,10 @@
     return { horarios, textos, apuracoes };
   }
 
-  function sumApuracao(rows,colId){
+  function sumApuracaoMinutes(rows,colId){
     let minutes = 0;
     rows.forEach(r=>{ minutes += parseDurationToMinutes(r[colId]); });
-    return formatMinutes(minutes);
+    return minutes;
   }
 
   function parseDurationToMinutes(value){
@@ -299,6 +397,45 @@
   function formatMinutes(total){
     const sign = total < 0 ? '-' : ''; const abs = Math.abs(total); const h = Math.floor(abs/60); const m = abs%60;
     return `${sign}${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+
+  function normalizePaidDuration(value){
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const masked = maskTime(raw);
+    const hm = masked.match(/^(\d{1,2}):(\d{2})$/);
+    if (!hm) return null;
+    const hh = Number(hm[1]), mm = Number(hm[2]);
+    if (mm > 59) return null;
+    return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  }
+
+  function getPaidValue(monthKey, colId){
+    if (!state.paidByMonth[monthKey]) state.paidByMonth[monthKey] = {};
+    return state.paidByMonth[monthKey][colId] || '';
+  }
+
+  function setPaidValue(monthKey, colId, value){
+    if (!state.paidByMonth[monthKey]) state.paidByMonth[monthKey] = {};
+    if (!value){ delete state.paidByMonth[monthKey][colId]; return; }
+    state.paidByMonth[monthKey][colId] = value;
+  }
+
+  function reconcilePaidByMonth(){
+    state.paidByMonth = (state.paidByMonth && typeof state.paidByMonth === 'object') ? state.paidByMonth : {};
+    const validMonths = new Set(state.monthOrder || []);
+    Object.keys(state.paidByMonth).forEach((monthKey)=>{
+      if (!validMonths.has(monthKey)) { delete state.paidByMonth[monthKey]; return; }
+      const row = state.paidByMonth[monthKey];
+      if (!row || typeof row !== 'object'){ state.paidByMonth[monthKey] = {}; return; }
+      const validColIds = new Set(state.columns.filter(c=>c.type==='apuracao').map(c=>c.id));
+      Object.keys(row).forEach((colId)=>{
+        if (!validColIds.has(colId)){ delete row[colId]; return; }
+        const normalized = normalizePaidDuration(row[colId]);
+        if (normalized === null) delete row[colId];
+        else row[colId] = normalized;
+      });
+    });
   }
 
   function monthLabel(key){ const [y,m] = key.split('-').map(Number); return `${MONTHS[(m||1)-1]}/${y}`; }
@@ -337,13 +474,26 @@
     ev.target.value='';
     if (!state || typeof state !== 'object') return;
     state.identificacao = state.identificacao || {}; state.columns = state.columns || []; state.monthOrder = state.monthOrder || []; state.months = state.months || {};
+    state.summaryOptions = Object.assign({ apurarDiferencas:false }, state.summaryOptions || {});
+    state.paidByMonth = state.paidByMonth || {};
+    recalcPrefixes();
+    reconcilePaidByMonth();
+    if ($('toggleDifferences')) $('toggleDifferences').checked = !!state.summaryOptions.apurarDiferencas;
     hydrateIdentificacao(); save(); renderAll();
   }
 
   function esc(v){ return String(v||'').replace(/[&<>\"]/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s])); }
   function downloadFile(name, content, type){ const b = new Blob([content], { type }); const u = URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(u),1000); }
   function save(){ try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(_){} }
-  function load(){ try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) state = Object.assign(state, JSON.parse(raw)); } catch(_){} hydrateIdentificacao(); recalcPrefixes(); }
+  function load(){
+    try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) state = Object.assign(state, JSON.parse(raw)); } catch(_){}
+    state.summaryOptions = Object.assign({ apurarDiferencas:false }, state.summaryOptions || {});
+    state.paidByMonth = state.paidByMonth || {};
+    hydrateIdentificacao();
+    recalcPrefixes();
+    reconcilePaidByMonth();
+    if ($('toggleDifferences')) $('toggleDifferences').checked = !!state.summaryOptions.apurarDiferencas;
+  }
 
   init();
 })();
