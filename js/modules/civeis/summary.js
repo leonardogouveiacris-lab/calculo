@@ -18,7 +18,34 @@
     }, { valorCorrigido: 0, juros: 0, valorDevido: 0 });
   }
 
-  function calculateHonorarios(baseValue, honorarios){
+  /**
+   * Soma algébrica da base de honorários a partir dos lançamentos.
+   * Aceita verbas negativas na composição.
+   */
+  function calculateHonorariosBaseFromLaunches(launches){
+    const list = Array.isArray(launches) ? launches : [];
+    const total = list.reduce(function(acc, launch){
+      return acc + calculateLaunchTotals(launch).valorDevido;
+    }, 0);
+    const hasPositiveComponent = list.some(function(launch){
+      return calculateLaunchTotals(launch).valorDevido > 0;
+    });
+    const hasNegativeComponent = list.some(function(launch){
+      return calculateLaunchTotals(launch).valorDevido < 0;
+    });
+    return {
+      value: total,
+      hasPositiveComponent: hasPositiveComponent,
+      hasNegativeComponent: hasNegativeComponent,
+      isMixedSigns: hasPositiveComponent && hasNegativeComponent,
+      isZero: Math.abs(total) < 0.005
+    };
+  }
+
+  function calculateHonorarios(baseValueOrLaunches, honorarios){
+    const baseValue = Array.isArray(baseValueOrLaunches)
+      ? calculateHonorariosBaseFromLaunches(baseValueOrLaunches).value
+      : number(baseValueOrLaunches);
     return (Array.isArray(honorarios) ? honorarios : []).reduce(function(total, item){
       const kind = String(item && item.tipo || 'percentual').toLowerCase();
       const value = number(item && item.valor);
@@ -44,7 +71,8 @@
       return acc;
     }, { valorCorrigido: 0, juros: 0, valorDevido: 0 });
 
-    const honorarios = calculateHonorarios(totalLaunches.valorDevido, source.honorarios);
+    const honorariosBase = calculateHonorariosBaseFromLaunches(launches);
+    const honorarios = calculateHonorarios(honorariosBase.value, source.honorarios);
     const custas = calculateCustas(source.custas);
 
     return {
@@ -58,6 +86,7 @@
   global.CPCiveisModules = global.CPCiveisModules || {};
   global.CPCiveisModules[MODULE_KEY] = {
     calculateLaunchTotals: calculateLaunchTotals,
+    calculateHonorariosBaseFromLaunches: calculateHonorariosBaseFromLaunches,
     calculateHonorarios: calculateHonorarios,
     calculateCustas: calculateCustas,
     buildSummary: buildSummary
