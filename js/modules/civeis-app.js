@@ -2191,6 +2191,31 @@
     };
   }
 
+  /**
+   * Calcula a base percentual dos honorários como soma algébrica das verbas selecionadas.
+   * Aceita verbas negativas e, portanto, o resultado pode ser positivo, negativo ou zero.
+   */
+  function calculateHonorariosBaseFromLaunches(selectedLaunches){
+    const launches = Array.isArray(selectedLaunches) ? selectedLaunches : [];
+    const rawTotal = launches.reduce(function(total, launchItem){
+      const valorDevido = Number(launchItem && launchItem.valorDevido);
+      return total + (Number.isFinite(valorDevido) ? valorDevido : 0);
+    }, 0);
+    const hasPositiveComponent = launches.some(function(launchItem){
+      return Number(launchItem && launchItem.valorDevido) > 0;
+    });
+    const hasNegativeComponent = launches.some(function(launchItem){
+      return Number(launchItem && launchItem.valorDevido) < 0;
+    });
+    return {
+      value: rawTotal,
+      hasPositiveComponent: hasPositiveComponent,
+      hasNegativeComponent: hasNegativeComponent,
+      isMixedSigns: hasPositiveComponent && hasNegativeComponent,
+      isZero: Math.abs(rawTotal) < 0.005
+    };
+  }
+
   function buildCalculationSummary(data){
     const source = data || {};
     const launchItems = (Array.isArray(source.lancamentos) ? source.lancamentos : state.lancamentos).map(buildLaunchSummary);
@@ -2201,12 +2226,13 @@
       normalized.launchIds = normalized.launchIds.filter(function(id){ return validLaunchIds.has(String(id)); });
       const selectedSet = new Set(normalized.launchIds);
       const selectedLaunches = launchItems.filter(function(launchItem){ return selectedSet.has(launchItem.id); });
-      const basePercentual = roundMoney(selectedLaunches.reduce(function(total, launchItem){ return total + launchItem.valorDevido; }, 0));
+      const honorariosBase = calculateHonorariosBaseFromLaunches(selectedLaunches);
+      const basePercentual = honorariosBase.value;
       const valorBasePercentual = normalized.enabled && normalized.tipo === 'percentual'
-        ? roundMoney(basePercentual * (normalized.percentual / 100))
-        : 0;
+        ? (basePercentual * (normalized.percentual / 100))
+      : 0;
       const valorPercentual = normalized.enabled && normalized.tipo === 'percentual'
-        ? roundMoney(valorBasePercentual * normalized.multiplicador)
+        ? (valorBasePercentual * normalized.multiplicador)
         : 0;
       const fatorCorrecao = normalized.enabled && normalized.tipo === 'fixo'
         ? (normalized.indexSource === 'none' ? 1 : (Number(normalized.fatorCorrecao) || 1))
@@ -2222,6 +2248,7 @@
         config: normalized,
         selectedLaunches: selectedLaunches,
         base: basePercentual,
+        baseMeta: honorariosBase,
         valorBase: valorBasePercentual,
         valor: roundMoney(valorFinal),
         fatorCorrecao: fatorCorrecao
@@ -2259,7 +2286,7 @@
         id: item.config.id,
         verba: item.config.descricao + (item.config.percentual ? ' (' + formatNumberBR(item.config.percentual, 2, 4, true) + '%)' : '') + (item.config.multiplicador !== 1 ? (' × ' + formatNumberBR(item.config.multiplicador, 2, 4, true)) : ''),
         note: (item.config.separateInSummary ? 'Separado no resumo. ' : '') + (item.config.operacao === 'deduzir' ? 'Deduzido do crédito apurado. ' : 'Acrescido ao crédito apurado. ') + (item.selectedLaunches.length
-          ? ('Base composta por ' + String(item.selectedLaunches.length) + ' verba(s).')
+          ? ('Base algébrica composta por ' + String(item.selectedLaunches.length) + ' verba(s).' + (item.baseMeta && item.baseMeta.isMixedSigns ? ' Há verbas positivas e negativas na composição.' : ''))
           : 'Nenhuma verba selecionada para compor a base.'),
         valorCorrigido: item.valor,
         juros: 0,
@@ -2369,6 +2396,14 @@
 
     if (honorariosResumo) {
       const honorariosItems = summaryData.honorarios.items;
+      function getBaseHint(item){
+        if (!item || item.config.tipo !== 'percentual') return '';
+        const baseMeta = item.baseMeta || {};
+        if (baseMeta.isMixedSigns) return 'Base algébrica mista (inclui verbas positivas e negativas).';
+        if (baseMeta.hasNegativeComponent && !baseMeta.hasPositiveComponent) return 'Base algébrica formada somente por verbas negativas.';
+        if (baseMeta.isZero) return 'Base algébrica zerada.';
+        return '';
+      }
       honorariosResumo.innerHTML = '' +
         '<div class="summary-stats">' +
           '<div class="summary-stat"><span class="summary-stat-label">Itens no resumo</span><span class="summary-stat-value">' + String(honorariosItems.length) + '</span></div>' +
@@ -2378,7 +2413,8 @@
           if (item.config.tipo === 'fixo') {
             return '<div class="summary-inline-note"><b>' + esc(item.config.descricao) + '</b> &nbsp;•&nbsp; Operação: <b>' + esc(item.config.operacao === 'deduzir' ? 'Dedução' : 'Acréscimo') + '</b> &nbsp;•&nbsp; Fixo: <b>' + esc(formatCurrencyBR(item.config.valorFixo)) + '</b> &nbsp;•&nbsp; Data: <b>' + esc(formatDateBR(item.config.dataBase)) + '</b> &nbsp;•&nbsp; Índice: <b>' + esc(getIndexSourceOptionLabel('correcao', item.config.indexSource)) + '</b> &nbsp;•&nbsp; Fator: <b>x' + esc(formatNumberBR(item.fatorCorrecao || 1, 4, 7, true)) + '</b> &nbsp;•&nbsp; Total: <b>' + esc(formatCurrencyBR(item.valor || 0)) + '</b></div>';
           }
-          return '<div class="summary-inline-note"><b>' + esc(item.config.descricao) + '</b> &nbsp;•&nbsp; Operação: <b>' + esc(item.config.operacao === 'deduzir' ? 'Dedução' : 'Acréscimo') + '</b> &nbsp;•&nbsp; Verbas: <b>' + String(item.selectedLaunches.length) + '</b> &nbsp;•&nbsp; Base: <b>' + esc(formatCurrencyBR(item.base || 0)) + '</b> &nbsp;•&nbsp; Percentual: <b>' + esc(formatNumberBR(item.config.percentual, 2, 4, true) + '%') + '</b> &nbsp;•&nbsp; Multiplicador: <b>x' + esc(formatNumberBR(item.config.multiplicador, 2, 4, true)) + '</b> &nbsp;•&nbsp; Total: <b>' + esc(formatCurrencyBR(item.valor || 0)) + '</b></div>';
+          const baseHint = getBaseHint(item);
+          return '<div class="summary-inline-note"><b>' + esc(item.config.descricao) + '</b> &nbsp;•&nbsp; Operação: <b>' + esc(item.config.operacao === 'deduzir' ? 'Dedução' : 'Acréscimo') + '</b> &nbsp;•&nbsp; Verbas: <b>' + String(item.selectedLaunches.length) + '</b> &nbsp;•&nbsp; Base: <b>' + esc(formatCurrencyBR(item.base || 0)) + '</b>' + (baseHint ? ' &nbsp;•&nbsp; <b>' + esc(baseHint) + '</b>' : '') + ' &nbsp;•&nbsp; Percentual: <b>' + esc(formatNumberBR(item.config.percentual, 2, 4, true) + '%') + '</b> &nbsp;•&nbsp; Multiplicador: <b>x' + esc(formatNumberBR(item.config.multiplicador, 2, 4, true)) + '</b> &nbsp;•&nbsp; Total: <b>' + esc(formatCurrencyBR(item.valor || 0)) + '</b></div>';
         }).join('');
     }
 
