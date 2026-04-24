@@ -700,7 +700,8 @@
     return {
       id: String(source.id || uid('custa')),
       descricao: String(source.descricao || 'Custas').trim() || 'Custas',
-      valor: roundMoney(source.valor || 0)
+      valor: roundMoney(source.valor || 0),
+      multiplicador: parseBRNumber(source.multiplicador) || 1
     };
   }
 
@@ -2227,8 +2228,11 @@
         fatorCorrecao: fatorCorrecao
       };
     });
-    const custasItems = (Array.isArray(source.custas) ? source.custas : state.custas).map(normalizeCusta);
-      const rows = launchItems.map(function(item){
+    const custasItems = (Array.isArray(source.custas) ? source.custas : state.custas).map(normalizeCusta).map(function(item){
+      const valorEfetivo = roundMoney(item.valor * item.multiplicador);
+      return Object.assign({}, item, { valorEfetivo: valorEfetivo });
+    });
+    const rows = launchItems.map(function(item){
       return {
         kind: 'verba',
         id: item.id,
@@ -2273,10 +2277,10 @@
         kind: 'custas',
         id: item.id,
         verba: item.descricao || ('Custas ' + (index + 1)),
-        note: 'Custas incluídas manualmente.',
-        valorCorrigido: roundMoney(item.valor),
+        note: 'Custas incluídas manualmente.' + (item.multiplicador !== 1 ? (' Valor base × multiplicador: ' + formatCurrencyBR(item.valor) + ' × ' + formatNumberBR(item.multiplicador, 2, 4, true) + '.') : ''),
+        valorCorrigido: item.valorEfetivo,
         juros: 0,
-        valorDevido: roundMoney(item.valor),
+        valorDevido: item.valorEfetivo,
         includeInGrandTotal: true
       });
     });
@@ -2328,7 +2332,7 @@
       },
       custas: {
         items: custasItems,
-        total: roundMoney(custasItems.reduce(function(total, item){ return total + roundMoney(item.valor); }, 0))
+        total: roundMoney(custasItems.reduce(function(total, item){ return total + roundMoney(item.valorEfetivo); }, 0))
       },
       totals: totals,
       grandTotals: grandTotals,
@@ -2387,7 +2391,17 @@
         '<div class="summary-stats">' +
           '<div class="summary-stat"><span class="summary-stat-label">Itens lançados</span><span class="summary-stat-value">' + String(summaryData.custas.items.length) + '</span></div>' +
           '<div class="summary-stat"><span class="summary-stat-label">Total de custas</span><span class="summary-stat-value">' + esc(formatCurrencyBR(summaryData.custas.total)) + '</span></div>' +
-        '</div>';
+        '</div>' +
+        summaryData.custas.items.map(function(item, index){
+          const descricao = item.descricao || ('Custas ' + String(index + 1));
+          const valorBase = roundMoney(item.valor);
+          const multiplicador = parseBRNumber(item.multiplicador) || 1;
+          const totalItem = roundMoney(item.valorEfetivo);
+          if (multiplicador === 1) {
+            return '<div class="summary-inline-note"><b>' + esc(descricao) + '</b> &nbsp;•&nbsp; Valor: <b>' + esc(formatCurrencyBR(totalItem)) + '</b></div>';
+          }
+          return '<div class="summary-inline-note"><b>' + esc(descricao) + '</b> &nbsp;•&nbsp; Base: <b>' + esc(formatCurrencyBR(valorBase)) + '</b> &nbsp;•&nbsp; Multiplicador: <b>x' + esc(formatNumberBR(multiplicador, 2, 4, true)) + '</b> &nbsp;•&nbsp; Total: <b>' + esc(formatCurrencyBR(totalItem)) + '</b></div>';
+        }).join('');
     }
 
     if (summaryTableHead) {
@@ -2474,6 +2488,7 @@
           '<div class="custa-grid">' +
             '<div><label>Descrição</label><input type="text" class="custa-desc" data-custa-id="' + esc(item.id) + '" value="' + esc(item.descricao || '') + '" placeholder="Ex.: Custas iniciais"></div>' +
             '<div><label>Valor</label><input type="text" class="custa-valor" data-custa-id="' + esc(item.id) + '" inputmode="decimal" value="' + esc(item.valor ? formatCurrencyBR(item.valor) : '') + '" placeholder="0,00"></div>' +
+            '<div><label>Multiplicador</label><input type="text" class="custa-multiplicador" data-custa-id="' + esc(item.id) + '" inputmode="decimal" value="' + esc(formatNumberBR(item.multiplicador || 1, 2, 4, true)) + '" placeholder="1,00"></div>' +
           '</div>' +
         '</div>';
     }).join('');
@@ -3247,12 +3262,13 @@
       if (index < 0) return;
       if (target.classList.contains('custa-desc')) state.custas[index].descricao = target.value;
       if (target.classList.contains('custa-valor')) state.custas[index].valor = roundMoney(target.value);
+      if (target.classList.contains('custa-multiplicador')) state.custas[index].multiplicador = parseBRNumber(target.value) || 1;
       refreshSummaryOutputsOnly();
     });
 
     custasHost.addEventListener('focusout', function(event){
       const target = event.target;
-      if (!target.classList.contains('custa-desc') && !target.classList.contains('custa-valor')) return;
+      if (!target.classList.contains('custa-desc') && !target.classList.contains('custa-valor') && !target.classList.contains('custa-multiplicador')) return;
       const custaId = target.getAttribute('data-custa-id');
       const index = getCustaIndexById(custaId);
       if (index < 0) return;
@@ -3261,27 +3277,34 @@
         state.custas[index].valor = roundMoney(target.value);
         target.value = formatCurrencyBR(state.custas[index].valor);
       }
+      if (target.classList.contains('custa-multiplicador')) {
+        state.custas[index].multiplicador = parseBRNumber(target.value) || 1;
+        target.value = formatNumberBR(state.custas[index].multiplicador, 2, 4, true);
+      }
       persistAndRefresh();
     });
 
     custasHost.addEventListener('focusin', function(event){
       const target = event.target;
-      if (!target.classList.contains('custa-valor')) return;
+      if (!target.classList.contains('custa-valor') && !target.classList.contains('custa-multiplicador')) return;
       target.value = formatEditableNumberBR(target.value);
       target.select();
     });
 
     custasHost.addEventListener('paste', function(event){
       const target = event.target;
-      if (!target.classList.contains('custa-valor')) return;
+      if (!target.classList.contains('custa-valor') && !target.classList.contains('custa-multiplicador')) return;
       event.preventDefault();
       const pastedText = event.clipboardData ? event.clipboardData.getData('text') : '';
-      const parsedValue = roundMoney(pastedText);
+      const parsedValue = target.classList.contains('custa-multiplicador')
+        ? (parseBRNumber(pastedText) || 1)
+        : roundMoney(pastedText);
       target.value = formatEditableNumberBR(parsedValue);
       const custaId = target.getAttribute('data-custa-id');
       const index = getCustaIndexById(custaId);
       if (index < 0) return;
-      state.custas[index].valor = parsedValue;
+      if (target.classList.contains('custa-multiplicador')) state.custas[index].multiplicador = parsedValue;
+      if (target.classList.contains('custa-valor')) state.custas[index].valor = parsedValue;
       refreshSummaryOutputsOnly();
     });
 
