@@ -47,7 +47,13 @@
     $('btnExportModeloCsv').addEventListener('click', exportTemplateCsv);
     $('btnImportCsv').addEventListener('click', ()=>$('inputImportCsv').click());
     $('inputImportCsv').addEventListener('change', importCsv);
-    $('btnPrint').addEventListener('click', ()=>window.print());
+    $('btnPrint').addEventListener('click', ()=>{
+      if (window.CPPrintLayout && typeof window.CPPrintLayout.printRootInHost === 'function') {
+        window.CPPrintLayout.printRootInHost($('reportRoot'), 'apuracao-ponto-print', 'Relatório de Apuração de Ponto');
+        return;
+      }
+      window.print();
+    });
     $('btnExportJson').addEventListener('click', exportJson);
     $('btnImportJson').addEventListener('click', ()=>$('inputImportJson').click());
     $('inputImportJson').addEventListener('change', importJson);
@@ -199,35 +205,71 @@
   function renderReport(){
     const root = $('reportRoot');
     if (!state.monthOrder.length){ root.innerHTML = ''; return; }
+    if (!window.CPPrintLayout || typeof window.CPPrintLayout.createLayout !== 'function') {
+      root.innerHTML = '<div style="padding:14px;color:#667085">Não foi possível carregar o mecanismo de paginação de impressão.</div>';
+      return;
+    }
+
     const cols = state.columns;
     const grouped = groupCols(cols);
-    const legendItems = cols.filter(c=>c.type==='apuracao').map(c=>`<div><b>${state.prefixes[c.id] || c.name}</b> – ${esc(c.name)}</div>`).join('') || '<div>Sem colunas de apuração.</div>';
-    root.innerHTML = state.monthOrder.map((m, index)=>{
-      const rows = state.months[m] || [];
-      return `<section class="page point-page">
-        <div class="header">
-          <img class="logo" data-logo="1" src="https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png" alt="CalculoPro">
-          <div class="contact"><b>${esc(REPORT_HEADER.nome)}</b><br>${esc(REPORT_HEADER.tel)}<br>${esc(REPORT_HEADER.email)}</div>
-        </div>
-        <div class="content">
-          <h2 class="report-title">Relatório Analítico de Apuração de Ponto — ${monthLabel(m)}</h2>
-          <div class="report-meta"><b>Autor:</b> ${esc(fields.autor.value || '—')} · <b>Réu:</b> ${esc(fields.reu.value || '—')} · <b>Processo:</b> ${esc(fields.processo.value || '—')}<br><b>Vara:</b> ${esc(fields.vara.value || '—')} · <b>Município:</b> ${esc(fields.municipio.value || '—')} · <b>Período:</b> ${esc(fields.periodoInicial.value||'—')} a ${esc(fields.periodoFinal.value||'—')}</div>
-          <div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div>
-          ${reportTableHtml(rows, cols, grouped)}
-        </div>
-        <div class="footer">
-          <div>${esc(REPORT_FOOTER.l1)}<br>${esc(REPORT_FOOTER.l2)}</div>
-          <div style="text-align:right">${esc(REPORT_FOOTER.site)}<br>${esc(REPORT_FOOTER.emp)} · Página ${index + 1} de ${state.monthOrder.length}</div>
-        </div>
-      </section>`;
-    }).join('');
-  }
+    const legendItems = cols
+      .filter(c=>c.type==='apuracao')
+      .map(c=>`<div><b>${state.prefixes[c.id] || c.name}</b> – ${esc(c.name)}</div>`)
+      .join('') || '<div>Sem colunas de apuração.</div>';
 
-  function reportTableHtml(rows, cols, grouped){
-    const head1 = `<tr><th rowspan="2">Data</th><th rowspan="2">Sem.</th>${grouped.horarios.length?`<th colspan="${grouped.horarios.length}">Horários Registrados</th>`:''}${grouped.textos.length?`<th colspan="${grouped.textos.length}">Ocorrências / Observações</th>`:''}${grouped.apuracoes.length?`<th colspan="${grouped.apuracoes.length}">Horas Apuradas</th>`:''}</tr>`;
-    const head2 = `<tr>${grouped.horarios.concat(grouped.textos).concat(grouped.apuracoes).map(c=>`<th>${esc(c.type==='apuracao'?(state.prefixes[c.id]||c.name):c.name)}</th>`).join('')}</tr>`;
-    const body = rows.map(r=>`<tr><td>${esc(findValueByType(cols,r,'data'))}</td><td>${esc(findValueByType(cols,r,'dia'))}</td>${grouped.horarios.concat(grouped.textos).concat(grouped.apuracoes).map(c=>`<td>${esc(formatCell(c,r[c.id]||''))}</td>`).join('')}</tr>`).join('');
-    return `<table class="report-table"><thead>${head1}${head2}</thead><tbody>${body}</tbody></table>`;
+    const layout = window.CPPrintLayout.createLayout({
+      root,
+      contextName: 'apuracao-ponto-print',
+      documentTitle: 'Relatório de Apuração de Ponto',
+      branding: { logo: 'https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png', header: REPORT_HEADER, footer: REPORT_FOOTER },
+      includeTitleOnFirstPage: false,
+      spacing: { safetyBottom: 10 }
+    });
+
+    const tableCols = [
+      'Data',
+      'Sem.',
+      ...grouped.horarios.map(c=>esc(c.name)),
+      ...grouped.textos.map(c=>esc(c.name)),
+      ...grouped.apuracoes.map(c=>esc(state.prefixes[c.id] || c.name))
+    ];
+
+    state.monthOrder.forEach((m)=>{
+      const rows = state.months[m] || [];
+      const rowHtml = rows.map(r=>{
+        const values = [
+          findValueByType(cols,r,'data'),
+          findValueByType(cols,r,'dia'),
+          ...grouped.horarios.map(c=>formatCell(c,r[c.id]||'')),
+          ...grouped.textos.map(c=>formatCell(c,r[c.id]||'')),
+          ...grouped.apuracoes.map(c=>formatCell(c,r[c.id]||''))
+        ];
+        return `<tr>${values.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`;
+      });
+
+      window.CPPrintLayout.appendSection(layout, {
+        html: `<h2 class="report-title">Relatório Analítico de Apuração de Ponto — ${monthLabel(m)}</h2>
+          <div class="report-meta"><b>Autor:</b> ${esc(fields.autor.value || '—')} · <b>Réu:</b> ${esc(fields.reu.value || '—')} · <b>Processo:</b> ${esc(fields.processo.value || '—')}<br><b>Vara:</b> ${esc(fields.vara.value || '—')} · <b>Município:</b> ${esc(fields.municipio.value || '—')} · <b>Período:</b> ${esc(fields.periodoInicial.value||'—')} a ${esc(fields.periodoFinal.value||'—')}</div>
+          <div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div>`
+      });
+
+      window.CPPrintLayout.appendTable(layout, {
+        title: `Competência ${monthLabel(m)}`,
+        continuationLabel: `Competência ${monthLabel(m)} (continuação)`,
+        columns: tableCols,
+        rows: rowHtml,
+        tableClass: 'report-table point-report-table'
+      });
+
+      window.CPPrintLayout.appendSection(layout, { html: '<div style="height:2mm"></div>' });
+    });
+
+    const pages = Array.from(root.querySelectorAll('.page'));
+    pages.forEach((page, index)=>{
+      const right = page.querySelector('.footer div:last-child');
+      if (!right) return;
+      right.innerHTML = `<div>${esc(REPORT_FOOTER.emp)}</div><div>Página ${index + 1} de ${pages.length}</div>`;
+    });
   }
 
   function findValueByType(cols, row, type){ const c = cols.find(x=>x.type===type); return c ? (row[c.id]||'') : ''; }
