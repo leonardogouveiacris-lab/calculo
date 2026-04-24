@@ -25,6 +25,8 @@
     site: 'www.calculopro.com.br',
     emp: 'CalculoPro Ltda. 51.540.075/0001-04'
   };
+  const PRINT_CONTEXT = 'apuracao-ponto-print';
+  const PRINT_TITLE = 'Relatório - Apuração de Ponto';
 
   const WIDE_EDITOR_THRESHOLD = 10;
   const DEFAULT_VISIBILITY = { horarios:true, textos:true, apuracoes:true };
@@ -49,10 +51,20 @@
     $('btnExportModeloCsv').addEventListener('click', exportTemplateCsv);
     $('btnImportCsv').addEventListener('click', ()=>$('inputImportCsv').click());
     $('inputImportCsv').addEventListener('change', importCsv);
-    $('btnPrint').addEventListener('click', ()=>window.print());
+    $('btnPrint').addEventListener('click', ()=>{
+      if (window.CPPrintLayout && typeof window.CPPrintLayout.printRootInHost === 'function') {
+        window.CPPrintLayout.printRootInHost($('reportRoot'), 'apuracao-ponto-print', 'Relatório de Apuração de Ponto');
+        return;
+      }
+      window.print();
+    });
     $('btnExportJson').addEventListener('click', exportJson);
     $('btnImportJson').addEventListener('click', ()=>$('inputImportJson').click());
     $('inputImportJson').addEventListener('change', importJson);
+    $('toggleDifferences').addEventListener('change', (e)=>{
+      state.summaryOptions.apurarDiferencas = !!e.target.checked;
+      save(); renderMonthlySummary();
+    });
     Object.values(fields).forEach(el=>el && el.addEventListener('input', ()=>{ syncIdentificacao(); save(); renderReport(); }));
   }
 
@@ -82,6 +94,7 @@
       state.months[monthKey].push({ data: formatDateBR(iso), dia: WEEKDAYS[d.getDay()] });
     }
     state.activeMonth = state.monthOrder[0] || '';
+    reconcilePaidByMonth();
     save(); renderAll();
   }
 
@@ -137,7 +150,7 @@
       months[mk].push(obj);
     });
     state.columns = cols; state.months = months; state.monthOrder = order.sort(); state.activeMonth = state.monthOrder[0] || ''; state.imported = true;
-    recalcPrefixes(); save(); renderAll();
+    recalcPrefixes(); reconcilePaidByMonth(); save(); renderAll();
   }
 
   function recalcPrefixes(){
@@ -240,48 +253,172 @@
 
   function renderMonthlySummary(){
     const host = $('monthlySummary');
+    const diffEnabled = !!(state.summaryOptions && state.summaryOptions.apurarDiferencas);
     const apCols = state.columns.filter(c=>c.type==='apuracao');
     if (!apCols.length || !state.monthOrder.length){ host.innerHTML = '<div style="padding:12px;color:#667085">Sem colunas de apuração disponíveis para resumo.</div>'; return; }
-    const head = `<tr><th>Competência</th>${apCols.map(c=>`<th>${esc(state.prefixes[c.id] || c.name)}</th>`).join('')}</tr>`;
+    if (!diffEnabled){
+      const head = `<tr><th>Competência</th>${apCols.map(c=>`<th>${esc(state.prefixes[c.id] || c.name)}</th>`).join('')}</tr>`;
+      const body = state.monthOrder.map(m=>{
+        const sums = apCols.map(c=>formatMinutes(sumApuracaoMinutes(state.months[m], c.id)));
+        return `<tr><td>${monthLabel(m)}</td>${sums.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`;
+      }).join('');
+      host.innerHTML = `<table class="editor-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+      return;
+    }
+    const head1 = `<tr><th rowspan="2">Competência</th>${apCols.map(c=>`<th colspan="3">${esc(state.prefixes[c.id] || c.name)}</th>`).join('')}</tr>`;
+    const head2 = `<tr>${apCols.map(()=>'<th>Apurado</th><th>Pago</th><th>Diferença</th>').join('')}</tr>`;
     const body = state.monthOrder.map(m=>{
-      const sums = apCols.map(c=>sumApuracao(state.months[m], c.id));
-      return `<tr><td>${monthLabel(m)}</td>${sums.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`;
+      const colsHtml = apCols.map(c=>{
+        const apuradoMin = sumApuracaoMinutes(state.months[m], c.id);
+        const paidVal = getPaidValue(m, c.id);
+        const paidMin = parseDurationToMinutes(paidVal);
+        const diffMin = apuradoMin - paidMin;
+        return `<td>${esc(formatMinutes(apuradoMin))}</td>
+          <td><input data-paid="1" data-month="${m}" data-col="${c.id}" value="${esc(paidVal)}" placeholder="00:00" inputmode="numeric"></td>
+          <td>${esc(formatMinutes(diffMin))}</td>`;
+      }).join('');
+      return `<tr><td>${monthLabel(m)}</td>${colsHtml}</tr>`;
     }).join('');
-    host.innerHTML = `<table class="editor-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+    host.innerHTML = `<table class="editor-table"><thead>${head1}${head2}</thead><tbody>${body}</tbody></table>`;
+    host.querySelectorAll('input[data-paid]').forEach((input)=>{
+      input.addEventListener('input', (e)=>{
+        e.target.value = maskTime(e.target.value);
+        if (e.target.classList.contains('invalid')) e.target.classList.remove('invalid');
+      });
+      input.addEventListener('change', (e)=>{
+        const monthKey = e.target.dataset.month;
+        const colId = e.target.dataset.col;
+        const normalized = normalizePaidDuration(e.target.value);
+        if (normalized === null){
+          e.target.classList.add('invalid');
+          e.target.title = 'Informe hora válida em hh:mm (minutos entre 00 e 59).';
+          return;
+        }
+        e.target.classList.remove('invalid');
+        e.target.title = '';
+        setPaidValue(monthKey, colId, normalized);
+        e.target.value = normalized;
+        save();
+        renderMonthlySummary();
+      });
+    });
+  }
+
+  function buildReportMeta(){
+    return `<b>Autor:</b> ${esc(fields.autor.value || '—')} · <b>Réu:</b> ${esc(fields.reu.value || '—')} · <b>Processo:</b> ${esc(fields.processo.value || '—')}<br><b>Vara:</b> ${esc(fields.vara.value || '—')} · <b>Município:</b> ${esc(fields.municipio.value || '—')} · <b>Período:</b> ${esc(fields.periodoInicial.value||'—')} a ${esc(fields.periodoFinal.value||'—')}`;
+  }
+
+  function getReportBranding(){
+    return {
+      header: { nome:REPORT_HEADER.nome, tel:REPORT_HEADER.tel, email:REPORT_HEADER.email },
+      footer: { l1:REPORT_FOOTER.l1, l2:REPORT_FOOTER.l2, site:REPORT_FOOTER.site, emp:REPORT_FOOTER.emp }
+    };
+  }
+
+  function buildReportLayout(){
+    if (!window.CPPrintLayout || !CPPrintLayout.createLayout) return null;
+    const root = $('reportRoot');
+    return CPPrintLayout.createLayout({
+      root,
+      title: 'Relatório Analítico de Apuração de Ponto',
+      meta: buildReportMeta(),
+      branding: getReportBranding(),
+      contextName: PRINT_CONTEXT,
+      documentTitle: PRINT_TITLE
+    });
+  }
+
+  function fillReportLayout(layout){
+    const cols = state.columns;
+    const grouped = groupCols(cols);
+    state.monthOrder.forEach((m, index)=>{
+      if (index > 0) CPPrintLayout.createPage(layout, { includeTitle:false });
+      const rows = state.months[m] || [];
+      const legendItems = cols
+        .filter(c=>c.type==='apuracao')
+        .map(c=>`<div><b>${state.prefixes[c.id] || c.name}</b> – ${esc(c.name)}</div>`)
+        .join('') || '<div>Sem colunas de apuração.</div>';
+      CPPrintLayout.appendSection(layout, {
+        title: `Relatório Analítico de Apuração de Ponto — ${monthLabel(m)}`,
+        html: `<div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div>`
+      });
+      CPPrintLayout.appendTable(layout, {
+        columns: reportTableColumns(grouped),
+        rows: reportTableRows(rows, cols, grouped),
+        tableClass: 'report-table',
+        continuationLabel: `Relatório Analítico de Apuração de Ponto — ${monthLabel(m)} (continuação)`
+      });
+    });
   }
 
   function renderReport(){
     const root = $('reportRoot');
     if (!state.monthOrder.length){ root.innerHTML = ''; return; }
+    if (!window.CPPrintLayout || typeof window.CPPrintLayout.createLayout !== 'function') {
+      root.innerHTML = '<div style="padding:14px;color:#667085">Não foi possível carregar o mecanismo de paginação de impressão.</div>';
+      return;
+    }
+
     const cols = state.columns;
     const grouped = groupCols(cols);
-    const legendItems = cols.filter(c=>c.type==='apuracao').map(c=>`<div><b>${state.prefixes[c.id] || c.name}</b> – ${esc(c.name)}</div>`).join('') || '<div>Sem colunas de apuração.</div>';
-    root.innerHTML = state.monthOrder.map((m, index)=>{
-      const rows = state.months[m] || [];
-      return `<section class="page point-page">
-        <div class="header">
-          <img class="logo" data-logo="1" src="https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png" alt="CalculoPro">
-          <div class="contact"><b>${esc(REPORT_HEADER.nome)}</b><br>${esc(REPORT_HEADER.tel)}<br>${esc(REPORT_HEADER.email)}</div>
-        </div>
-        <div class="content">
-          <h2 class="report-title">Relatório Analítico de Apuração de Ponto — ${monthLabel(m)}</h2>
-          <div class="report-meta"><b>Autor:</b> ${esc(fields.autor.value || '—')} · <b>Réu:</b> ${esc(fields.reu.value || '—')} · <b>Processo:</b> ${esc(fields.processo.value || '—')}<br><b>Vara:</b> ${esc(fields.vara.value || '—')} · <b>Município:</b> ${esc(fields.municipio.value || '—')} · <b>Período:</b> ${esc(fields.periodoInicial.value||'—')} a ${esc(fields.periodoFinal.value||'—')}</div>
-          <div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div>
-          ${reportTableHtml(rows, cols, grouped)}
-        </div>
-        <div class="footer">
-          <div>${esc(REPORT_FOOTER.l1)}<br>${esc(REPORT_FOOTER.l2)}</div>
-          <div style="text-align:right">${esc(REPORT_FOOTER.site)}<br>${esc(REPORT_FOOTER.emp)} · Página ${index + 1} de ${state.monthOrder.length}</div>
-        </div>
-      </section>`;
-    }).join('');
-  }
+    const legendItems = cols
+      .filter(c=>c.type==='apuracao')
+      .map(c=>`<div><b>${state.prefixes[c.id] || c.name}</b> – ${esc(c.name)}</div>`)
+      .join('') || '<div>Sem colunas de apuração.</div>';
 
-  function reportTableHtml(rows, cols, grouped){
-    const head1 = `<tr><th rowspan="2">Data</th><th rowspan="2">Sem.</th>${grouped.horarios.length?`<th colspan="${grouped.horarios.length}">Horários Registrados</th>`:''}${grouped.textos.length?`<th colspan="${grouped.textos.length}">Ocorrências / Observações</th>`:''}${grouped.apuracoes.length?`<th colspan="${grouped.apuracoes.length}">Horas Apuradas</th>`:''}</tr>`;
-    const head2 = `<tr>${grouped.horarios.concat(grouped.textos).concat(grouped.apuracoes).map(c=>`<th>${esc(c.type==='apuracao'?(state.prefixes[c.id]||c.name):c.name)}</th>`).join('')}</tr>`;
-    const body = rows.map(r=>`<tr><td>${esc(findValueByType(cols,r,'data'))}</td><td>${esc(findValueByType(cols,r,'dia'))}</td>${grouped.horarios.concat(grouped.textos).concat(grouped.apuracoes).map(c=>`<td>${esc(formatCell(c,r[c.id]||''))}</td>`).join('')}</tr>`).join('');
-    return `<table class="report-table"><thead>${head1}${head2}</thead><tbody>${body}</tbody></table>`;
+    const layout = window.CPPrintLayout.createLayout({
+      root,
+      contextName: 'apuracao-ponto-print',
+      documentTitle: 'Relatório de Apuração de Ponto',
+      branding: { logo: 'https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png', header: REPORT_HEADER, footer: REPORT_FOOTER },
+      includeTitleOnFirstPage: false,
+      spacing: { safetyBottom: 10 }
+    });
+
+    const tableCols = [
+      'Data',
+      'Sem.',
+      ...grouped.horarios.map(c=>esc(c.name)),
+      ...grouped.textos.map(c=>esc(c.name)),
+      ...grouped.apuracoes.map(c=>esc(state.prefixes[c.id] || c.name))
+    ];
+
+    state.monthOrder.forEach((m)=>{
+      const rows = state.months[m] || [];
+      const rowHtml = rows.map(r=>{
+        const values = [
+          findValueByType(cols,r,'data'),
+          findValueByType(cols,r,'dia'),
+          ...grouped.horarios.map(c=>formatCell(c,r[c.id]||'')),
+          ...grouped.textos.map(c=>formatCell(c,r[c.id]||'')),
+          ...grouped.apuracoes.map(c=>formatCell(c,r[c.id]||''))
+        ];
+        return `<tr>${values.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`;
+      });
+
+      window.CPPrintLayout.appendSection(layout, {
+        html: `<h2 class="report-title">Relatório Analítico de Apuração de Ponto — ${monthLabel(m)}</h2>
+          <div class="report-meta"><b>Autor:</b> ${esc(fields.autor.value || '—')} · <b>Réu:</b> ${esc(fields.reu.value || '—')} · <b>Processo:</b> ${esc(fields.processo.value || '—')}<br><b>Vara:</b> ${esc(fields.vara.value || '—')} · <b>Município:</b> ${esc(fields.municipio.value || '—')} · <b>Período:</b> ${esc(fields.periodoInicial.value||'—')} a ${esc(fields.periodoFinal.value||'—')}</div>
+          <div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div>`
+      });
+
+      window.CPPrintLayout.appendTable(layout, {
+        title: `Competência ${monthLabel(m)}`,
+        continuationLabel: `Competência ${monthLabel(m)} (continuação)`,
+        columns: tableCols,
+        rows: rowHtml,
+        tableClass: 'report-table point-report-table'
+      });
+
+      window.CPPrintLayout.appendSection(layout, { html: '<div style="height:2mm"></div>' });
+    });
+
+    const pages = Array.from(root.querySelectorAll('.page'));
+    pages.forEach((page, index)=>{
+      const right = page.querySelector('.footer div:last-child');
+      if (!right) return;
+      right.innerHTML = `<div>${esc(REPORT_FOOTER.emp)}</div><div>Página ${index + 1} de ${pages.length}</div>`;
+    });
   }
 
   function findValueByType(cols, row, type){ const c = cols.find(x=>x.type===type); return c ? (row[c.id]||'') : ''; }
@@ -294,10 +431,10 @@
     return { horarios, textos, apuracoes };
   }
 
-  function sumApuracao(rows,colId){
+  function sumApuracaoMinutes(rows,colId){
     let minutes = 0;
     rows.forEach(r=>{ minutes += parseDurationToMinutes(r[colId]); });
-    return formatMinutes(minutes);
+    return minutes;
   }
 
   function parseDurationToMinutes(value){
@@ -311,6 +448,45 @@
   function formatMinutes(total){
     const sign = total < 0 ? '-' : ''; const abs = Math.abs(total); const h = Math.floor(abs/60); const m = abs%60;
     return `${sign}${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+
+  function normalizePaidDuration(value){
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    const masked = maskTime(raw);
+    const hm = masked.match(/^(\d{1,2}):(\d{2})$/);
+    if (!hm) return null;
+    const hh = Number(hm[1]), mm = Number(hm[2]);
+    if (mm > 59) return null;
+    return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`;
+  }
+
+  function getPaidValue(monthKey, colId){
+    if (!state.paidByMonth[monthKey]) state.paidByMonth[monthKey] = {};
+    return state.paidByMonth[monthKey][colId] || '';
+  }
+
+  function setPaidValue(monthKey, colId, value){
+    if (!state.paidByMonth[monthKey]) state.paidByMonth[monthKey] = {};
+    if (!value){ delete state.paidByMonth[monthKey][colId]; return; }
+    state.paidByMonth[monthKey][colId] = value;
+  }
+
+  function reconcilePaidByMonth(){
+    state.paidByMonth = (state.paidByMonth && typeof state.paidByMonth === 'object') ? state.paidByMonth : {};
+    const validMonths = new Set(state.monthOrder || []);
+    Object.keys(state.paidByMonth).forEach((monthKey)=>{
+      if (!validMonths.has(monthKey)) { delete state.paidByMonth[monthKey]; return; }
+      const row = state.paidByMonth[monthKey];
+      if (!row || typeof row !== 'object'){ state.paidByMonth[monthKey] = {}; return; }
+      const validColIds = new Set(state.columns.filter(c=>c.type==='apuracao').map(c=>c.id));
+      Object.keys(row).forEach((colId)=>{
+        if (!validColIds.has(colId)){ delete row[colId]; return; }
+        const normalized = normalizePaidDuration(row[colId]);
+        if (normalized === null) delete row[colId];
+        else row[colId] = normalized;
+      });
+    });
   }
 
   function monthLabel(key){ const [y,m] = key.split('-').map(Number); return `${MONTHS[(m||1)-1]}/${y}`; }
