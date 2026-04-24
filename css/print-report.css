@@ -46,7 +46,7 @@
   box-shadow:var(--cp-print-shadow);
   display:grid;
   grid-template-rows:auto 1fr auto;
-  overflow:hidden;
+  overflow:visible;
   position:relative;
 }
 
@@ -108,9 +108,9 @@ body[data-report-context] #cpPrintHost .print-header .logo{
 
 #reportRoot.cp-report-root .page .content{
   min-height:0;
-  overflow:hidden;
+  overflow:visible;
   padding-top:var(--cp-print-content-top);
-  padding-bottom:calc(var(--cp-print-safe-bottom) + 18mm);
+  padding-bottom:calc(var(--cp-print-safe-bottom) + 14mm);
 }
 
 #reportRoot.cp-report-root .page .title{
