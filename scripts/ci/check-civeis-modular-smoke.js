@@ -95,4 +95,29 @@ const summary = modules.summary.buildSummary({
 const html = modules.report.renderReport({ processo: '0000000-00.0000.0.00.0000', summary });
 assert(typeof html === 'string' && html.includes('Relatório do cálculo cível') && html.includes('Total geral'), 'Falha na geração de relatório.');
 
+// Validações estáticas: base de honorários percentual (somente negativa, mista e zerada)
+const launchesNegativeBase = [
+  { linhas: [{ valor: -100, valor_juros: -20 }] },
+  { linhas: [{ valor: -30, valor_juros: 0 }] }
+];
+const negativeBaseInfo = modules.summary.calculateHonorariosBaseFromLaunches(launchesNegativeBase);
+assert(negativeBaseInfo.value === -150 && negativeBaseInfo.hasNegativeComponent && !negativeBaseInfo.hasPositiveComponent, 'Falha: base somente negativa não reconhecida.');
+assert(modules.summary.calculateHonorarios(negativeBaseInfo.value, [{ tipo: 'percentual', valor: 10 }]) === -15, 'Falha: cálculo percentual com base somente negativa.');
+
+const launchesMixedBase = [
+  { linhas: [{ valor: 200, valor_juros: 20 }] },
+  { linhas: [{ valor: -80, valor_juros: -10 }] }
+];
+const mixedBaseInfo = modules.summary.calculateHonorariosBaseFromLaunches(launchesMixedBase);
+assert(mixedBaseInfo.value === 130 && mixedBaseInfo.isMixedSigns, 'Falha: base mista não reconhecida.');
+assert(modules.summary.calculateHonorarios(launchesMixedBase, [{ tipo: 'percentual', valor: 10 }]) === 13, 'Falha: cálculo percentual com base mista.');
+
+const launchesZeroBase = [
+  { linhas: [{ valor: 100, valor_juros: 0 }] },
+  { linhas: [{ valor: -100, valor_juros: 0 }] }
+];
+const zeroBaseInfo = modules.summary.calculateHonorariosBaseFromLaunches(launchesZeroBase);
+assert(zeroBaseInfo.value === 0 && zeroBaseInfo.isMixedSigns && zeroBaseInfo.isZero, 'Falha: base zerada não reconhecida.');
+assert(modules.summary.calculateHonorarios(launchesZeroBase, [{ tipo: 'percentual', valor: 15 }]) === 0, 'Falha: cálculo percentual com base zerada.');
+
 console.log('OK: smoke modular cível (lançamentos, índices, import/export e relatório).');
