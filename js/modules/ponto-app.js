@@ -26,7 +26,9 @@
     emp: 'CalculoPro Ltda. 51.540.075/0001-04'
   };
 
-  let state = { identificacao:{}, columns:[], monthOrder:[], months:{}, activeMonth:'', imported:false, prefixes:{}, feriados:window.CPPontoFeriados || [] };
+  const WIDE_EDITOR_THRESHOLD = 10;
+  const DEFAULT_VISIBILITY = { horarios:true, textos:true, apuracoes:true };
+  let state = { identificacao:{}, columns:[], monthOrder:[], months:{}, activeMonth:'', imported:false, prefixes:{}, visibility:Object.assign({}, DEFAULT_VISIBILITY), feriados:window.CPPontoFeriados || [] };
 
   function init(){
     bindTabs(); bindActions(); load(); renderAll();
@@ -73,7 +75,7 @@
     const end = parseISO(fields.periodoFinal.value);
     if (!start || !end || start > end){ alert('Informe um período válido.'); return; }
     state.columns = [{ id:'data', type:'data', name:'Data', guide:'dd/mm/aaaa' }, { id:'dia', type:'dia', name:'Dia', guide:'seg/ter/qua...' }];
-    state.months = {}; state.monthOrder = []; state.imported = false; state.prefixes = {};
+    state.months = {}; state.monthOrder = []; state.imported = false; state.prefixes = {}; state.visibility = Object.assign({}, DEFAULT_VISIBILITY);
     for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)){
       const iso = toISO(d); const monthKey = iso.slice(0,7);
       if (!state.months[monthKey]) { state.months[monthKey] = []; state.monthOrder.push(monthKey); }
@@ -155,13 +157,33 @@
 
   function renderEditor(){
     const host = $('editorHost');
+    host.classList.remove('is-wide');
     if (!state.activeMonth || !state.months[state.activeMonth]){ host.innerHTML = '<div style="padding:14px;color:#667085">Nenhum período disponível.</div>'; return; }
     const rows = state.months[state.activeMonth];
     const cols = state.imported ? state.columns : state.columns.filter(c=>c.type==='data'||c.type==='dia');
     const grouped = groupCols(cols);
-    const head1 = `<tr><th rowspan="2">Data</th><th rowspan="2">Dia</th>${grouped.horarios.length?`<th colspan="${grouped.horarios.length}">Horários Registrados</th>`:''}${grouped.textos.length?`<th colspan="${grouped.textos.length}">Ocorrências / Observações</th>`:''}${grouped.apuracoes.length?`<th colspan="${grouped.apuracoes.length}">Horas Apuradas</th>`:''}</tr>`;
-    const head2 = `<tr>${grouped.horarios.concat(grouped.textos).concat(grouped.apuracoes).map(c=>`<th>${esc(c.name)}</th>`).join('')}</tr>`;
-    host.innerHTML = `<table class="editor-table"><thead>${head1}${head2}</thead><tbody>${rows.map((r,ri)=>rowHtml(r,cols,ri)).join('')}</tbody></table>`;
+    const activeGroups = {
+      horarios: state.visibility.horarios ? grouped.horarios : [],
+      textos: state.visibility.textos ? grouped.textos : [],
+      apuracoes: state.visibility.apuracoes ? grouped.apuracoes : []
+    };
+    const dynamicCols = activeGroups.horarios.concat(activeGroups.textos).concat(activeGroups.apuracoes);
+    const usefulColsCount = grouped.horarios.length + grouped.textos.length + grouped.apuracoes.length;
+    const isWide = usefulColsCount > WIDE_EDITOR_THRESHOLD;
+    host.classList.toggle('is-wide', isWide);
+    const head1 = `<tr><th class="sticky-col sticky-data" rowspan="2">Data</th><th class="sticky-col sticky-dia" rowspan="2">Dia</th>${activeGroups.horarios.length?`<th colspan="${activeGroups.horarios.length}">Horários Registrados</th>`:''}${activeGroups.textos.length?`<th colspan="${activeGroups.textos.length}">Ocorrências / Observações</th>`:''}${activeGroups.apuracoes.length?`<th colspan="${activeGroups.apuracoes.length}">Horas Apuradas</th>`:''}</tr>`;
+    const head2 = `<tr>${dynamicCols.map(c=>`<th>${esc(c.name)}</th>`).join('')}</tr>`;
+    const fixedCols = getFixedCols(cols);
+    host.innerHTML = `${renderVisibilityBar(grouped)}<table class="editor-table${isWide?' is-wide':''}"><colgroup>${buildEditorColgroup(dynamicCols)}</colgroup><thead>${head1}${head2}</thead><tbody>${rows.map((r,ri)=>rowHtml(r,fixedCols,dynamicCols,ri)).join('')}</tbody></table>`;
+    host.querySelectorAll('.editor-visibility-toggle').forEach((input)=>{
+      input.addEventListener('change', (e)=>{
+        const key = e.target.dataset.group;
+        if (!Object.prototype.hasOwnProperty.call(DEFAULT_VISIBILITY, key)) return;
+        state.visibility[key] = !!e.target.checked;
+        save();
+        renderEditor();
+      });
+    });
     host.querySelectorAll('input[data-col]').forEach(input=>{
       input.addEventListener('input', (e)=>{
         const month = e.target.dataset.month, col = e.target.dataset.col, idx = Number(e.target.dataset.row);
@@ -175,13 +197,45 @@
     });
   }
 
-  function rowHtml(row, cols, rowIndex){
-    return '<tr>' + cols.map(c=>{
+  function rowHtml(row, fixedCols, cols, rowIndex){
+    return '<tr>' + fixedCols.concat(cols).map(c=>{
       const ro = c.type==='data' || c.type==='dia';
       let val = row[c.id] || '';
       if ((c.type==='entrada'||c.type==='saida') && val) val = maskTime(val);
-      return `<td>${ro?`<input class="readonly" readonly value="${esc(val)}">`:`<input data-month="${state.activeMonth}" data-row="${rowIndex}" data-col="${c.id}" value="${esc(val)}">`}</td>`;
+      const stickyClass = c.type==='data' ? ' class="sticky-col sticky-data"' : (c.type==='dia' ? ' class="sticky-col sticky-dia"' : '');
+      const inputClass = ro ? 'readonly' : ((c.type==='entrada'||c.type==='saida') ? 'input-time' : '');
+      return `<td${stickyClass}>${ro?`<input class="readonly" readonly value="${esc(val)}">`:`<input class="${inputClass}" data-month="${state.activeMonth}" data-row="${rowIndex}" data-col="${c.id}" value="${esc(val)}">`}</td>`;
     }).join('') + '</tr>';
+  }
+
+  function renderVisibilityBar(grouped){
+    const groups = [
+      { key:'horarios', label:'Horários', count:grouped.horarios.length },
+      { key:'textos', label:'Ocorrências', count:grouped.textos.length },
+      { key:'apuracoes', label:'Apurações', count:grouped.apuracoes.length }
+    ];
+    return `<div class="editor-actions">${groups.map((g)=>{
+      const checked = state.visibility[g.key] ? 'checked' : '';
+      const disabled = g.count ? '' : 'disabled';
+      return `<label><input class="editor-visibility-toggle" type="checkbox" data-group="${g.key}" ${checked} ${disabled}> ${g.label} <span class="hint">(${g.count})</span></label>`;
+    }).join('')}</div>`;
+  }
+
+  function buildEditorColgroup(cols){
+    const staticCols = '<col class="col-data"><col class="col-dia">';
+    const dynamic = cols.map((c)=>{
+      if (c.type==='entrada' || c.type==='saida') return '<col class="col-time">';
+      if (c.type==='ocorrencia' || c.type==='observacao' || c.type==='texto') return '<col class="col-text">';
+      if (c.type==='apuracao') return '<col class="col-apuracao">';
+      return '<col class="col-default">';
+    }).join('');
+    return staticCols + dynamic;
+  }
+
+  function getFixedCols(cols){
+    const dataCol = cols.find((c)=>c.type==='data') || { id:'data', type:'data' };
+    const dayCol = cols.find((c)=>c.type==='dia') || { id:'dia', type:'dia' };
+    return [dataCol, dayCol];
   }
 
   function renderMonthlySummary(){
@@ -295,13 +349,14 @@
     ev.target.value='';
     if (!state || typeof state !== 'object') return;
     state.identificacao = state.identificacao || {}; state.columns = state.columns || []; state.monthOrder = state.monthOrder || []; state.months = state.months || {};
+    state.visibility = Object.assign({}, DEFAULT_VISIBILITY, state.visibility || {});
     hydrateIdentificacao(); save(); renderAll();
   }
 
   function esc(v){ return String(v||'').replace(/[&<>\"]/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s])); }
   function downloadFile(name, content, type){ const b = new Blob([content], { type }); const u = URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(u),1000); }
   function save(){ try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(_){} }
-  function load(){ try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) state = Object.assign(state, JSON.parse(raw)); } catch(_){} hydrateIdentificacao(); recalcPrefixes(); }
+  function load(){ try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) state = Object.assign(state, JSON.parse(raw)); } catch(_){} state.visibility = Object.assign({}, DEFAULT_VISIBILITY, state.visibility || {}); hydrateIdentificacao(); recalcPrefixes(); }
 
   init();
 })();
