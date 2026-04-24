@@ -3,6 +3,7 @@
 (function(){
   const STORAGE_KEY = 'cp_civeis_inicial_v6';
   const LEGACY_STORAGE_KEYS = ['cp_civeis_inicial_v5', 'cp_civeis_inicial_v3'];
+  const EXPORT_SCHEMA_VERSION = 2;
   const $ = (id) => document.getElementById(id);
   const fields = {
     requerente: $('requerente'),
@@ -688,6 +689,10 @@
 
   function normalizeHonorarios(config){
     const source = config || {};
+    if (Array.isArray(source)) {
+      const list = source.map(normalizeHonorarioItem).filter(Boolean);
+      return { items: list.length ? list : defaultHonorariosConfig().items.slice() };
+    }
     const legacyShape = Object.prototype.hasOwnProperty.call(source, 'enabled') || Object.prototype.hasOwnProperty.call(source, 'percentual');
     const items = legacyShape
       ? [normalizeHonorarioItem(source)]
@@ -696,25 +701,50 @@
   }
 
   function normalizeCusta(item){
-    const source = item || {};
-    return {
+    const source = Object.assign({}, item || {});
+    const normalized = {
       id: String(source.id || uid('custa')),
       descricao: String(source.descricao || 'Custas').trim() || 'Custas',
-      valor: roundMoney(source.valor || 0)
+      valor: roundMoney(source.valor || 0),
+      multiplicador: parseBRNumber(source.multiplicador || 1) || 1
     };
+    return Object.assign({}, source, normalized);
+  }
+
+  function pickFirstDefined(){
+    for (let index = 0; index < arguments.length; index += 1){
+      if (typeof arguments[index] !== 'undefined') return arguments[index];
+    }
+    return undefined;
+  }
+
+  function normalizeCustasCollection(rawCustas){
+    if (Array.isArray(rawCustas)) return rawCustas.map(normalizeCusta);
+    if (!rawCustas || typeof rawCustas !== 'object') return [];
+    if (Array.isArray(rawCustas.items)) return rawCustas.items.map(normalizeCusta);
+    if (Array.isArray(rawCustas.custas)) return rawCustas.custas.map(normalizeCusta);
+    const legacySingleItem = Object.prototype.hasOwnProperty.call(rawCustas, 'descricao')
+      || Object.prototype.hasOwnProperty.call(rawCustas, 'valor')
+      || Object.prototype.hasOwnProperty.call(rawCustas, 'multiplicador');
+    return legacySingleItem ? [normalizeCusta(rawCustas)] : [];
   }
 
   function sanitizeSummaryState(){
     state.lancamentos = Array.isArray(state.lancamentos) ? state.lancamentos : [];
+    state.lancamentoSelecionadoId = String(state.lancamentoSelecionadoId || '');
     state.lancamentos.forEach(normalizeSummaryMapping);
     state.honorarios = normalizeHonorarios(state.honorarios);
+    if (!Array.isArray(state.honorarios.items) || !state.honorarios.items.length) {
+      state.honorarios.items = defaultHonorariosConfig().items.slice();
+    }
     const validLaunchIds = new Set((state.lancamentos || []).map(function(lancamento){ return String(lancamento.id || ''); }).filter(Boolean));
     state.honorarios.items = (state.honorarios.items || []).map(function(item){
       const normalized = normalizeHonorarioItem(item);
       normalized.launchIds = normalized.launchIds.filter(function(id){ return validLaunchIds.has(String(id)); });
       return normalized;
     });
-    state.custas = Array.isArray(state.custas) ? state.custas.map(normalizeCusta) : [];
+    state.custas = normalizeCustasCollection(state.custas);
+    state.indexTables = normalizeIndexTables(state.indexTables);
   }
 
   function ensureHonorariosDefaultSelection(){
@@ -880,6 +910,7 @@
   function collect(){
     sanitizeSummaryState();
     return {
+      schemaVersion: EXPORT_SCHEMA_VERSION,
       requerente: fields.requerente.value.trim(),
       requerido: fields.requerido.value.trim(),
       processo: fields.processo.value.trim(),
@@ -905,8 +936,8 @@
     fields.observacoes.value = source.observacoes || '';
     state.lancamentos = normalizeLaunchListSafely(Array.isArray(source.lancamentos) ? source.lancamentos : []);
     state.lancamentoSelecionadoId = source.lancamentoSelecionadoId || (state.lancamentos[0] ? state.lancamentos[0].id : '');
-    state.honorarios = normalizeHonorarios(source.honorarios);
-    state.custas = Array.isArray(source.custas) ? source.custas.map(normalizeCusta) : [];
+    state.honorarios = normalizeHonorarios(pickFirstDefined(source.honorarios, source.honorariosConfig, source.honorario, source.honorariosItens));
+    state.custas = normalizeCustasCollection(pickFirstDefined(source.custas, source.custasConfig, source.custa, source.custasItens));
     state.indexTables = normalizeIndexTables(source.indexTables);
     sanitizeSummaryState();
   }
