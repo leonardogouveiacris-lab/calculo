@@ -201,26 +201,79 @@
     if (!state.monthOrder.length){ root.innerHTML = ''; return; }
     const cols = state.columns;
     const grouped = groupCols(cols);
-    const legendItems = cols.filter(c=>c.type==='apuracao').map(c=>`<div><b>${state.prefixes[c.id] || c.name}</b> – ${esc(c.name)}</div>`).join('') || '<div>Sem colunas de apuração.</div>';
-    root.innerHTML = state.monthOrder.map((m, index)=>{
-      const rows = state.months[m] || [];
-      return `<section class="page point-page">
+    const apCols = cols.filter(c=>c.type==='apuracao');
+    const legendItems = apCols.map(c=>`<div><b>${state.prefixes[c.id] || c.name}</b> – ${esc(c.name)}</div>`).join('') || '<div>Sem colunas de apuração.</div>';
+    const pages = [buildSummaryPage(apCols)];
+    state.monthOrder.forEach((m)=>{
+      pages.push(...buildAnalyticalPagesForMonth(m, cols, grouped, legendItems));
+    });
+    const totalPages = pages.length;
+    root.innerHTML = pages.map((content, index)=>`<section class="page point-page">
         <div class="header">
           <img class="logo" data-logo="1" src="https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png" alt="CalculoPro">
           <div class="contact"><b>${esc(REPORT_HEADER.nome)}</b><br>${esc(REPORT_HEADER.tel)}<br>${esc(REPORT_HEADER.email)}</div>
         </div>
-        <div class="content">
-          <h2 class="report-title">Relatório Analítico de Apuração de Ponto — ${monthLabel(m)}</h2>
-          <div class="report-meta"><b>Autor:</b> ${esc(fields.autor.value || '—')} · <b>Réu:</b> ${esc(fields.reu.value || '—')} · <b>Processo:</b> ${esc(fields.processo.value || '—')}<br><b>Vara:</b> ${esc(fields.vara.value || '—')} · <b>Município:</b> ${esc(fields.municipio.value || '—')} · <b>Período:</b> ${esc(fields.periodoInicial.value||'—')} a ${esc(fields.periodoFinal.value||'—')}</div>
-          <div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div>
-          ${reportTableHtml(rows, cols, grouped)}
-        </div>
+        <div class="content">${content}</div>
         <div class="footer">
           <div>${esc(REPORT_FOOTER.l1)}<br>${esc(REPORT_FOOTER.l2)}</div>
-          <div style="text-align:right">${esc(REPORT_FOOTER.site)}<br>${esc(REPORT_FOOTER.emp)} · Página ${index + 1} de ${state.monthOrder.length}</div>
+          <div style="text-align:right">${esc(REPORT_FOOTER.site)}<br>${esc(REPORT_FOOTER.emp)} · Página ${index + 1} de ${totalPages}</div>
         </div>
-      </section>`;
+      </section>`).join('');
+  }
+
+  function buildSummaryPage(apCols){
+    const processRows = [
+      ['Autor', fields.autor.value || '—'],
+      ['Réu', fields.reu.value || '—'],
+      ['Processo', fields.processo.value || '—'],
+      ['Vara', fields.vara.value || '—'],
+      ['Município', fields.municipio.value || '—'],
+      ['Período', `${fields.periodoInicial.value || '—'} a ${fields.periodoFinal.value || '—'}`]
+    ];
+    const processTable = `<table class="report-table process-info-table"><tbody>${processRows.map(([label, value])=>`<tr><td>${esc(label)}</td><td>${esc(value)}</td></tr>`).join('')}</tbody></table>`;
+    const summaryHead = `<tr><th>Competência</th>${apCols.map(c=>`<th>${esc(state.prefixes[c.id] || c.name)}</th>`).join('')}</tr>`;
+    const summaryBody = state.monthOrder.map((m)=>{
+      const values = apCols.map(c=>sumApuracao(state.months[m] || [], c.id));
+      return `<tr><td>${monthLabel(m)}</td>${values.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`;
     }).join('');
+    const summaryTable = apCols.length
+      ? `<table class="report-table report-summary-table"><thead>${summaryHead}</thead><tbody>${summaryBody}</tbody></table>`
+      : '<div class="summary-empty-note">Sem colunas de apuração para consolidar o resumo mensal.</div>';
+    return `<h2 class="report-title">Síntese da Apuração de Ponto</h2>
+      <h3 class="sec-title">Dados do processo</h3>
+      ${processTable}
+      <h3 class="sec-title">Resumo mensal da apuração</h3>
+      ${summaryTable}`;
+  }
+
+  function buildAnalyticalPagesForMonth(monthKey, cols, grouped, legendItems){
+    const rows = state.months[monthKey] || [];
+    const rowsPerPage = getRowsPerAnalyticalPage(cols);
+    const chunks = chunkRows(rows, rowsPerPage);
+    return chunks.map((chunk, idx)=>{
+      const continuation = idx ? ` (continuação ${idx + 1})` : '';
+      return `<h2 class="report-title">Relatório Analítico de Apuração de Ponto — ${monthLabel(monthKey)}${continuation}</h2>
+        <div class="report-meta"><b>Autor:</b> ${esc(fields.autor.value || '—')} · <b>Réu:</b> ${esc(fields.reu.value || '—')} · <b>Processo:</b> ${esc(fields.processo.value || '—')}<br><b>Vara:</b> ${esc(fields.vara.value || '—')} · <b>Município:</b> ${esc(fields.municipio.value || '—')} · <b>Período:</b> ${esc(fields.periodoInicial.value||'—')} a ${esc(fields.periodoFinal.value||'—')}</div>
+        ${idx === 0 ? `<div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div>` : ''}
+        ${reportTableHtml(chunk, cols, grouped)}`;
+    });
+  }
+
+  function getRowsPerAnalyticalPage(cols){
+    const analyticalCols = cols.filter(c=>c.type!=='data' && c.type!=='dia').length;
+    if (analyticalCols >= 12) return 11;
+    if (analyticalCols >= 9) return 13;
+    if (analyticalCols >= 7) return 15;
+    return 18;
+  }
+
+  function chunkRows(rows, chunkSize){
+    if (!rows.length) return [[]];
+    const chunks = [];
+    for (let i=0; i<rows.length; i += chunkSize){
+      chunks.push(rows.slice(i, i + chunkSize));
+    }
+    return chunks;
   }
 
   function reportTableHtml(rows, cols, grouped){
