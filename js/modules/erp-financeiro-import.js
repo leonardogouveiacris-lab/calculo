@@ -45,6 +45,64 @@
       .trim();
   }
 
+  function normalizeDocument(value){
+    return String(value == null ? '' : value)
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '')
+      .trim();
+  }
+
+  function resolveContactReference(nomeContato, documento){
+    var state = ensureState();
+    var byId = {};
+    var byDocumento = {};
+    var byNome = {};
+
+    function addPerson(tipo, person){
+      if (!person || !person.id) return;
+      var personLite = {
+        pessoaTipo: tipo,
+        pessoaId: String(person.id),
+        nome: String(person.nome || '').trim()
+      };
+      byId[personLite.pessoaId] = personLite;
+      var docKey = normalizeDocument(person.documento);
+      if (docKey && !byDocumento[docKey]) byDocumento[docKey] = personLite;
+      var nomeKey = normalizeText(person.nome);
+      if (nomeKey && !byNome[nomeKey]) byNome[nomeKey] = personLite;
+    }
+
+    (state.clientes || []).forEach(function(person){ addPerson('cliente', person); });
+    (state.fornecedores || []).forEach(function(person){ addPerson('fornecedor', person); });
+
+    var contatoTexto = String(nomeContato || '').trim();
+    var docKey = normalizeDocument(documento);
+    var nomeKey = normalizeText(contatoTexto);
+
+    var found = null;
+    if (contatoTexto && byId[contatoTexto]) {
+      found = byId[contatoTexto];
+    } else if (docKey && byDocumento[docKey]) {
+      found = byDocumento[docKey];
+    } else if (nomeKey && byNome[nomeKey]) {
+      found = byNome[nomeKey];
+    }
+
+    if (!found) {
+      return {
+        nomeContato: contatoTexto,
+        pessoaTipo: '',
+        pessoaId: ''
+      };
+    }
+
+    return {
+      nomeContato: contatoTexto || found.nome,
+      pessoaTipo: found.pessoaTipo,
+      pessoaId: found.pessoaId
+    };
+  }
+
   function signatureOf(entry){
     return [normalizeDate(entry.data), toNumber(entry.valor).toFixed(2), normalizeText(entry.descricao), normalizeText(entry.documento), normalizeText(entry.conta)].join('|');
   }
@@ -148,7 +206,7 @@
         '<span class="erp-pill" id="erpPreviewCount">0 registros</span>' +
         '<span class="erp-pill warn" id="erpPreviewDupes">0 duplicados</span>' +
       '</div>' +
-      '<div class="table-wrap"><table class="editor-table" id="erpPreviewTable"><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Documento</th><th>Conta</th><th>Hash</th></tr></thead><tbody><tr><td colspan="6">Selecione um arquivo para visualizar.</td></tr></tbody></table></div>' +
+      '<div class="table-wrap"><table class="editor-table" id="erpPreviewTable"><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Documento</th><th>Contato</th><th>Conta</th><th>Hash</th></tr></thead><tbody><tr><td colspan="7">Selecione um arquivo para visualizar.</td></tr></tbody></table></div>' +
       '<div id="erpImportStatus" class="erp-status-msg"></div>';
     container.appendChild(card);
   }
@@ -162,6 +220,7 @@
       ['descricao', 'Coluna descrição'],
       ['valor', 'Coluna valor'],
       ['documento', 'Coluna documento'],
+      ['contato', 'Coluna contato (nome/pessoaId)'],
       ['conta', 'Coluna conta']
     ].map(function(item){
       return '<label class="erp-import-field"><span>' + item[1] + '</span><select data-map="' + item[0] + '">' + options + '</select></label>';
@@ -179,13 +238,19 @@
         descricao: mapping.descricao >= 0 ? cols[mapping.descricao] : '',
         valor: mapping.valor >= 0 ? cols[mapping.valor] : '',
         documento: mapping.documento >= 0 ? cols[mapping.documento] : '',
+        nomeContato: mapping.contato >= 0 ? cols[mapping.contato] : '',
         conta: mapping.conta >= 0 ? cols[mapping.conta] : contaPadrao
       };
       entry.data = normalizeDate(entry.data);
       entry.valor = toNumber(entry.valor);
       entry.descricao = String(entry.descricao || '').trim();
       entry.documento = String(entry.documento || '').trim();
+      entry.nomeContato = String(entry.nomeContato || '').trim();
       entry.conta = String(entry.conta || contaPadrao || '').trim();
+      var contatoRef = resolveContactReference(entry.nomeContato, entry.documento);
+      entry.nomeContato = contatoRef.nomeContato;
+      entry.pessoaTipo = contatoRef.pessoaTipo;
+      entry.pessoaId = contatoRef.pessoaId;
       entry.signature = signatureOf(entry);
       entry.hash = hashSignature(entry.signature);
       entry.id = typeof root.generateEntityId === 'function' ? root.generateEntityId('extratos') : ('ext_' + Date.now() + '_' + Math.random());
@@ -197,7 +262,7 @@
     var tbody = document.querySelector('#erpPreviewTable tbody');
     if (!tbody) return;
     if (!entries.length) {
-      tbody.innerHTML = '<tr><td colspan="6">Nenhum registro válido encontrado.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7">Nenhum registro válido encontrado.</td></tr>';
       document.getElementById('erpPreviewCount').textContent = '0 registros';
       document.getElementById('erpPreviewDupes').textContent = '0 duplicados';
       return;
@@ -216,6 +281,7 @@
         '<td><input class="erp-preview-edit" data-edit="descricao" value="' + item.descricao.replace(/"/g, '&quot;') + '"></td>' +
         '<td><input class="erp-preview-edit" data-edit="valor" value="' + item.valor + '"></td>' +
         '<td><input class="erp-preview-edit" data-edit="documento" value="' + item.documento.replace(/"/g, '&quot;') + '"></td>' +
+        '<td><input class="erp-preview-edit" data-edit="nomeContato" value="' + String(item.nomeContato || '').replace(/"/g, '&quot;') + '"></td>' +
         '<td><input class="erp-preview-edit" data-edit="conta" value="' + item.conta.replace(/"/g, '&quot;') + '"></td>' +
         '<td><code>' + item.hash + '</code></td>' +
       '</tr>';
@@ -236,8 +302,13 @@
         descricao: String(get('descricao') || '').trim(),
         valor: toNumber(get('valor')),
         documento: String(get('documento') || '').trim(),
+        nomeContato: String(get('nomeContato') || '').trim(),
         conta: String(get('conta') || '').trim()
       };
+      var contatoRef = resolveContactReference(entry.nomeContato, entry.documento);
+      entry.nomeContato = contatoRef.nomeContato;
+      entry.pessoaTipo = contatoRef.pessoaTipo;
+      entry.pessoaId = contatoRef.pessoaId;
       entry.signature = signatureOf(entry);
       entry.hash = hashSignature(entry.signature);
       entry.id = typeof root.generateEntityId === 'function' ? root.generateEntityId('extratos') : ('ext_' + Date.now() + '_' + Math.random());
