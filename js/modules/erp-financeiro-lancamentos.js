@@ -53,6 +53,10 @@
       '.erp-kpi strong{display:block;font-size:11px;color:#667085;font-weight:600}' +
       '.erp-kpi span{display:block;font-size:16px;font-weight:700;margin-top:3px}' +
       '.erp-note{font-size:12px;color:#667085}' +
+      '.erp-chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid #d7dbe6;font-size:11px;font-weight:700}' +
+      '.erp-chip.conciliado{background:#ecfdf3;border-color:#abefc6;color:#067647}' +
+      '.erp-chip.sugestao{background:#eff8ff;border-color:#b2ddff;color:#175cd3}' +
+      '.erp-chip.nao{background:#f8fafc;color:#475467}' +
       '@media (max-width:900px){.erp-grid,.erp-kpis{grid-template-columns:1fr}}';
     document.head.appendChild(style);
   }
@@ -168,6 +172,11 @@
       body.innerHTML = '<tr><td colspan="11">Nenhum lançamento encontrado para os filtros selecionados.</td></tr>';
       return;
     }
+    function badge(value){
+      if (value === 'Conciliado') return '<span class="erp-chip conciliado">CONCILIADO</span>';
+      if (value === 'Sugestão') return '<span class="erp-chip sugestao">SUGESTÃO</span>';
+      return '<span class="erp-chip nao">NÃO CONCILIADO</span>';
+    }
     body.innerHTML = rows.map(function(item){
       return '<tr>' +
         '<td>' + dateLabel(item.dataCompetencia) + '</td>' +
@@ -179,7 +188,7 @@
         '<td>' + item.forma + '</td>' +
         '<td>' + item.situacao + '</td>' +
         '<td>' + item.status + '</td>' +
-        '<td>' + item.statusConciliacao + '</td>' +
+        '<td>' + badge(item.statusConciliacao) + '</td>' +
         '<td>' + formatCurrency(item.valorLiquido) + '</td>' +
       '</tr>';
     }).join('');
@@ -307,6 +316,7 @@
     buildLayout(tab);
     bindForm();
     bindFilters();
+    global.addEventListener('cp:erp-refresh-lancamentos', refresh);
     refresh();
   }
 
