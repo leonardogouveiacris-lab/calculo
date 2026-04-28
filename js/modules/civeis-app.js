@@ -35,6 +35,14 @@
   let btnAddModalIndexSegment = $('btnAddModalIndexSegment');
   let btnExportIndexTemplateModal = $('btnExportIndexTemplateModal');
   let btnImportIndexTableModal = $('btnImportIndexTableModal');
+  let btnCreateFixedIndexTableModal = $('btnCreateFixedIndexTableModal');
+  let fixedIndexGeneratorWrap = $('fixedIndexGeneratorWrap');
+  let fixedTableName = $('fixedTableName');
+  let fixedMonthlyRate = $('fixedMonthlyRate');
+  let fixedStartMonth = $('fixedStartMonth');
+  let fixedEndMonth = $('fixedEndMonth');
+  let fixedEntryMode = $('fixedEntryMode');
+  let btnSubmitFixedIndexTableModal = $('btnSubmitFixedIndexTableModal');
   const columnModalTitle = $('columnModalTitle');
   const columnModalSub = $('columnModalSub');
   const launchSelector = $('launchSelector');
@@ -53,6 +61,14 @@
   const btnAddEditIndexSegment = $('btnAddEditIndexSegment');
   const btnExportIndexTemplateEdit = $('btnExportIndexTemplateEdit');
   const btnImportIndexTableEdit = $('btnImportIndexTableEdit');
+  const btnCreateFixedIndexTableEdit = $('btnCreateFixedIndexTableEdit');
+  const editFixedIndexGeneratorWrap = $('editFixedIndexGeneratorWrap');
+  const editFixedTableName = $('editFixedTableName');
+  const editFixedMonthlyRate = $('editFixedMonthlyRate');
+  const editFixedStartMonth = $('editFixedStartMonth');
+  const editFixedEndMonth = $('editFixedEndMonth');
+  const editFixedEntryMode = $('editFixedEntryMode');
+  const btnSubmitFixedIndexTableEdit = $('btnSubmitFixedIndexTableEdit');
   const editLaunchModal = $('editLaunchModal');
   const editLaunchIndex = $('editLaunchIndex');
   const editLaunchVerba = $('editLaunchVerba');
@@ -128,9 +144,23 @@
         '<div class="index-source-actions">' +
           '<button type="button" class="btn-subtle" id="btnExportIndexTemplateModal">Modelo CSV</button>' +
           '<button type="button" class="btn-subtle" id="btnImportIndexTableModal">Importar CSV</button>' +
+          '<button type="button" class="btn-subtle" id="btnCreateFixedIndexTableModal">Criar tabela fixa</button>' +
         '</div>' +
       '</div>' +
       '<select id="modalIndexSource" class="select"></select>' +
+      '<div id="fixedIndexGeneratorWrap" style="display:none;margin-top:8px;padding:10px;border:1px solid var(--line,#d9d9d9);border-radius:10px">' +
+        '<label for="fixedTableName">Nome da tabela</label>' +
+        '<input id="fixedTableName" type="text" placeholder="Ex.: Juros Simples 0,3333% a.m.">' +
+        '<div class="row" style="margin-top:8px">' +
+          '<div class="col-6"><label for="fixedMonthlyRate">Taxa mensal (%)</label><input id="fixedMonthlyRate" type="text" inputmode="decimal" placeholder="0,3333"></div>' +
+          '<div class="col-6"><label for="fixedEntryMode">Modo da entrada</label><select id="fixedEntryMode" class="select"><option value="percent">Percentual</option><option value="factor">Fator</option></select></div>' +
+          '<div class="col-6"><label for="fixedStartMonth">Competência inicial</label><input id="fixedStartMonth" type="month"></div>' +
+          '<div class="col-6"><label for="fixedEndMonth">Competência final</label><input id="fixedEndMonth" type="month"></div>' +
+        '</div>' +
+        '<div class="btn-row" style="margin-top:8px">' +
+          '<button type="button" class="btn btn-ghost" id="btnSubmitFixedIndexTableModal">Gerar tabela</button>' +
+        '</div>' +
+      '</div>' +
       '<div class="row" style="margin-top:8px">' +
         '<div class="col-6"><label for="modalIndexStart">Aplicar a partir de</label><input id="modalIndexStart" type="date"></div>' +
         '<div class="col-6"><label for="modalIndexEnd">Aplicar até</label><input id="modalIndexEnd" type="date"></div>' +
@@ -150,6 +180,14 @@
     btnAddModalIndexSegment = $('btnAddModalIndexSegment');
     btnExportIndexTemplateModal = $('btnExportIndexTemplateModal');
     btnImportIndexTableModal = $('btnImportIndexTableModal');
+    btnCreateFixedIndexTableModal = $('btnCreateFixedIndexTableModal');
+    fixedIndexGeneratorWrap = $('fixedIndexGeneratorWrap');
+    fixedTableName = $('fixedTableName');
+    fixedMonthlyRate = $('fixedMonthlyRate');
+    fixedStartMonth = $('fixedStartMonth');
+    fixedEndMonth = $('fixedEndMonth');
+    fixedEntryMode = $('fixedEntryMode');
+    btnSubmitFixedIndexTableModal = $('btnSubmitFixedIndexTableModal');
   })();
 
   function esc(value){
@@ -339,6 +377,14 @@
     return Number.isFinite(number) ? number : 0;
   }
 
+  function parseStrictBRNumber(value){
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    const normalized = normalizeLooseNumericText(value);
+    if (!normalized || normalized === '-' || normalized === '.') return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
   function normalizeMonthKey(value){
     const raw = String(value || '').trim();
     if (!raw) return '';
@@ -347,6 +393,93 @@
     const month = Number(match[2]);
     if (!Number.isInteger(month) || month < 1 || month > 12) return '';
     return match[1] + '-' + String(month).padStart(2, '0');
+  }
+
+  function getIndicesHelpers(){
+    const helpers = window.CPCiveisModules && window.CPCiveisModules.indices ? window.CPCiveisModules.indices : null;
+    return {
+      normalizeMonthKey: helpers && typeof helpers.normalizeMonthKey === 'function' ? helpers.normalizeMonthKey : normalizeMonthKey,
+      monthRange: helpers && typeof helpers.monthRange === 'function' ? helpers.monthRange : monthRange
+    };
+  }
+
+  function buildFixedIndexEntriesByMonth(config){
+    const helpers = getIndicesHelpers();
+    const normalizeMonth = helpers.normalizeMonthKey;
+    const toMonthRange = helpers.monthRange;
+    const startMonth = normalizeMonth(config && config.startMonth);
+    const endMonth = normalizeMonth(config && config.endMonth);
+    const rawMode = String(config && config.mode || 'percent').trim().toLowerCase();
+    const mode = rawMode === 'factor' ? 'factor' : 'percent';
+    const value = parseBRNumber(config && config.value);
+    if (!startMonth || !endMonth || startMonth > endMonth || !Number.isFinite(value)) return [];
+    return toMonthRange(startMonth, endMonth).map(function(month){
+      return { month: month, value: Number(value), mode: mode };
+    });
+  }
+
+  function upsertFixedIndexTable(payload){
+    const name = String(payload && payload.name || '').trim();
+    const rateValue = parseStrictBRNumber(payload && payload.rate);
+    const startMonth = normalizeMonthKey(payload && payload.startMonth);
+    const endMonth = normalizeMonthKey(payload && payload.endMonth);
+    const mode = String(payload && payload.mode || 'percent').trim().toLowerCase() === 'factor' ? 'factor' : 'percent';
+    if (!name) {
+      alert('Informe o nome da tabela.');
+      return '';
+    }
+    if (!Number.isFinite(rateValue)) {
+      alert('Informe uma taxa mensal numérica válida.');
+      return '';
+    }
+    if (!startMonth || !endMonth) {
+      alert('Informe competências inicial e final válidas (YYYY-MM).');
+      return '';
+    }
+    if (startMonth > endMonth) {
+      alert('A competência inicial deve ser menor ou igual à final.');
+      return '';
+    }
+    const entries = buildFixedIndexEntriesByMonth({
+      startMonth: startMonth,
+      endMonth: endMonth,
+      value: rateValue,
+      mode: mode
+    });
+    if (!entries.length) {
+      alert('Não foi possível gerar entradas para a faixa informada.');
+      return '';
+    }
+    const normalizedId = normalizeIndexTableId(payload && payload.id || name);
+    const grouped = new Map((state.indexTables || []).map(function(table){
+      return [table.id, { id: table.id, name: table.name, entriesByMonth: new Map((table.entries || []).map(function(entry){
+        return [entry.month, { value: Number(entry.value) || 0, mode: String(entry.mode || entry.valueMode || 'percent').trim().toLowerCase() === 'factor' ? 'factor' : 'percent' }];
+      })) }];
+    }));
+    const current = grouped.get(normalizedId) || { id: normalizedId, name: name, entriesByMonth: new Map() };
+    current.name = name;
+    entries.forEach(function(entry){
+      current.entriesByMonth.set(entry.month, { value: Number(entry.value), mode: mode });
+    });
+    grouped.set(normalizedId, current);
+    state.indexTables = Array.from(grouped.values()).map(function(item){
+      return {
+        id: item.id,
+        name: item.name,
+        entries: Array.from(item.entriesByMonth.entries()).map(function(row){
+          return { month: row[0], value: Number(row[1].value), mode: row[1].mode === 'factor' ? 'factor' : 'percent' };
+        }).sort(function(a, b){ return compareMonth(a.month, b.month); })
+      };
+    }).sort(function(a, b){ return String(a.name || '').localeCompare(String(b.name || '')); });
+    const preferredSource = CUSTOM_INDEX_SOURCE_PREFIX + normalizedId;
+    persistAndRefresh();
+    refreshOpenIndexSourceSelectors(preferredSource);
+    return preferredSource;
+  }
+
+  function toggleFixedIndexGenerator(wrap){
+    if (!wrap) return;
+    wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
   }
 
   function normalizeIndexTables(list){
@@ -3517,7 +3650,8 @@
       ['nome_tabela', 'competencia', 'fator_correcao', 'taxa_percentual', 'observacao'].join(';'),
       ['IPCA Manual', '2025-01', '1,0042', '', 'Use fator ou taxa percentual'].join(';'),
       ['IPCA Manual', '2025-02', '1,0078', '', ''].join(';'),
-      ['Juros Tribunal X', '2025-01', '', '0,8500', 'Exemplo com taxa % mensal'].join(';')
+      ['Juros Tribunal X', '2025-01', '', '0,8500', 'Exemplo com taxa % mensal'].join(';'),
+      ['Juros Simples 0,3333% a.m.', '2025-01', '', '0,3333', 'Exemplo de juros simples fixo'].join(';')
     ];
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
     downloadCsvFile('modelo-tabelas-indices-' + stamp + '.csv', lines.join('\r\n'));
@@ -3839,6 +3973,18 @@
       }
     });
   });
+  if (btnCreateFixedIndexTableModal) btnCreateFixedIndexTableModal.addEventListener('click', function(){
+    toggleFixedIndexGenerator(fixedIndexGeneratorWrap);
+  });
+  if (btnSubmitFixedIndexTableModal) btnSubmitFixedIndexTableModal.addEventListener('click', function(){
+    upsertFixedIndexTable({
+      name: fixedTableName ? fixedTableName.value : '',
+      rate: fixedMonthlyRate ? fixedMonthlyRate.value : '',
+      startMonth: fixedStartMonth ? fixedStartMonth.value : '',
+      endMonth: fixedEndMonth ? fixedEndMonth.value : '',
+      mode: fixedEntryMode ? fixedEntryMode.value : 'percent'
+    });
+  });
   if (btnAddEditIndexSegment) {
     btnAddEditIndexSegment.addEventListener('click', function(){
       const launchIndex = Number(editModalLaunchIndex.value);
@@ -3859,6 +4005,18 @@
         const preferred = latest ? (CUSTOM_INDEX_SOURCE_PREFIX + latest.id) : '';
         refreshOpenIndexSourceSelectors(preferred);
       }
+    });
+  });
+  if (btnCreateFixedIndexTableEdit) btnCreateFixedIndexTableEdit.addEventListener('click', function(){
+    toggleFixedIndexGenerator(editFixedIndexGeneratorWrap);
+  });
+  if (btnSubmitFixedIndexTableEdit) btnSubmitFixedIndexTableEdit.addEventListener('click', function(){
+    upsertFixedIndexTable({
+      name: editFixedTableName ? editFixedTableName.value : '',
+      rate: editFixedMonthlyRate ? editFixedMonthlyRate.value : '',
+      startMonth: editFixedStartMonth ? editFixedStartMonth.value : '',
+      endMonth: editFixedEndMonth ? editFixedEndMonth.value : '',
+      mode: editFixedEntryMode ? editFixedEntryMode.value : 'percent'
     });
   });
   document.addEventListener('click', function(event){
