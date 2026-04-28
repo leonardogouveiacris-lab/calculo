@@ -634,6 +634,30 @@
     return parts.length === 2 && isValidMonthNumber(parts[1]) ? (parts[1] + '-' + parts[0]) : '';
   }
 
+  function parseCsvCompetenciaToMonthKey(value){
+    const raw = String(value || '').trim();
+    if (!raw) return { monthKey: '', error: 'competência vazia' };
+    let match = raw.match(/^(\d{2})-(\d{4})$/);
+    if (match) {
+      if (!isValidMonthNumber(match[1])) return { monthKey: '', error: 'mês inválido "' + match[1] + '" (use 01..12)' };
+      return { monthKey: match[2] + '-' + match[1], error: '' };
+    }
+    match = raw.match(/^(\d{2})\/(\d{4})$/);
+    if (match) {
+      if (!isValidMonthNumber(match[1])) return { monthKey: '', error: 'mês inválido "' + match[1] + '" (use 01..12)' };
+      return { monthKey: match[2] + '-' + match[1], error: '' };
+    }
+    match = raw.match(/^([a-zç]{3})\/(\d{2})$/i);
+    if (match) {
+      const monthAlias = String(match[1] || '').toLowerCase();
+      const monthMap = { jan:'01', fev:'02', mar:'03', abr:'04', mai:'05', jun:'06', jul:'07', ago:'08', set:'09', out:'10', nov:'11', dez:'12' };
+      const month = monthMap[monthAlias];
+      if (!month || !isValidMonthNumber(month)) return { monthKey: '', error: 'mês textual inválido "' + monthAlias + '"' };
+      return { monthKey: ('20' + match[2]) + '-' + month, error: '' };
+    }
+    return { monthKey: '', error: 'formato inválido "' + raw + '" (use preferencialmente mm-aaaa)' };
+  }
+
   function compareMonth(a, b){ return String(a.month || a).localeCompare(String(b.month || b)); }
   function toBR(iso){ if (!iso) return ''; const p = String(iso).split('-'); return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : iso; }
   function parseBCBNumber(value){
@@ -2064,7 +2088,7 @@
           '</div>' +
           '<div style="display:flex;gap:8px;align-items:flex-start;justify-content:flex-end;opacity:.85">' +
             '<button type="button" class="btn btn-ghost btnExportLaunchCsv" data-launch-index="' + index + '" style="padding:4px 8px;font-size:11px;line-height:1.2">CSV ↓</button>' +
-            '<button type="button" class="btn btn-ghost btnImportLaunchCsv" data-launch-index="' + index + '" style="padding:4px 8px;font-size:11px;line-height:1.2" title="Layout esperado: 1ª coluna Competência (mm-aaaa) + colunas manuais com os mesmos nomes exibidos na verba ativa.">CSV ↑</button>' +
+            '<button type="button" class="btn btn-ghost btnImportLaunchCsv" data-launch-index="' + index + '" style="padding:4px 8px;font-size:11px;line-height:1.2" title="Layout esperado: 1ª coluna Competência + colunas manuais com os mesmos nomes exibidos na verba ativa. Formato preferencial: mm-aaaa.">CSV ↑</button>' +
           '</div>' +
         '</div>' +
         '<div class="launch-actions">' +
@@ -4076,11 +4100,15 @@
         let updatedRows = 0;
         let ignoredRowsMissingCompetencia = 0;
         let ignoredRowsCompetenciaNotFound = 0;
-        rows.slice(1).forEach(function(cols){
+        const invalidCompetenciaDetails = [];
+        rows.slice(1).forEach(function(cols, idx){
+          const csvLineNumber = idx + 2;
           const competencia = String(cols[0] || '').trim();
-          const targetMonthKey = periodToMonthKey(competencia);
+          const parsedCompetencia = parseCsvCompetenciaToMonthKey(competencia);
+          const targetMonthKey = parsedCompetencia.monthKey;
           if (!targetMonthKey) {
             ignoredRowsMissingCompetencia += 1;
+            invalidCompetenciaDetails.push('linha ' + String(csvLineNumber) + ': ' + parsedCompetencia.error);
             return;
           }
           const linha = linhasByMonthKey.get(targetMonthKey);
@@ -4103,7 +4131,10 @@
         recalculateLaunch(activeLaunch);
         if (!updatedCells) throw new Error('Nenhum valor foi atualizado. Revise o conteúdo do CSV.');
         persistAndRefresh();
-        alert('Importação concluída: ' + String(updatedCells) + ' célula(s) atualizada(s) em ' + String(updatedRows) + ' competência(s). Ignoradas: ' + String(ignoredRowsMissingCompetencia) + ' linha(s) com competência inválida e ' + String(ignoredRowsCompetenciaNotFound) + ' competência(s) não encontrada(s) na verba ativa.');
+        const invalidCompetenciaMessage = invalidCompetenciaDetails.length
+          ? (' Detalhes das competências inválidas: ' + invalidCompetenciaDetails.join('; ') + '.')
+          : '';
+        alert('Importação concluída: ' + String(updatedCells) + ' célula(s) atualizada(s) em ' + String(updatedRows) + ' competência(s). Ignoradas: ' + String(ignoredRowsMissingCompetencia) + ' linha(s) com competência inválida e ' + String(ignoredRowsCompetenciaNotFound) + ' competência(s) não encontrada(s) na verba ativa.' + invalidCompetenciaMessage);
       } catch (error) {
         alert('Não foi possível importar o arquivo CSV informado. ' + String(error && error.message || ''));
       }
