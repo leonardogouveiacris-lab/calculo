@@ -566,6 +566,12 @@
     return formatNumberBR(value, 2, 2, false);
   }
 
+  function formatCsvDateAsText(value){
+    const iso = parseDateInputValue(value);
+    if (!iso) return '';
+    return '="' + iso + '"';
+  }
+
   function parseDateInputValue(value){
     const raw = String(value || '').trim();
     if (!raw) return '';
@@ -3882,9 +3888,8 @@
               lancamento.id || '',
               lancamento.verba || '',
               formatPeriodoMonthYear(linha.periodo || ''),
-              lancamento.dataInicial || '',
-              lancamento.dataFinal || '',
-              'AAAA-MM-DD',
+              formatCsvDateAsText(lancamento.dataInicial || ''),
+              formatCsvDateAsText(lancamento.dataFinal || ''),
               lancamento.observacao || '',
               columnId,
               coluna.nome || '',
