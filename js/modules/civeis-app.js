@@ -599,21 +599,28 @@
     return month + '/' + year;
   }
 
+  function isValidMonthNumber(month){
+    return /^\d{2}$/.test(month) && Number(month) >= 1 && Number(month) <= 12;
+  }
+
   function periodToMonthKey(periodo){
     const raw = String(periodo || '').trim();
     if (!raw) return '';
-    if (/^\d{4}-\d{2}$/.test(raw)) return raw;
-    let match = raw.match(/^(\d{2})[\/\-](\d{4})$/);
-    if (match) return match[2] + '-' + match[1];
+    let match = raw.match(/^(\d{2})-(\d{4})$/);
+    if (match) return isValidMonthNumber(match[1]) ? (match[2] + '-' + match[1]) : '';
+    match = raw.match(/^(\d{4})-(\d{2})$/);
+    if (match) return isValidMonthNumber(match[2]) ? raw : '';
+    match = raw.match(/^(\d{2})\/(\d{4})$/);
+    if (match) return isValidMonthNumber(match[1]) ? (match[2] + '-' + match[1]) : '';
     match = raw.match(/^(\d{2})[\/\-](\d{2})$/);
-    if (match) return ('20' + match[2]) + '-' + match[1];
+    if (match) return isValidMonthNumber(match[1]) ? (('20' + match[2]) + '-' + match[1]) : '';
     match = raw.match(/^([a-zç]{3})\/(\d{2,4})$/i);
     if (match) {
       const monthAlias = String(match[1] || '').toLowerCase();
       const monthMap = { jan:'01', fev:'02', mar:'03', abr:'04', mai:'05', jun:'06', jul:'07', ago:'08', set:'09', out:'10', nov:'11', dez:'12' };
       const month = monthMap[monthAlias];
       const yearRaw = String(match[2] || '');
-      if (!month) return '';
+      if (!month || !isValidMonthNumber(month)) return '';
       const year = yearRaw.length === 2 ? ('20' + yearRaw) : yearRaw;
       return /^\d{4}$/.test(year) ? (year + '-' + month) : '';
     }
@@ -622,9 +629,9 @@
 
   function formatPeriodoMonthYear(periodo){
     const monthKey = periodToMonthKey(periodo);
-    if (!monthKey) return String(periodo || '');
+    if (!monthKey) return '';
     const parts = monthKey.split('-');
-    return parts.length === 2 ? (parts[1] + '-' + parts[0]) : String(periodo || '');
+    return parts.length === 2 && isValidMonthNumber(parts[1]) ? (parts[1] + '-' + parts[0]) : '';
   }
 
   function compareMonth(a, b){ return String(a.month || a).localeCompare(String(b.month || b)); }
@@ -4069,12 +4076,11 @@
           const coluna = findEditableColumn(lancamento, columnId);
           if (!coluna) return;
           const targetMonthKey = periodToMonthKey(periodo);
-          const linha = (lancamento.linhas || []).find(function(item){
-            const itemPeriodo = String(item && item.periodo || '');
-            if (itemPeriodo === periodo) return true;
-            if (!targetMonthKey) return false;
-            return periodToMonthKey(itemPeriodo) === targetMonthKey;
-          });
+          if (!targetMonthKey) return;
+          const linhasByMonthKey = new Map((lancamento.linhas || []).map(function(item){
+            return [periodToMonthKey(item && item.periodo || ''), item];
+          }).filter(function(entry){ return !!entry[0]; }));
+          const linha = linhasByMonthKey.get(targetMonthKey);
           if (!linha) return;
           const parsedValue = coluna.formato === 'data' ? parseDateInputValue(value) : roundMoney(value);
           if (columnId === 'valor') linha.valor = parsedValue;
