@@ -1512,6 +1512,14 @@
     return state.lancamentos.findIndex(function(item){ return item.id === state.lancamentoSelecionadoId; });
   }
 
+
+  function resolveActiveLaunchIndex(fallbackIndex){
+    const selectedIndex = getSelectedLaunchIndex();
+    if (selectedIndex >= 0 && state.lancamentos[selectedIndex]) return selectedIndex;
+    if (typeof fallbackIndex === 'number' && fallbackIndex >= 0 && state.lancamentos[fallbackIndex]) return fallbackIndex;
+    return -1;
+  }
+
   function renderLaunchSelector(){
     syncSelectedLaunch();
     if (!state.lancamentos.length){
@@ -3280,7 +3288,9 @@
     const target = event.target;
     if (!target.classList.contains('valor-input')) return;
     const launchIndex = Number(target.getAttribute('data-launch-index'));
-    if (!state.lancamentos[launchIndex]) return;
+    const resolvedLaunchIndex = resolveActiveLaunchIndex(launchIndex);
+    if ((target.classList.contains('btnExportLaunchCsv') || target.classList.contains('btnImportLaunchCsv')) && resolvedLaunchIndex < 0) return;
+    if (!state.lancamentos[launchIndex] && !(target.classList.contains('btnExportLaunchCsv') || target.classList.contains('btnImportLaunchCsv'))) return;
     const columnId = target.getAttribute('data-column-id') || 'valor';
     const coluna = getColumnById(state.lancamentos[launchIndex], columnId);
     if (coluna && coluna.formato === 'data') {
@@ -3369,7 +3379,9 @@
       : event.target;
     if (!target) return;
     const launchIndex = Number(target.getAttribute('data-launch-index'));
-    if (!state.lancamentos[launchIndex]) return;
+    const resolvedLaunchIndex = resolveActiveLaunchIndex(launchIndex);
+    if ((target.classList.contains('btnExportLaunchCsv') || target.classList.contains('btnImportLaunchCsv')) && resolvedLaunchIndex < 0) return;
+    if (!state.lancamentos[launchIndex] && !(target.classList.contains('btnExportLaunchCsv') || target.classList.contains('btnImportLaunchCsv'))) return;
     if (target.classList.contains('btnAddColumn')){
       openColumnModal(launchIndex, 'manual');
       return;
@@ -3387,11 +3399,11 @@
       return;
     }
     if (target.classList.contains('btnExportLaunchCsv')){
-      exportLaunchesToCsv(launchIndex);
+      exportLaunchesToCsv(resolvedLaunchIndex);
       return;
     }
     if (target.classList.contains('btnImportLaunchCsv')){
-      triggerLaunchCsvImport(launchIndex);
+      triggerLaunchCsvImport(resolvedLaunchIndex);
       return;
     }
     if (target.classList.contains('btnEditColumn')){
@@ -3968,9 +3980,10 @@
 
   function exportLaunchesToCsv(launchIndex){
     try {
-      const launchList = typeof launchIndex === 'number'
-        ? (state.lancamentos[launchIndex] ? [state.lancamentos[launchIndex]] : [])
-        : state.lancamentos.slice();
+      const activeIndex = resolveActiveLaunchIndex(launchIndex);
+      const launchList = activeIndex >= 0 && state.lancamentos[activeIndex]
+        ? [state.lancamentos[activeIndex]]
+        : [];
       const header = [
         'lancamento_id',
         'verba',
@@ -4016,7 +4029,7 @@
         });
       });
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-      const suffix = launchList.length === 1 ? ('-' + sanitizeFilenameSegment(launchList[0].verba || 'verba')) : '';
+      const suffix = '-' + sanitizeFilenameSegment(launchList[0].verba || 'verba');
       downloadCsvFile('calculo-civel-lancamentos' + suffix + '-' + stamp + '.csv', lines.join('\r\n'));
     } catch (error) {
       console.error('Falha ao exportar lançamentos para CSV.', error);
@@ -4058,9 +4071,10 @@
         if (idxLaunchId < 0 || idxPeriodo < 0 || idxColumnId < 0 || idxValor < 0) {
           throw new Error('Cabeçalho inválido. Use o CSV gerado pelo sistema.');
         }
-        const allowedIds = new Set(typeof launchIndex === 'number' && state.lancamentos[launchIndex]
-          ? [String(state.lancamentos[launchIndex].id || '')]
-          : state.lancamentos.map(function(lancamento){ return String(lancamento.id || ''); }));
+        const activeIndex = resolveActiveLaunchIndex(launchIndex);
+        const activeLaunch = activeIndex >= 0 ? state.lancamentos[activeIndex] : null;
+        if (!activeLaunch) throw new Error('Selecione uma verba ativa antes de importar o CSV.');
+        const allowedIds = new Set([String(activeLaunch.id || '')]);
         const launchById = new Map(state.lancamentos.map(function(lancamento){ return [String(lancamento.id || ''), lancamento]; }));
         const touchedLaunches = new Set();
         let updatedCells = 0;
@@ -4094,7 +4108,7 @@
         });
         if (!updatedCells) throw new Error('Nenhum valor foi atualizado. Revise o conteúdo do CSV.');
         persistAndRefresh();
-        alert('Importação concluída com sucesso. ' + String(updatedCells) + ' célula(s) atualizada(s) em ' + String(touchedLaunches.size) + ' verba(s).');
+        alert('Importação concluída com sucesso. ' + String(updatedCells) + ' célula(s) atualizada(s) em 1 verba.');
       } catch (error) {
         alert('Não foi possível importar o arquivo CSV informado. ' + String(error && error.message || ''));
       }
@@ -4112,7 +4126,7 @@
     input.style.display = 'none';
     input.addEventListener('change', function(){
       const file = this.files && this.files[0] ? this.files[0] : null;
-      if (file) importLaunchesFromCsv(file, launchIndex);
+      if (file) importLaunchesFromCsv(file, resolveActiveLaunchIndex(launchIndex));
       document.body.removeChild(input);
     }, { once:true });
     document.body.appendChild(input);
@@ -4127,7 +4141,12 @@
   const legacyImportCsvLaunchesInput = $('importCsvLaunchesInput');
 
   [legacyBtnExportCsvLaunches, legacyBtnImportCsvLaunches, legacyImportCsvLaunchesInput].forEach(function(node){
-    if (node && node.parentNode) node.parentNode.removeChild(node);
+    if (!node) return;
+    node.disabled = true;
+    node.style.display = 'none';
+    node.setAttribute('aria-hidden', 'true');
+    if ('value' in node) node.value = '';
+    if (node.parentNode) node.parentNode.removeChild(node);
   });
 
   if (btnExportJson) btnExportJson.addEventListener('click', exportCalculationToJson);
