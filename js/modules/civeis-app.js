@@ -424,11 +424,37 @@
     return normalizeMonthKey(raw) || monthKeyFromISO(raw);
   }
 
+  function resolveFixedIndexPeriodBounds(startInput, endInput){
+    const explicitStart = normalizeCompetenciaInput(startInput);
+    const explicitEnd = normalizeCompetenciaInput(endInput);
+    let minMonth = '';
+    let maxMonth = '';
+    (state.lancamentos || []).forEach(function(lancamento){
+      (lancamento && Array.isArray(lancamento.linhas) ? lancamento.linhas : []).forEach(function(linha){
+        const month = monthKeyFromPeriodo(linha && linha.periodo);
+        if (!month) return;
+        if (!minMonth || month < minMonth) minMonth = month;
+        if (!maxMonth || month > maxMonth) maxMonth = month;
+      });
+      const launchStart = monthKeyFromISO(lancamento && lancamento.dataInicial);
+      const launchEnd = monthKeyFromISO(lancamento && lancamento.dataFinal);
+      if (launchStart && (!minMonth || launchStart < minMonth)) minMonth = launchStart;
+      if (launchEnd && (!maxMonth || launchEnd > maxMonth)) maxMonth = launchEnd;
+    });
+    const updateMonth = monthKeyFromISO(fields.dataAtualizacao && fields.dataAtualizacao.value || state.dataAtualizacao);
+    if (updateMonth && (!maxMonth || updateMonth > maxMonth)) maxMonth = updateMonth;
+    return {
+      startMonth: explicitStart || minMonth,
+      endMonth: explicitEnd || maxMonth
+    };
+  }
+
   function upsertFixedIndexTable(payload){
     const name = String(payload && payload.name || '').trim();
     const rateValue = parseStrictBRNumber(payload && payload.rate);
-    const startMonth = normalizeCompetenciaInput(payload && payload.startMonth);
-    const endMonth = normalizeCompetenciaInput(payload && payload.endMonth);
+    const bounds = resolveFixedIndexPeriodBounds(payload && payload.startMonth, payload && payload.endMonth);
+    const startMonth = bounds.startMonth;
+    const endMonth = bounds.endMonth;
     const mode = String(payload && payload.mode || 'percent').trim().toLowerCase() === 'factor' ? 'factor' : 'percent';
     if (!name) {
       alert('Informe o nome da tabela.');
@@ -439,7 +465,7 @@
       return '';
     }
     if (!startMonth || !endMonth) {
-      alert('Informe competências inicial e final válidas.');
+      alert('Não foi possível identificar o período completo. Informe ao menos uma competência.');
       return '';
     }
     if (startMonth > endMonth) {
@@ -3828,8 +3854,10 @@
         'lancamento_id',
         'verba',
         'periodo',
+        'periodo_formato',
         'data_inicial_verba',
         'data_final_verba',
+        'data_verba_formato',
         'observacao_verba',
         'coluna_id',
         'coluna_nome',
@@ -3856,6 +3884,7 @@
               formatPeriodoMonthYear(linha.periodo || ''),
               lancamento.dataInicial || '',
               lancamento.dataFinal || '',
+              'AAAA-MM-DD',
               lancamento.observacao || '',
               columnId,
               coluna.nome || '',
