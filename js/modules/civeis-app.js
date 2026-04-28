@@ -2508,7 +2508,11 @@
       const valorEfetivo = item.operacao === 'deduzir'
         ? -Math.abs(valorBase)
         : Math.abs(valorBase);
-      return Object.assign({}, item, { valorEfetivo: valorEfetivo });
+      return Object.assign({}, item, {
+        valorBase: valorBase,
+        valorEfetivo: valorEfetivo,
+        includeInGrandTotal: !item.separateInSummary
+      });
     });
     const rows = launchItems.map(function(item){
       return {
@@ -2587,6 +2591,13 @@
       acc.valorDevido += roundMoney(item.valorDevido);
       return acc;
     }, { valorCorrigido:0, juros:0, valorDevido:0 });
+    const separatedCustasTotals = rows.reduce(function(acc, item){
+      if (!item || item.kind !== 'custas' || item.includeInGrandTotal !== false) return acc;
+      acc.valorCorrigido += roundMoney(item.valorCorrigido);
+      acc.juros += roundMoney(item.juros);
+      acc.valorDevido += roundMoney(item.valorDevido);
+      return acc;
+    }, { valorCorrigido:0, juros:0, valorDevido:0 });
 
     totals.valorCorrigido = roundMoney(totals.valorCorrigido);
     totals.juros = roundMoney(totals.juros);
@@ -2597,8 +2608,14 @@
     separatedHonorariosTotals.valorCorrigido = roundMoney(separatedHonorariosTotals.valorCorrigido);
     separatedHonorariosTotals.juros = roundMoney(separatedHonorariosTotals.juros);
     separatedHonorariosTotals.valorDevido = roundMoney(separatedHonorariosTotals.valorDevido);
+    separatedCustasTotals.valorCorrigido = roundMoney(separatedCustasTotals.valorCorrigido);
+    separatedCustasTotals.juros = roundMoney(separatedCustasTotals.juros);
+    separatedCustasTotals.valorDevido = roundMoney(separatedCustasTotals.valorDevido);
     const separatedHonorariosCount = rows.filter(function(item){
       return item && item.kind === 'honorarios' && item.includeInGrandTotal === false;
+    }).length;
+    const separatedCustasCount = rows.filter(function(item){
+      return item && item.kind === 'custas' && item.includeInGrandTotal === false;
     }).length;
 
     return {
@@ -2615,7 +2632,9 @@
       totals: totals,
       grandTotals: grandTotals,
       separatedHonorariosTotals: separatedHonorariosTotals,
-      separatedHonorariosCount: separatedHonorariosCount
+      separatedHonorariosCount: separatedHonorariosCount,
+      separatedCustasTotals: separatedCustasTotals,
+      separatedCustasCount: separatedCustasCount
     };
   }
 
@@ -2677,17 +2696,20 @@
       custasResumo.innerHTML = '' +
         '<div class="summary-stats">' +
           '<div class="summary-stat"><span class="summary-stat-label">Itens lançados</span><span class="summary-stat-value">' + String(summaryData.custas.items.length) + '</span></div>' +
-          '<div class="summary-stat"><span class="summary-stat-label">Total de custas</span><span class="summary-stat-value">' + esc(formatCurrencyBR(summaryData.custas.total)) + '</span></div>' +
+          '<div class="summary-stat"><span class="summary-stat-label">Total líquido de custas</span><span class="summary-stat-value">' + esc(formatCurrencyBR(summaryData.custas.total)) + '</span></div>' +
         '</div>' +
         summaryData.custas.items.map(function(item, index){
           const descricao = item.descricao || ('Custas ' + String(index + 1));
           const valorBase = roundMoney(item.valor);
           const multiplicador = parseBRNumber(item.multiplicador) || 1;
           const totalItem = roundMoney(item.valorEfetivo);
-          if (multiplicador === 1) {
-            return '<div class="summary-inline-note"><b>' + esc(descricao) + '</b> &nbsp;•&nbsp; Valor: <b>' + esc(formatCurrencyBR(totalItem)) + '</b></div>';
-          }
-          return '<div class="summary-inline-note"><b>' + esc(descricao) + '</b> &nbsp;•&nbsp; Base: <b>' + esc(formatCurrencyBR(valorBase)) + '</b> &nbsp;•&nbsp; Multiplicador: <b>x' + esc(formatNumberBR(multiplicador, 2, 4, true)) + '</b> &nbsp;•&nbsp; Total: <b>' + esc(formatCurrencyBR(totalItem)) + '</b></div>';
+          const operacaoLabel = item.operacao === 'deduzir' ? 'Dedução' : 'Acréscimo';
+          const efeitoLabel = item.operacao === 'deduzir' ? 'Deduzido do crédito apurado.' : 'Acrescido ao crédito apurado.';
+          const separadoLabel = item.includeInGrandTotal === false ? 'Separado no resumo.' : 'Somado ao total geral.';
+          const baseTexto = multiplicador === 1
+            ? ('Valor base: <b>' + esc(formatCurrencyBR(valorBase)) + '</b>')
+            : ('Base: <b>' + esc(formatCurrencyBR(valorBase)) + '</b> &nbsp;•&nbsp; Multiplicador: <b>x' + esc(formatNumberBR(multiplicador, 2, 4, true)) + '</b>');
+          return '<div class="summary-inline-note"><b>' + esc(descricao) + '</b> &nbsp;•&nbsp; Operação: <b>' + esc(operacaoLabel) + '</b> &nbsp;•&nbsp; ' + esc(separadoLabel) + ' &nbsp;•&nbsp; ' + esc(efeitoLabel) + ' &nbsp;•&nbsp; ' + baseTexto + ' &nbsp;•&nbsp; Total líquido: <b>' + esc(formatCurrencyBR(totalItem)) + '</b></div>';
         }).join('');
     }
 
@@ -2721,6 +2743,16 @@
           '<td>Honorários separados</td>' +
           summaryColumns.map(function(coluna){
             const totals = summaryData.separatedHonorariosTotals || {};
+            const value = coluna.id === 'valorCorrigido'
+              ? totals.valorCorrigido
+              : (coluna.id === 'juros' ? totals.juros : totals.valorDevido);
+            return '<td class="' + esc(coluna.className) + '">' + formatSummaryMoney(value || 0) + '</td>';
+          }).join('') +
+        '</tr>' +
+        '<tr class="summary-row-separate">' +
+          '<td>Custas separadas</td>' +
+          summaryColumns.map(function(coluna){
+            const totals = summaryData.separatedCustasTotals || {};
             const value = coluna.id === 'valorCorrigido'
               ? totals.valorCorrigido
               : (coluna.id === 'juros' ? totals.juros : totals.valorDevido);
@@ -2828,7 +2860,7 @@
         '<tr><td class="bold">Finalidade</td><td>Lançamentos mensais por verba, quadro de resumo, honorários e custas.</td></tr>' +
         '<tr><td class="bold">Quantidade de verbas</td><td>' + String(data.lancamentos.length) + '</td></tr>' +
         '<tr><td class="bold">Honorários</td><td>' + String(summary.honorarios.items.length) + ' item(ns) no resumo, total de ' + esc(formatCurrencyBR(summary.honorarios.total || 0)) + '.</td></tr>' +
-        '<tr><td class="bold">Custas lançadas</td><td>' + String(summary.custas.items.length) + ' item(ns) — total de ' + esc(formatCurrencyBR(summary.custas.total)) + '</td></tr>' +
+        '<tr><td class="bold">Custas lançadas</td><td>' + String(summary.custas.items.length) + ' item(ns) — total líquido de ' + esc(formatCurrencyBR(summary.custas.total)) + '</td></tr>' +
         '<tr><td class="bold">Data-base de atualização</td><td>' + esc(formatDateBR(data.dataAtualizacao)) + '</td></tr>' +
         '<tr><td class="bold">Última atualização do relatório</td><td>' + esc(data.atualizadoEm || '—') + '</td></tr>' +
       '</tbody></table>'
@@ -2836,10 +2868,10 @@
 
     const summaryBaseRows = summary.rows.length ? summary.rows : [{ verba:'Nenhum item resumido até o momento.', note:'', valorCorrigido:0, juros:0, valorDevido:0 }];
     const summaryRegularRows = summaryBaseRows.filter(function(row){
-      return !(row && row.kind === 'honorarios' && row.includeInGrandTotal === false);
+      return !(row && row.includeInGrandTotal === false && (row.kind === 'honorarios' || row.kind === 'custas'));
     });
     const summarySeparatedRows = summaryBaseRows.filter(function(row){
-      return row && row.kind === 'honorarios' && row.includeInGrandTotal === false;
+      return row && row.includeInGrandTotal === false && (row.kind === 'honorarios' || row.kind === 'custas');
     });
     const summaryRows = summaryRegularRows.map(function(row){
       return '<tr>' +
@@ -2849,7 +2881,7 @@
         '<td class="bold right">' + esc(formatCurrencyBR(row.valorDevido || 0)) + '</td>' +
       '</tr>';
     });
-    const separatedHonorariosRows = summarySeparatedRows.map(function(row){
+    const separatedRows = summarySeparatedRows.map(function(row){
       return '<tr class="summary-row-separate">' +
         '<td>' + esc(row.verba || '—') + (row.note ? '<span class="summary-row-note">' + esc(row.note) + '</span>' : '') + '</td>' +
         '<td class="right">' + esc(formatCurrencyBR(row.valorCorrigido || 0)) + '</td>' +
@@ -2864,7 +2896,7 @@
         '<td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.juros : 0)) + '</td>' +
         '<td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.valorDevido : 0)) + '</td>' +
       '</tr>' +
-      separatedHonorariosRows;
+      separatedRows;
     CPPrintLayout.appendTable(layout, {
       title: 'Resumo do cálculo',
       columns: ['Verba', 'Valor corrigido', 'Juros', 'Valor devido'],

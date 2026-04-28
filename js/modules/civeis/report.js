@@ -13,7 +13,9 @@
       '<tbody>' +
       '<tr><td>Valor devido</td><td class="right">' + formatMoney(info.launches && info.launches.valorDevido) + '</td></tr>' +
       '<tr><td>Honorários</td><td class="right">' + formatMoney(info.honorarios) + '</td></tr>' +
-      '<tr><td>Custas</td><td class="right">' + formatMoney(info.custas) + '</td></tr>' +
+      '<tr><td>Custas (líquidas)</td><td class="right">' + formatMoney(info.custas) + '</td></tr>' +
+      '<tr><td>Honorários separados</td><td class="right">' + formatMoney(info.honorariosSeparados) + '</td></tr>' +
+      '<tr><td>Custas separadas</td><td class="right">' + formatMoney(info.custasSeparadas) + '</td></tr>' +
       '</tbody>' +
       '<tfoot><tr><td><b>Total geral</b></td><td class="right"><b>' + formatMoney(info.totalGeral) + '</b></td></tr></tfoot>' +
       '</table>';
