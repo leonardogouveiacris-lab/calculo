@@ -8,6 +8,20 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
     global.CPDepositoRecursal.attachCalc(ctx);
     global.CPDepositoRecursal.attachPrint(ctx);
     const { state, el } = ctx;
+    function withBusy(button, busyLabel, task){
+      if (!button) return Promise.resolve().then(task);
+      if (!button.dataset.idleLabel) button.dataset.idleLabel = button.textContent || '';
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.textContent = busyLabel || 'Processando...';
+      return Promise.resolve()
+        .then(task)
+        .finally(()=>{
+          button.disabled = false;
+          button.removeAttribute('aria-busy');
+          button.textContent = button.dataset.idleLabel;
+        });
+    }
 
     function addDeposit(){
       const date = el.depDate && el.depDate.value; const value = el.depValue ? parseFloat(el.depValue.value) : NaN; const obs = el.depObs ? (el.depObs.value || '').trim() : '';
@@ -29,7 +43,7 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
     async function delIdx(i){ if(!(await ctx.openConfirm('Excluir este índice?'))) return; state.indices.splice(i,1); state.editingIdxIndex=-1; ctx.renderIndices(); ctx.toast('OK','Índice excluído.','ok'); }
 
     async function onCalculateOnly(){ const result = await ctx.calculateAll(); if (result) ctx.toast('OK', 'Cálculo pronto. Agora gere o relatório.', 'ok'); }
-    async function onShowReport(){ const result = await ctx.calculateAll(); if (result) await ctx.renderReport(result); }
+    async function onShowReport(){ const result = await ctx.calculateAll(); if (result) { await ctx.renderReport(result); ctx.switchTab('report'); } }
     async function onPrint(){ const reportRoot = document.getElementById('reportRoot'); const hasReport = !!(reportRoot && reportRoot.querySelector('.page')); let result = state.lastCalc || null; if (!hasReport) { result = await ctx.calculateAll(); if (!result) return; await ctx.renderReport(result); } else if (!result) { result = await ctx.calculateAll(); if (!result) return; } await ctx.openPrintWindow(); }
 
     function downloadJson(filename, dataObj){ const blob = new Blob([JSON.stringify(dataObj, null, 2)], { type:'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 1500); }
@@ -41,27 +55,37 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
       const btnClose = document.getElementById('btnModalClose'); if(btnClose) btnClose.addEventListener('click', ctx.closeConfirm);
       const backdrop = document.getElementById('modalBackdrop'); if(backdrop) backdrop.addEventListener('click', (e)=>{ if(e.target === backdrop) ctx.closeConfirm(); });
       if (el.btnAddDep) el.btnAddDep.addEventListener('click', addDeposit);
+      [el.depDate, el.depValue, el.depObs].filter(Boolean).forEach((field)=>{
+        field.addEventListener('keydown', (ev)=>{
+          if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); addDeposit(); }
+        });
+      });
       if (el.depTable) el.depTable.addEventListener('click', (ev)=>{ const b=ev.target.closest('button[data-action]'); if(!b) return; const i=Number(b.getAttribute('data-i')); const action=b.getAttribute('data-action'); if(action==='edit') startEditDeposit(i); if(action==='save') saveEditDeposit(i); if(action==='cancel') cancelEditDeposit(); if(action==='del') delDep(i); });
       if (el.btnAddIdx) el.btnAddIdx.addEventListener('click', addManualIndex);
+      [el.idxMonth, el.idxValue].filter(Boolean).forEach((field)=>{
+        field.addEventListener('keydown', (ev)=>{
+          if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); addManualIndex(); }
+        });
+      });
       if (el.idxTable) el.idxTable.addEventListener('click', (ev)=>{ const b=ev.target.closest('button[data-action]'); if(!b) return; const i=Number(b.getAttribute('data-i')); const action=b.getAttribute('data-action'); if(action==='edit') startEditIndex(i); if(action==='save') saveEditIndex(i); if(action==='cancel') cancelEditIndex(); if(action==='del') delIdx(i); });
       if (el.btnSortIdx) el.btnSortIdx.addEventListener('click', ()=>{ state.indices.sort(ctx.compareMonth); ctx.renderIndices(); ctx.toast('OK','Índices ordenados.','ok'); });
       if (el.btnClearIdx) el.btnClearIdx.addEventListener('click', async ()=>{ if(!(await ctx.openConfirm('Limpar todos os índices?'))) return; state.indices=[]; state.editingIdxIndex=-1; ctx.renderIndices(); ctx.toast('OK','Índices limpos.','ok'); });
       if (el.indexType) el.indexType.addEventListener('change', ctx.updateIndexTypeUI);
-      if (el.btnCalc) el.btnCalc.addEventListener('click', onCalculateOnly);
-      if (el.btnShowReport) el.btnShowReport.addEventListener('click', onShowReport);
-      if (el.btnPrint) el.btnPrint.addEventListener('click', onPrint);
+      if (el.btnCalc) el.btnCalc.addEventListener('click', ()=>withBusy(el.btnCalc, 'Calculando...', onCalculateOnly));
+      if (el.btnShowReport) el.btnShowReport.addEventListener('click', ()=>withBusy(el.btnShowReport, 'Gerando relatório...', onShowReport));
+      if (el.btnPrint) el.btnPrint.addEventListener('click', ()=>withBusy(el.btnPrint, 'Preparando impressão...', onPrint));
       if (el.tabBtnEditor) el.tabBtnEditor.addEventListener('click', ()=>ctx.switchTab('editor'));
       if (el.tabBtnReport) el.tabBtnReport.addEventListener('click', ()=>ctx.switchTab('report'));
       const btnGoReport = document.getElementById('btnGoReport'); if (btnGoReport) btnGoReport.addEventListener('click', ()=>ctx.switchTab('report'));
       const btnBack = document.getElementById('btnBack'); if (btnBack) btnBack.addEventListener('click', ()=>{ location.href = 'index.html'; });
       if (el.btnBackToData) el.btnBackToData.addEventListener('click', ()=>ctx.switchTab('editor'));
-      if (el.btnPrint2) el.btnPrint2.addEventListener('click', onPrint);
+      if (el.btnPrint2) el.btnPrint2.addEventListener('click', ()=>withBusy(el.btnPrint2, 'Preparando impressão...', onPrint));
       if (el.infoReclamante) el.infoReclamante.addEventListener('input', (e)=>{ state.info.reclamante=String(e.target.value||''); ctx.renderReportInfo(); });
       if (el.infoReclamada) el.infoReclamada.addEventListener('input', (e)=>{ state.info.reclamada=String(e.target.value||''); ctx.renderReportInfo(); });
       if (el.infoProcesso) el.infoProcesso.addEventListener('input', (e)=>{ state.info.processo=String(e.target.value||''); ctx.renderReportInfo(); });
-      if (el.btnExportJson) el.btnExportJson.addEventListener('click', exportToJson);
+      if (el.btnExportJson) el.btnExportJson.addEventListener('click', ()=>withBusy(el.btnExportJson, 'Exportando JSON...', exportToJson));
       if (el.btnImportJson) el.btnImportJson.addEventListener('click', ()=>{ if (!el.fileImportJson) return; el.fileImportJson.value=''; el.fileImportJson.click(); });
-      if (el.fileImportJson) el.fileImportJson.addEventListener('change', async (e)=>{ const file=(e.target.files||[])[0]; if(!file) return; try{ await importFromJsonFile(file); }catch(err){ ctx.toast('Erro', err.message || 'Erro ao importar JSON.', 'err'); } });
+      if (el.fileImportJson) el.fileImportJson.addEventListener('change', async (e)=>{ const file=(e.target.files||[])[0]; if(!file) return; try{ await withBusy(el.btnImportJson, 'Importando JSON...', ()=>importFromJsonFile(file)); }catch(err){ ctx.toast('Erro', err.message || 'Erro ao importar JSON.', 'err'); } });
       document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape'){ ctx.closeConfirm(); state.editingDepIndex=-1; state.editingIdxIndex=-1; ctx.renderDeposits(); ctx.renderIndices(); } });
     }
 
