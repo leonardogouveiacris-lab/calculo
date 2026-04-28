@@ -3679,9 +3679,30 @@
 
     custasHost.addEventListener('click', function(event){
       const target = event.target;
-      if (!target.classList.contains('btnEditCusta')) return;
+      if (target.classList.contains('btnEditCusta')) {
+        const custaId = target.getAttribute('data-custa-id');
+        openEditCustaModal(custaId);
+        return;
+      }
+      if (target.classList.contains('btnRemoveCusta')) {
+        const custaId = target.getAttribute('data-custa-id');
+        const index = getCustaIndexById(custaId);
+        if (index < 0) return;
+        state.custas.splice(index, 1);
+        persistAndRefresh();
+      }
+    });
+
+    custasHost.addEventListener('change', function(event){
+      const target = event.target;
+      if (!target.classList.contains('custa-desc') && !target.classList.contains('custa-valor') && !target.classList.contains('custa-multiplicador')) return;
       const custaId = target.getAttribute('data-custa-id');
-      openEditCustaModal(custaId);
+      const index = getCustaIndexById(custaId);
+      if (index < 0) return;
+      if (target.classList.contains('custa-desc')) state.custas[index].descricao = String(target.value || '').trim() || 'Custas';
+      if (target.classList.contains('custa-valor')) state.custas[index].valor = roundMoney(target.value);
+      if (target.classList.contains('custa-multiplicador')) state.custas[index].multiplicador = parseBRNumber(target.value) || 1;
+      persistAndRefresh();
     });
   }
 
@@ -4125,6 +4146,8 @@
   if ($('btnCancelEditCustaModal')) $('btnCancelEditCustaModal').addEventListener('click', closeEditCustaModal);
   if ($('btnSaveEditCustaModal')) $('btnSaveEditCustaModal').addEventListener('click', saveEditCustaModal);
   if (btnDeleteCustaModal) btnDeleteCustaModal.addEventListener('click', deleteCustaFromModal);
+  if (editCustaOperacao) editCustaOperacao.addEventListener('change', saveEditCustaModal);
+  if (editCustaSeparate) editCustaSeparate.addEventListener('change', saveEditCustaModal);
   $('btnCancelColumnModal').addEventListener('click', closeColumnModal);
   $('btnSaveColumnModal').addEventListener('click', saveColumnFromModal);
   if (modalIndexKind && modalIndexSource) {
