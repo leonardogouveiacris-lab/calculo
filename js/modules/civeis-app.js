@@ -154,8 +154,8 @@
         '<div class="row" style="margin-top:8px">' +
           '<div class="col-6"><label for="fixedMonthlyRate">Taxa mensal (%)</label><input id="fixedMonthlyRate" type="text" inputmode="decimal" placeholder="0,3333"></div>' +
           '<div class="col-6"><label for="fixedEntryMode">Modo da entrada</label><select id="fixedEntryMode" class="select"><option value="percent">Percentual</option><option value="factor">Fator</option></select></div>' +
-          '<div class="col-6"><label for="fixedStartMonth">Competência inicial</label><input id="fixedStartMonth" type="month"></div>' +
-          '<div class="col-6"><label for="fixedEndMonth">Competência final</label><input id="fixedEndMonth" type="month"></div>' +
+          '<div class="col-6"><label for="fixedStartMonth">Competência inicial</label><input id="fixedStartMonth" type="date"></div>' +
+          '<div class="col-6"><label for="fixedEndMonth">Competência final</label><input id="fixedEndMonth" type="date"></div>' +
         '</div>' +
         '<div class="btn-row" style="margin-top:8px">' +
           '<button type="button" class="btn btn-ghost" id="btnSubmitFixedIndexTableModal">Gerar tabela</button>' +
@@ -418,11 +418,17 @@
     });
   }
 
+  function normalizeCompetenciaInput(value){
+    const raw = String(value || '').trim();
+    if (!raw) return '';
+    return normalizeMonthKey(raw) || monthKeyFromISO(raw);
+  }
+
   function upsertFixedIndexTable(payload){
     const name = String(payload && payload.name || '').trim();
     const rateValue = parseStrictBRNumber(payload && payload.rate);
-    const startMonth = normalizeMonthKey(payload && payload.startMonth);
-    const endMonth = normalizeMonthKey(payload && payload.endMonth);
+    const startMonth = normalizeCompetenciaInput(payload && payload.startMonth);
+    const endMonth = normalizeCompetenciaInput(payload && payload.endMonth);
     const mode = String(payload && payload.mode || 'percent').trim().toLowerCase() === 'factor' ? 'factor' : 'percent';
     if (!name) {
       alert('Informe o nome da tabela.');
@@ -433,7 +439,7 @@
       return '';
     }
     if (!startMonth || !endMonth) {
-      alert('Informe competências inicial e final válidas (YYYY-MM).');
+      alert('Informe competências inicial e final válidas.');
       return '';
     }
     if (startMonth > endMonth) {
