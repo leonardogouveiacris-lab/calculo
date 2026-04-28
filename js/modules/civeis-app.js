@@ -2064,7 +2064,7 @@
           '</div>' +
           '<div style="display:flex;gap:8px;align-items:flex-start;justify-content:flex-end;opacity:.85">' +
             '<button type="button" class="btn btn-ghost btnExportLaunchCsv" data-launch-index="' + index + '" style="padding:4px 8px;font-size:11px;line-height:1.2">CSV ↓</button>' +
-            '<button type="button" class="btn btn-ghost btnImportLaunchCsv" data-launch-index="' + index + '" style="padding:4px 8px;font-size:11px;line-height:1.2">CSV ↑</button>' +
+            '<button type="button" class="btn btn-ghost btnImportLaunchCsv" data-launch-index="' + index + '" style="padding:4px 8px;font-size:11px;line-height:1.2" title="Layout esperado: 1ª coluna Competência (mm-aaaa) + colunas manuais com os mesmos nomes exibidos na verba ativa.">CSV ↑</button>' +
           '</div>' +
         '</div>' +
         '<div class="launch-actions">' +
@@ -3981,55 +3981,32 @@
   function exportLaunchesToCsv(launchIndex){
     try {
       const activeIndex = resolveActiveLaunchIndex(launchIndex);
-      const launchList = activeIndex >= 0 && state.lancamentos[activeIndex]
-        ? [state.lancamentos[activeIndex]]
-        : [];
-      const header = [
-        'lancamento_id',
-        'verba',
-        'periodo',
-        'periodo_formato',
-        'data_inicial_verba',
-        'data_final_verba',
-        'data_verba_formato',
-        'observacao_verba',
-        'coluna_id',
-        'coluna_nome',
-        'tipo_coluna',
-        'valor'
-      ];
-      const lines = [header.join(';')];
-      if (!launchList.length) {
+      const lancamento = activeIndex >= 0 ? state.lancamentos[activeIndex] : null;
+      if (!lancamento) {
         alert('Cadastre ao menos um lançamento antes de exportar o CSV.');
         return;
       }
-      launchList.forEach(function(lancamento){
-        normalizeLaunch(lancamento);
-        const editableColumns = (lancamento.colunas || []).filter(function(coluna){
-          return coluna && coluna.tipo !== 'formula' && coluna.tipo !== 'indice';
+      normalizeLaunch(lancamento);
+      const editableColumns = (lancamento.colunas || []).filter(function(coluna){
+        return coluna && coluna.tipo !== 'formula' && coluna.tipo !== 'indice';
+      });
+      const header = ['Competência'].concat(editableColumns.map(function(coluna){ return String(coluna.nome || coluna.id || '').trim(); }));
+      const lines = [header.map(escapeCsvCell).join(';')];
+      (lancamento.linhas || []).forEach(function(linha){
+        const competencia = formatPeriodoMonthYear(linha && linha.periodo || '');
+        const cells = [competencia];
+        editableColumns.forEach(function(coluna){
+          const columnId = coluna.id === 'valor' ? 'valor' : coluna.id;
+          const rawValue = columnId === 'valor' ? linha.valor : linha[columnId];
+          const serialized = coluna.formato === 'data'
+            ? (parseDateInputValue(rawValue) || '')
+            : formatEditableNumberBR(rawValue || 0);
+          cells.push(serialized);
         });
-        (lancamento.linhas || []).forEach(function(linha){
-          editableColumns.forEach(function(coluna){
-            const columnId = coluna.id === 'valor' ? 'valor' : coluna.id;
-            const rawValue = columnId === 'valor' ? linha.valor : linha[columnId];
-            const cells = [
-              lancamento.id || '',
-              lancamento.verba || '',
-              formatPeriodoMonthYear(linha.periodo || ''),
-              formatCsvDateAsText(lancamento.dataInicial || ''),
-              formatCsvDateAsText(lancamento.dataFinal || ''),
-              lancamento.observacao || '',
-              columnId,
-              coluna.nome || '',
-              coluna.tipo || 'manual',
-              coluna.formato === 'data' ? (parseDateInputValue(rawValue) || '') : formatEditableNumberBR(rawValue || 0)
-            ].map(escapeCsvCell);
-            lines.push(cells.join(';'));
-          });
-        });
+        lines.push(cells.map(escapeCsvCell).join(';'));
       });
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-      const suffix = '-' + sanitizeFilenameSegment(launchList[0].verba || 'verba');
+      const suffix = '-' + sanitizeFilenameSegment(lancamento.verba || 'verba');
       downloadCsvFile('calculo-civel-lancamentos' + suffix + '-' + stamp + '.csv', lines.join('\r\n'));
     } catch (error) {
       console.error('Falha ao exportar lançamentos para CSV.', error);
@@ -4063,52 +4040,67 @@
       try {
         const rows = parseCsvRows(String(reader.result || ''));
         if (rows.length < 2) throw new Error('Arquivo CSV vazio.');
-        const header = rows[0].map(function(cell){ return String(cell || '').trim().toLowerCase(); });
-        const idxLaunchId = header.indexOf('lancamento_id');
-        const idxPeriodo = header.indexOf('periodo');
-        const idxColumnId = header.indexOf('coluna_id');
-        const idxValor = header.indexOf('valor');
-        if (idxLaunchId < 0 || idxPeriodo < 0 || idxColumnId < 0 || idxValor < 0) {
-          throw new Error('Cabeçalho inválido. Use o CSV gerado pelo sistema.');
-        }
         const activeIndex = resolveActiveLaunchIndex(launchIndex);
         const activeLaunch = activeIndex >= 0 ? state.lancamentos[activeIndex] : null;
         if (!activeLaunch) throw new Error('Selecione uma verba ativa antes de importar o CSV.');
-        const allowedIds = new Set([String(activeLaunch.id || '')]);
-        const launchById = new Map(state.lancamentos.map(function(lancamento){ return [String(lancamento.id || ''), lancamento]; }));
-        const touchedLaunches = new Set();
+        normalizeLaunch(activeLaunch);
+        const rawHeader = rows[0].map(function(cell){ return String(cell || '').trim(); });
+        if (!rawHeader.length || String(rawHeader[0] || '').trim().toLowerCase() !== 'competência') {
+          throw new Error('Cabeçalho inválido: a primeira coluna deve ser "Competência".');
+        }
+        const editableColumns = (activeLaunch.colunas || []).filter(function(coluna){
+          return coluna && coluna.tipo !== 'formula' && coluna.tipo !== 'indice';
+        });
+        const manualColumns = editableColumns.filter(function(coluna){ return coluna.tipo === 'manual'; });
+        const manualByName = new Map(manualColumns.map(function(coluna){ return [String(coluna.nome || '').trim().toLowerCase(), coluna]; }).filter(function(entry){ return !!entry[0]; }));
+        const manualById = new Map(manualColumns.map(function(coluna){ return [String(coluna.id || '').trim().toLowerCase(), coluna]; }).filter(function(entry){ return !!entry[0]; }));
+        const mappedColumns = [];
+        for (let i = 1; i < rawHeader.length; i += 1){
+          const key = String(rawHeader[i] || '').trim().toLowerCase();
+          if (!key) {
+            mappedColumns.push(null);
+            continue;
+          }
+          mappedColumns.push(manualByName.get(key) || manualById.get(key) || null);
+        }
+        if (!mappedColumns.some(Boolean)) {
+          throw new Error('Cabeçalho inválido: nenhuma coluna manual conhecida foi identificada.');
+        }
+        const linhasByMonthKey = new Map((activeLaunch.linhas || []).map(function(item){
+          return [periodToMonthKey(item && item.periodo || ''), item];
+        }).filter(function(entry){ return !!entry[0]; }));
         let updatedCells = 0;
+        let updatedRows = 0;
+        let ignoredRowsMissingCompetencia = 0;
+        let ignoredRowsCompetenciaNotFound = 0;
         rows.slice(1).forEach(function(cols){
-          const launchId = String(cols[idxLaunchId] || '').trim();
-          const periodo = String(cols[idxPeriodo] || '').trim();
-          const columnId = String(cols[idxColumnId] || '').trim();
-          const value = cols[idxValor];
-          if (!launchId || !periodo || !columnId) return;
-          if (!allowedIds.has(launchId)) return;
-          const lancamento = launchById.get(launchId);
-          if (!lancamento) return;
-          const coluna = findEditableColumn(lancamento, columnId);
-          if (!coluna) return;
-          const targetMonthKey = periodToMonthKey(periodo);
-          if (!targetMonthKey) return;
-          const linhasByMonthKey = new Map((lancamento.linhas || []).map(function(item){
-            return [periodToMonthKey(item && item.periodo || ''), item];
-          }).filter(function(entry){ return !!entry[0]; }));
+          const competencia = String(cols[0] || '').trim();
+          const targetMonthKey = periodToMonthKey(competencia);
+          if (!targetMonthKey) {
+            ignoredRowsMissingCompetencia += 1;
+            return;
+          }
           const linha = linhasByMonthKey.get(targetMonthKey);
-          if (!linha) return;
-          const parsedValue = coluna.formato === 'data' ? parseDateInputValue(value) : roundMoney(value);
-          if (columnId === 'valor') linha.valor = parsedValue;
-          else linha[columnId] = parsedValue;
-          touchedLaunches.add(launchId);
-          updatedCells += 1;
+          if (!linha) {
+            ignoredRowsCompetenciaNotFound += 1;
+            return;
+          }
+          let updatedThisRow = 0;
+          mappedColumns.forEach(function(coluna, offset){
+            if (!coluna) return;
+            const value = cols[offset + 1];
+            const parsedValue = coluna.formato === 'data' ? parseDateInputValue(value) : roundMoney(value);
+            if (coluna.id === 'valor') linha.valor = parsedValue;
+            else linha[coluna.id] = parsedValue;
+            updatedCells += 1;
+            updatedThisRow += 1;
+          });
+          if (updatedThisRow) updatedRows += 1;
         });
-        touchedLaunches.forEach(function(launchId){
-          const lancamento = launchById.get(launchId);
-          if (lancamento) recalculateLaunch(lancamento);
-        });
+        recalculateLaunch(activeLaunch);
         if (!updatedCells) throw new Error('Nenhum valor foi atualizado. Revise o conteúdo do CSV.');
         persistAndRefresh();
-        alert('Importação concluída com sucesso. ' + String(updatedCells) + ' célula(s) atualizada(s) em 1 verba.');
+        alert('Importação concluída: ' + String(updatedCells) + ' célula(s) atualizada(s) em ' + String(updatedRows) + ' competência(s). Ignoradas: ' + String(ignoredRowsMissingCompetencia) + ' linha(s) com competência inválida e ' + String(ignoredRowsCompetenciaNotFound) + ' competência(s) não encontrada(s) na verba ativa.');
       } catch (error) {
         alert('Não foi possível importar o arquivo CSV informado. ' + String(error && error.message || ''));
       }
