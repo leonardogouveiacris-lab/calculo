@@ -96,7 +96,7 @@
     var texto = itens.join('; ');
     var out = root.E('nfDescricaoOutput');
     if (out) out.value = texto;
-    if (!itens.length) alert('Selecione pelo menos uma linha (checkbox) para gerar a descrição.');
+    if (!itens.length) alert('Selecione ao menos uma solicitação (checkbox) para gerar a descrição da NF.');
   }
 
   function buildMetaText(){
@@ -201,7 +201,7 @@
   }
 
   function printReport(){
-    if (!root.store.currentRows.length) return alert('Nenhum dado disponível para imprimir.');
+    if (!root.store.currentRows.length) return alert('Não há dados para imprimir. Importe a planilha ou ajuste os filtros.');
     var fileTitle = sanitizeFilename((root.store.competenciaAtual === '—' ? 'Sem competência' : root.store.competenciaAtual) + ' - ' + root.store.currentClient) || 'solicitacoes';
     root.switchTab('report');
     var reportRoot = root.E('reportRoot');

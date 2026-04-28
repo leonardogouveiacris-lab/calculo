@@ -76,8 +76,8 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
     var quality = validateImportQuality(normalized);
     if (!quality.ok) {
       alert(
-        'Layout de planilha incompatível para importação.\\n\\n' +
-        'Verifique os cabeçalhos esperados: Entrega em, Contato: Primeiro nome, Reclamada, Serviços e Total (Total).'
+        'Não foi possível importar: o layout da planilha não é compatível.\\n\\n' +
+        'Confirme se os cabeçalhos incluem: Entrega em, Contato: Primeiro nome, Reclamada, Serviços e Total (Total).'
       );
       return false;
     }
@@ -96,6 +96,7 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
     root.setReclamadaDropdown(reclamadas);
     root.updateReclamadaBtnLabel();
     applyFilters();
+    E('solicitacoesFileName').textContent = 'Arquivo importado: ' + store.allRows.length + ' registro(s) carregado(s).';
     return true;
   }
 
@@ -168,7 +169,7 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
   async function handleFileImport(event){
     var file = event.target.files && event.target.files[0];
     if (!file) return;
-    E('solicitacoesFileName').textContent = file.name;
+    E('solicitacoesFileName').textContent = 'Importando arquivo: ' + file.name;
     try {
       var data = [];
       if (/\.csv$/i.test(file.name)) {
@@ -178,20 +179,21 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
         if (isHtmlSpreadsheet(xlsText)) {
           data = parseHtmlSpreadsheet(xlsText);
         } else {
-          if (!window.XLSX) throw new Error('SheetJS não carregado');
+          if (!window.XLSX) throw new Error('Biblioteca de planilhas indisponível no momento.');
           var xlsWorkbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
           data = parseWorkbookSheet(xlsWorkbook.Sheets[xlsWorkbook.SheetNames[0]]);
         }
       } else if (/\.xlsx$/i.test(file.name)) {
-        if (!window.XLSX) throw new Error('SheetJS não carregado');
+        if (!window.XLSX) throw new Error('Biblioteca de planilhas indisponível no momento.');
         var workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
         data = parseWorkbookSheet(workbook.Sheets[workbook.SheetNames[0]]);
       } else {
-        throw new Error('Formato não suportado');
+        throw new Error('Formato não suportado. Use .xlsx, .xls ou .csv.');
       }
       afterImport(data);
     } catch (error) {
-      alert('Erro ao importar arquivo: ' + (error.message || error));
+      alert('Falha ao importar arquivo. Detalhe: ' + (error.message || error));
+      E('solicitacoesFileName').textContent = 'Falha na importação: ' + file.name;
     }
   }
 
@@ -221,35 +223,53 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
   }
 
   function exportVisible(){
-    if (!store.currentRows.length) return alert('Nenhum dado disponível para exportar.');
-    if (!window.XLSX) return alert('SheetJS não carregado.');
-    var rows = store.currentRows.map(function(row){
-      return {
-        'Entrega em': row['Entrega em'],
-        'Cliente': row['Contato: Primeiro nome'],
-        'Número do Processo': row['Numero do Processo'],
-        'Reclamante': row['Reclamante'],
-        'Reclamada': row['Reclamada'],
-        'Serviço': row['Serviços'],
-        'Total': row['Total (Total)']
-      };
-    });
-    var ws = XLSX.utils.json_to_sheet(rows);
-    var wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Solicitacoes');
-    var d = new Date();
-    var stamp = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-    XLSX.writeFile(wb, 'solicitacoes_' + stamp + '.xlsx');
+    if (!store.currentRows.length) return alert('Não há dados filtrados para exportar.');
+    if (!window.XLSX) return alert('Biblioteca de planilhas indisponível no momento.');
+    root.setActionBusy(E('solicitacoesExportBtn'), true, 'Exportando...');
+    try {
+      var rows = store.currentRows.map(function(row){
+        return {
+          'Entrega em': row['Entrega em'],
+          'Cliente': row['Contato: Primeiro nome'],
+          'Número do Processo': row['Numero do Processo'],
+          'Reclamante': row['Reclamante'],
+          'Reclamada': row['Reclamada'],
+          'Serviço': row['Serviços'],
+          'Total': row['Total (Total)']
+        };
+      });
+      var ws = XLSX.utils.json_to_sheet(rows);
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Solicitacoes');
+      var d = new Date();
+      var stamp = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      XLSX.writeFile(wb, 'solicitacoes_' + stamp + '.xlsx');
+      E('solicitacoesFileName').textContent = 'Exportação concluída: solicitacoes_' + stamp + '.xlsx';
+    } finally {
+      root.setActionBusy(E('solicitacoesExportBtn'), false);
+    }
   }
 
   function bindReclamadaControls(){
+    function closePanel(){
+      E('reclamadaPanel').style.display = 'none';
+      E('solicitacoesReclamadaBtn').setAttribute('aria-expanded', 'false');
+    }
+    E('solicitacoesReclamadaBtn').setAttribute('aria-haspopup', 'listbox');
+    E('solicitacoesReclamadaBtn').setAttribute('aria-expanded', 'false');
     E('solicitacoesReclamadaBtn').addEventListener('click', function(event){
       event.stopPropagation();
       var panel = E('reclamadaPanel');
-      panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+      var isOpen = panel.style.display === 'block';
+      panel.style.display = isOpen ? 'none' : 'block';
+      E('solicitacoesReclamadaBtn').setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+      if (!isOpen) E('solicitacoesReclamadaSearch').focus();
     });
     E('reclamadaPanel').addEventListener('click', function(event){ event.stopPropagation(); });
-    document.addEventListener('click', function(){ E('reclamadaPanel').style.display = 'none'; });
+    document.addEventListener('click', closePanel);
+    document.addEventListener('keydown', function(event){
+      if (event.key === 'Escape') closePanel();
+    });
     E('solicitacoesReclamadaSearch').addEventListener('input', function(){
       var query = E('solicitacoesReclamadaSearch').value.toLowerCase();
       E('solicitacoesReclamadaList').querySelectorAll('[data-item="1"]').forEach(function(node){
@@ -279,9 +299,18 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
     E('solicitacoesLimparFiltroBtn').addEventListener('click', clearFilters);
     E('solicitacoesLimparDadosBtn').addEventListener('click', clearData);
     E('solicitacoesExportBtn').addEventListener('click', exportVisible);
-    E('btnBuildReport').addEventListener('click', root.goReport);
-    E('btnPrint').addEventListener('click', root.printReport);
-    E('btnPrint2').addEventListener('click', root.printReport);
+    E('btnBuildReport').addEventListener('click', function(){
+      root.setActionBusy(E('btnBuildReport'), true, 'Gerando...');
+      try { root.goReport(); } finally { root.setActionBusy(E('btnBuildReport'), false); }
+    });
+    E('btnPrint').addEventListener('click', function(){
+      root.setActionBusy(E('btnPrint'), true, 'Abrindo impressão...');
+      try { root.printReport(); } finally { root.setActionBusy(E('btnPrint'), false); }
+    });
+    E('btnPrint2').addEventListener('click', function(){
+      root.setActionBusy(E('btnPrint2'), true, 'Abrindo impressão...');
+      try { root.printReport(); } finally { root.setActionBusy(E('btnPrint2'), false); }
+    });
     E('btnBackToData').addEventListener('click', function(){ root.switchTab('editor'); });
     E('tabBtnEditor').addEventListener('click', function(){ root.switchTab('editor'); });
     E('tabBtnReport').addEventListener('click', function(){ root.switchTab('report'); });

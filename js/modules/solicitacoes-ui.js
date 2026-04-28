@@ -157,6 +157,18 @@
       tbody.appendChild(tr);
     });
 
+    if (!rows.length) {
+      var trEmpty = document.createElement('tr');
+      var tdEmpty = document.createElement('td');
+      tdEmpty.colSpan = root.COLUMNS.length + 1;
+      tdEmpty.className = 'center';
+      tdEmpty.style.padding = '14px 12px';
+      tdEmpty.style.color = '#667085';
+      tdEmpty.textContent = 'Nenhuma solicitação encontrada com os filtros atuais.';
+      trEmpty.appendChild(tdEmpty);
+      tbody.appendChild(trEmpty);
+    }
+
     syncMasterCheckbox(masterInput);
     updateMeta(rows);
   }
@@ -174,11 +186,19 @@
   function clearDataView(){
     E('solicitacoesClienteSelect').innerHTML = '<option value="(Todos)">(Todos)</option>';
     E('solicitacoesReclamadaList').innerHTML = '';
-    E('solicitacoesFileName').textContent = 'Nenhum arquivo selecionado';
+    E('solicitacoesFileName').textContent = 'Nenhum arquivo selecionado para importação';
     E('solicitacoesFileInput').value = '';
     E('solicitacoesCompetencia').textContent = 'Competência: —';
     var out = E('nfDescricaoOutput');
     if (out) out.value = '';
+  }
+
+  function setActionBusy(button, isBusy, busyLabel){
+    if (!button) return;
+    if (!button.dataset.idleLabel) button.dataset.idleLabel = button.textContent || '';
+    button.disabled = !!isBusy;
+    button.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+    button.textContent = isBusy ? (busyLabel || 'Processando...') : button.dataset.idleLabel;
   }
 
   root.E = E;
@@ -190,5 +210,6 @@
   root.renderTable = renderTable;
   root.switchTab = switchTab;
   root.clearDataView = clearDataView;
+  root.setActionBusy = setActionBusy;
   root.uiModuleLoaded = true;
 })();
