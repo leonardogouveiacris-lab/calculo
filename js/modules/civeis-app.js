@@ -849,20 +849,20 @@
   }
 
   function defaultHonorariosConfig(){
-    return { items: [normalizeHonorarioItem({ descricao:'Honorários', tipo:'percentual', percentual:10, multiplicador:1, launchIds:[] })] };
+    return { items: [] };
   }
 
   function normalizeHonorarios(config){
     const source = config || {};
     if (Array.isArray(source)) {
       const list = source.map(normalizeHonorarioItem).filter(Boolean);
-      return { items: list.length ? list : defaultHonorariosConfig().items.slice() };
+      return { items: list };
     }
     const legacyShape = Object.prototype.hasOwnProperty.call(source, 'enabled') || Object.prototype.hasOwnProperty.call(source, 'percentual');
     const items = legacyShape
       ? [normalizeHonorarioItem(source)]
       : (Array.isArray(source.items) ? source.items.map(normalizeHonorarioItem) : []);
-    return { items: items.length ? items : defaultHonorariosConfig().items.slice() };
+    return { items: items };
   }
 
   function normalizeCusta(item){
@@ -899,9 +899,7 @@
     state.lancamentoSelecionadoId = String(state.lancamentoSelecionadoId || '');
     state.lancamentos.forEach(normalizeSummaryMapping);
     state.honorarios = normalizeHonorarios(state.honorarios);
-    if (!Array.isArray(state.honorarios.items) || !state.honorarios.items.length) {
-      state.honorarios.items = defaultHonorariosConfig().items.slice();
-    }
+    if (!Array.isArray(state.honorarios.items)) state.honorarios.items = [];
     const validLaunchIds = new Set((state.lancamentos || []).map(function(lancamento){ return String(lancamento.id || ''); }).filter(Boolean));
     state.honorarios.items = (state.honorarios.items || []).map(function(item){
       const normalized = normalizeHonorarioItem(item);
@@ -1306,7 +1304,11 @@
     const text = String(formula || '').trim();
     if (!text) return text;
     const maps = buildFormulaMaps(lancamento);
-    const protectedText = text.replace(/\{\s*([a-zA-Z0-9_]+)\s*\}/g, function(match, tokenId){
+    const protectedText = text
+      .replace(/\[\s*([a-zA-Z0-9_-]+)\s*\]/g, function(match, tokenId){
+        return formulaTokenByColumnId(tokenId);
+      })
+      .replace(/\{\s*([a-zA-Z0-9_-]+)\s*\}/g, function(match, tokenId){
       return formulaTokenByColumnId(tokenId);
     });
     const aliasesReplaced = protectedText.replace(/\b([A-Z_][A-Z0-9_]*)\b/g, function(match){
@@ -1327,7 +1329,7 @@
     Object.keys(maps.letterToId).forEach(function(letter){
       idToLetter[maps.letterToId[letter]] = letter;
     });
-    return text.replace(/\{\s*([a-zA-Z0-9_]+)\s*\}/g, function(match, tokenId){
+    return text.replace(/\{\s*([a-zA-Z0-9_-]+)\s*\}/g, function(match, tokenId){
       const mappedLetter = idToLetter[String(tokenId || '').trim()];
       return mappedLetter || match;
     });
@@ -1401,7 +1403,10 @@
       .replace(/\s+/g, '')
       .replace(/[xX]/g, '*')
       .replace(/,/g, '.')
-      .replace(/\{\s*([a-zA-Z0-9_]+)\s*\}/g, function(match, tokenId){
+      .replace(/\[\s*([a-zA-Z0-9_-]+)\s*\]/g, function(match, tokenId){
+        return Object.prototype.hasOwnProperty.call(byId, tokenId) ? '(' + byId[tokenId] + ')' : '(0)';
+      })
+      .replace(/\{\s*([a-zA-Z0-9_-]+)\s*\}/g, function(match, tokenId){
         return Object.prototype.hasOwnProperty.call(byId, tokenId) ? '(' + byId[tokenId] + ')' : '(0)';
       })
       .replace(/\b([A-Z]{1,3})\b/g, function(match){
@@ -1535,7 +1540,9 @@
     editModalLaunchIndex.value = String(launchIndex);
     editModalColumnId.value = columnId;
     editModalColumnName.value = coluna.nome || '';
-    editModalColumnFormula.value = coluna.formula || '';
+    editModalColumnFormula.value = coluna.tipo === 'formula'
+      ? formatFormulaForDisplay(coluna.formula || '', lancamento)
+      : (coluna.formula || '');
     editFormulaFieldWrap.style.display = coluna.tipo === 'formula' ? 'block' : 'none';
     editIndexFieldWrap.style.display = coluna.tipo === 'indice' ? 'block' : 'none';
     editModalColumnName.readOnly = !!coluna.locked;
@@ -2663,9 +2670,13 @@
         '</tr>' +
         '<tr class="summary-row-separate">' +
           '<td>Honorários separados</td>' +
-          '<td class="right">' + formatSummaryMoney(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.valorCorrigido : 0) + '</td>' +
-          '<td class="right">' + formatSummaryMoney(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.juros : 0) + '</td>' +
-          '<td class="right bold">' + formatSummaryMoney(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.valorDevido : 0) + '</td>' +
+          summaryColumns.map(function(coluna){
+            const totals = summaryData.separatedHonorariosTotals || {};
+            const value = coluna.id === 'valorCorrigido'
+              ? totals.valorCorrigido
+              : (coluna.id === 'juros' ? totals.juros : totals.valorDevido);
+            return '<td class="' + esc(coluna.className) + '">' + formatSummaryMoney(value || 0) + '</td>';
+          }).join('') +
         '</tr>';
     }
 
@@ -2680,7 +2691,7 @@
       honorariosHost.innerHTML = '<div class="summary-empty">Nenhum honorário cadastrado.</div>';
       return;
     }
-    honorariosHost.innerHTML = state.honorarios.items.map(function(rawItem, index){
+    honorariosHost.innerHTML = state.honorarios.items.map(function(rawItem){
       const item = normalizeHonorarioItem(rawItem);
       const launchesChecklist = state.lancamentos.length
         ? state.lancamentos.map(function(lancamento){
@@ -2693,7 +2704,7 @@
       }).join('');
       return '' +
         '<div class="custa-card" data-honorario-id="' + esc(item.id) + '">' +
-          '<div class="custa-card-head"><div class="custa-card-title">Honorário ' + String(index + 1) + '</div><button type="button" class="btn btn-ghost summary-remove-btn btnEditHonorario" data-honorario-id="' + esc(item.id) + '">Editar</button></div>' +
+          '<div class="custa-card-head"><div class="custa-card-title">Honorário</div><button type="button" class="btn btn-ghost summary-remove-btn btnEditHonorario" data-honorario-id="' + esc(item.id) + '">Editar</button></div>' +
           '<div><label>Descrição</label><input type="text" class="honorario-desc" data-honorario-id="' + esc(item.id) + '" value="' + esc(item.descricao || '') + '" placeholder="Ex.: Honorários de terceiro"></div>' +
           (item.tipo === 'percentual'
             ? '<div class="custa-grid"><div><label>Percentual (%)</label><input type="text" inputmode="decimal" class="honorario-percentual" data-honorario-id="' + esc(item.id) + '" value="' + esc(item.percentual ? formatNumberBR(item.percentual, 2, 4, true) : '') + '" placeholder="10,00"></div><div><label>Multiplicador</label><input type="text" inputmode="decimal" class="honorario-multiplicador" data-honorario-id="' + esc(item.id) + '" value="' + esc(formatNumberBR(item.multiplicador || 1, 2, 4, true)) + '" placeholder="1,00"></div></div><div class="summary-checklist">' + launchesChecklist + '</div>'
@@ -2709,11 +2720,11 @@
       return;
     }
 
-    custasHost.innerHTML = state.custas.map(function(item, index){
+    custasHost.innerHTML = state.custas.map(function(item){
       return '' +
         '<div class="custa-card" data-custa-id="' + esc(item.id) + '">' +
           '<div class="custa-card-head">' +
-            '<div class="custa-card-title">Custa ' + String(index + 1) + '</div>' +
+            '<div class="custa-card-title">Custa</div>' +
             '<button type="button" class="btn btn-ghost summary-remove-btn btnRemoveCusta" data-custa-id="' + esc(item.id) + '">Remover</button>' +
           '</div>' +
           '<div class="custa-grid">' +
@@ -3358,7 +3369,11 @@
     const index = getHonorarioIndexById(honorarioId);
     if (index < 0) return closeEditHonorarioModal();
     state.honorarios.items.splice(index, 1);
-    if (!state.honorarios.items.length) state.honorarios.items = defaultHonorariosConfig().items;
+    if (!state.honorarios.items.length) {
+      persistAndRefresh();
+      closeEditHonorarioModal();
+      return;
+    }
     closeEditHonorarioModal();
     persistHonorariosIncremental();
   }
@@ -3808,16 +3823,14 @@
       const launchList = typeof launchIndex === 'number'
         ? (state.lancamentos[launchIndex] ? [state.lancamentos[launchIndex]] : [])
         : state.lancamentos.slice();
-      if (!launchList.length) {
-        alert('Cadastre ao menos um lançamento antes de exportar o CSV.');
-        return;
-      }
       const header = [
         'lancamento_id',
         'verba',
         'periodo',
+        'periodo_formato',
         'data_inicial_verba',
         'data_final_verba',
+        'data_verba_formato',
         'observacao_verba',
         'coluna_id',
         'coluna_nome',
@@ -3825,6 +3838,22 @@
         'valor'
       ];
       const lines = [header.join(';')];
+      if (!launchList.length) {
+        lines.push([
+          'lanc_xxxxx',
+          'Nome da verba',
+          'jan/2026',
+          'MMM/AAAA (ex.: jan/2026)',
+          '2026-01-01',
+          '2026-12-31',
+          'AAAA-MM-DD',
+          'Opcional',
+          'valor',
+          'Valor',
+          'manual',
+          '0,00'
+        ].map(escapeCsvCell).join(';'));
+      }
       launchList.forEach(function(lancamento){
         normalizeLaunch(lancamento);
         const editableColumns = (lancamento.colunas || []).filter(function(coluna){
@@ -3838,8 +3867,10 @@
               lancamento.id || '',
               lancamento.verba || '',
               linha.periodo || '',
+              'MMM/AAAA (ex.: jan/2026)',
               lancamento.dataInicial || '',
               lancamento.dataFinal || '',
+              'AAAA-MM-DD',
               lancamento.observacao || '',
               columnId,
               coluna.nome || '',
