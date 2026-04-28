@@ -588,6 +588,34 @@
     return month + '/' + year;
   }
 
+  function periodToMonthKey(periodo){
+    const raw = String(periodo || '').trim();
+    if (!raw) return '';
+    if (/^\d{4}-\d{2}$/.test(raw)) return raw;
+    let match = raw.match(/^(\d{2})[\/\-](\d{4})$/);
+    if (match) return match[2] + '-' + match[1];
+    match = raw.match(/^(\d{2})[\/\-](\d{2})$/);
+    if (match) return ('20' + match[2]) + '-' + match[1];
+    match = raw.match(/^([a-zç]{3})\/(\d{2,4})$/i);
+    if (match) {
+      const monthAlias = String(match[1] || '').toLowerCase();
+      const monthMap = { jan:'01', fev:'02', mar:'03', abr:'04', mai:'05', jun:'06', jul:'07', ago:'08', set:'09', out:'10', nov:'11', dez:'12' };
+      const month = monthMap[monthAlias];
+      const yearRaw = String(match[2] || '');
+      if (!month) return '';
+      const year = yearRaw.length === 2 ? ('20' + yearRaw) : yearRaw;
+      return /^\d{4}$/.test(year) ? (year + '-' + month) : '';
+    }
+    return '';
+  }
+
+  function formatPeriodoMonthYear(periodo){
+    const monthKey = periodToMonthKey(periodo);
+    if (!monthKey) return String(periodo || '');
+    const parts = monthKey.split('-');
+    return parts.length === 2 ? (parts[1] + '-' + parts[0]) : String(periodo || '');
+  }
+
   function compareMonth(a, b){ return String(a.month || a).localeCompare(String(b.month || b)); }
   function toBR(iso){ if (!iso) return ''; const p = String(iso).split('-'); return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : iso; }
   function parseBCBNumber(value){
@@ -938,8 +966,7 @@
   }
 
   function monthKeyFromPeriodo(periodo){
-    const parts = String(periodo || '').split('/');
-    return parts.length === 2 ? (parts[1] + '-' + parts[0]) : '';
+    return periodToMonthKey(periodo);
   }
 
   const monthRangeCache = new Map();
@@ -3854,8 +3881,7 @@
             const cells = [
               lancamento.id || '',
               lancamento.verba || '',
-              linha.periodo || '',
-              'MMM/AAAA (ex.: jan/2026)',
+              formatPeriodoMonthYear(linha.periodo || ''),
               lancamento.dataInicial || '',
               lancamento.dataFinal || '',
               'AAAA-MM-DD',
@@ -3929,7 +3955,13 @@
           if (!lancamento) return;
           const coluna = findEditableColumn(lancamento, columnId);
           if (!coluna) return;
-          const linha = (lancamento.linhas || []).find(function(item){ return String(item.periodo || '') === periodo; });
+          const targetMonthKey = periodToMonthKey(periodo);
+          const linha = (lancamento.linhas || []).find(function(item){
+            const itemPeriodo = String(item && item.periodo || '');
+            if (itemPeriodo === periodo) return true;
+            if (!targetMonthKey) return false;
+            return periodToMonthKey(itemPeriodo) === targetMonthKey;
+          });
           if (!linha) return;
           const parsedValue = coluna.formato === 'data' ? parseDateInputValue(value) : roundMoney(value);
           if (columnId === 'valor') linha.valor = parsedValue;
