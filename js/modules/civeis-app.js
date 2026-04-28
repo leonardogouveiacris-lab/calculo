@@ -4058,8 +4058,32 @@
     reader.readAsText(file, 'utf-8');
   }
 
+
+  function ensureLaunchImportFeedbackNode(){
+    if (root.__cpLaunchImportFeedbackNode && root.__cpLaunchImportFeedbackNode.isConnected) return root.__cpLaunchImportFeedbackNode;
+    const node = document.createElement('div');
+    node.id = 'cpLaunchImportFeedback';
+    node.style.margin = '8px 0';
+    node.style.padding = '8px 10px';
+    node.style.border = '1px solid #dbe4f0';
+    node.style.borderRadius = '8px';
+    node.style.background = '#f8fbff';
+    node.style.fontSize = '12px';
+    node.style.color = '#334155';
+    const host = $('lancamentosContainer') || document.body;
+    host.parentNode.insertBefore(node, host);
+    root.__cpLaunchImportFeedbackNode = node;
+    return node;
+  }
+
+  function setLaunchImportFeedback(message){
+    const node = ensureLaunchImportFeedbackNode();
+    node.textContent = message;
+  }
+
   function importLaunchesFromCsv(file, launchIndex){
     if (!file) return;
+    setLaunchImportFeedback('Arquivo: ' + (file.name || 'arquivo_sem_nome.csv'));
     const reader = new FileReader();
     reader.onload = function(){
       try {
@@ -4072,6 +4096,11 @@
         const rawHeader = rows[0].map(function(cell){ return String(cell || ''); });
         const normalizedHeader = rawHeader.map(function(cell){ return normalizeCsvHeaderCell(cell); });
         const fileName = file && file.name ? file.name : 'arquivo_sem_nome.csv';
+        const firstHeaderLineDetected = rawHeader.join(' | ');
+        const previewMessage = 'Pré-validação do CSV. Arquivo: ' + fileName + '. Cabeçalho detectado: ' + firstHeaderLineDetected;
+        console.info('[CSV Launch Import Preview]', previewMessage);
+        alert(previewMessage);
+        setLaunchImportFeedback('Arquivo: ' + fileName + ' | Cabeçalho detectado: ' + firstHeaderLineDetected);
         const describeLayoutError = function(baseMessage, layout){
           const firstThreeColumns = rawHeader.slice(0, 3).map(function(cell){ return String(cell || '').trim() || '(vazio)'; });
           return baseMessage
@@ -4085,8 +4114,11 @@
         const firstColumnHeader = normalizedHeader.length ? normalizedHeader[0] : '';
         const isNewLayout = firstColumnHeader === 'competencia' || firstColumnHeader === 'periodo';
         const detectedLayout = isNewLayout ? 'novo' : (isLegacyLayout ? 'legado' : 'indefinido');
+        if (firstColumnHeader === 'lancamento_id') {
+          throw new Error(describeLayoutError('Este é o layout antigo; use o modelo Competência + colunas manuais.', 'legado'));
+        }
         if (isLegacyLayout) {
-          throw new Error(describeLayoutError('Este arquivo está no layout legado (lancamento_id/coluna_id/valor). Exporte um novo CSV desta verba e preencha com a primeira coluna "competencia" ou "periodo" para importar.', 'legado'));
+          throw new Error(describeLayoutError('Este é o layout antigo; use o modelo Competência + colunas manuais.', 'legado'));
         }
         if (!isNewLayout) {
           throw new Error(describeLayoutError('Cabeçalho inválido para importação de lançamentos.', detectedLayout));
@@ -4154,6 +4186,7 @@
         const invalidCompetenciaMessage = invalidCompetenciaDetails.length
           ? (' Detalhes das competências inválidas: ' + invalidCompetenciaDetails.join('; ') + '.')
           : '';
+        setLaunchImportFeedback('Importação concluída para arquivo: ' + fileName + '. Cabeçalho detectado: ' + firstHeaderLineDetected);
         alert('Importação concluída: ' + String(updatedCells) + ' célula(s) atualizada(s) em ' + String(updatedRows) + ' competência(s). Ignoradas: ' + String(ignoredRowsMissingCompetencia) + ' linha(s) com competência inválida e ' + String(ignoredRowsCompetenciaNotFound) + ' competência(s) não encontrada(s) na verba ativa.' + invalidCompetenciaMessage);
       } catch (error) {
         alert('Não foi possível importar o arquivo CSV informado. ' + String(error && error.message || ''));
@@ -4186,6 +4219,7 @@
 
   function handleLaunchCsvFileSelection(file, launchIndex, handlerPath){
     if (!file) return;
+    setLaunchImportFeedback('Arquivo: ' + (file.name || 'arquivo_sem_nome.csv'));
     const reader = new FileReader();
     reader.onload = function(){
       const rawContent = String(reader.result || '');
