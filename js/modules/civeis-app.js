@@ -2663,7 +2663,7 @@
     if (summaryTableFoot) {
       summaryTableFoot.innerHTML = '' +
         '<tr>' +
-          '<td>Total geral (sem honorários separados)</td>' +
+          '<td>Total geral</td>' +
           summaryColumns.map(function(coluna){
             return '<td class="' + esc(coluna.className) + '">' + formatSummaryMoney(summaryTotalsByColumn[coluna.id] || 0) + '</td>';
           }).join('') +
@@ -2810,7 +2810,7 @@
     }).join('');
     const summaryFooter = '' +
       '<tr>' +
-        '<td class="bold right">Total geral (sem honorários separados)</td>' +
+        '<td class="bold right">Total geral</td>' +
         '<td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.valorCorrigido : 0)) + '</td>' +
         '<td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.juros : 0)) + '</td>' +
         '<td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.valorDevido : 0)) + '</td>' +
@@ -3839,20 +3839,8 @@
       ];
       const lines = [header.join(';')];
       if (!launchList.length) {
-        lines.push([
-          'lanc_xxxxx',
-          'Nome da verba',
-          'jan/2026',
-          'MMM/AAAA (ex.: jan/2026)',
-          '2026-01-01',
-          '2026-12-31',
-          'AAAA-MM-DD',
-          'Opcional',
-          'valor',
-          'Valor',
-          'manual',
-          '0,00'
-        ].map(escapeCsvCell).join(';'));
+        alert('Cadastre ao menos um lançamento antes de exportar o CSV.');
+        return;
       }
       launchList.forEach(function(lancamento){
         normalizeLaunch(lancamento);
