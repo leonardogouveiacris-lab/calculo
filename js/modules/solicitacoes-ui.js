@@ -157,6 +157,18 @@
       tbody.appendChild(tr);
     });
 
+    if (!rows.length) {
+      var trEmpty = document.createElement('tr');
+      var tdEmpty = document.createElement('td');
+      tdEmpty.colSpan = root.COLUMNS.length + 1;
+      tdEmpty.className = 'center';
+      tdEmpty.style.padding = '14px 12px';
+      tdEmpty.style.color = '#667085';
+      tdEmpty.textContent = 'Nenhum resultado para os filtros atuais.';
+      trEmpty.appendChild(tdEmpty);
+      tbody.appendChild(trEmpty);
+    }
+
     syncMasterCheckbox(masterInput);
     updateMeta(rows);
   }
@@ -181,6 +193,14 @@
     if (out) out.value = '';
   }
 
+  function setActionBusy(button, isBusy, busyLabel){
+    if (!button) return;
+    if (!button.dataset.idleLabel) button.dataset.idleLabel = button.textContent || '';
+    button.disabled = !!isBusy;
+    button.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+    button.textContent = isBusy ? (busyLabel || 'Processando...') : button.dataset.idleLabel;
+  }
+
   root.E = E;
   root.updateCompetencia = updateCompetencia;
   root.updateMeta = updateMeta;
@@ -190,5 +210,6 @@
   root.renderTable = renderTable;
   root.switchTab = switchTab;
   root.clearDataView = clearDataView;
+  root.setActionBusy = setActionBusy;
   root.uiModuleLoaded = true;
 })();
