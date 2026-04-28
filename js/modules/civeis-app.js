@@ -4071,10 +4071,29 @@
         normalizeLaunch(activeLaunch);
         const rawHeader = rows[0].map(function(cell){ return String(cell || ''); });
         const normalizedHeader = rawHeader.map(function(cell){ return normalizeCsvHeaderCell(cell); });
-        const acceptedFirstColumnHeaders = ['competencia', 'periodo'];
+        const fileName = file && file.name ? file.name : 'arquivo_sem_nome.csv';
+        const describeLayoutError = function(baseMessage, layout){
+          const firstThreeColumns = rawHeader.slice(0, 3).map(function(cell){ return String(cell || '').trim() || '(vazio)'; });
+          return baseMessage
+            + ' Arquivo: "' + fileName + '".'
+            + ' Cabeçalho detectado (3 primeiras colunas): ' + firstThreeColumns.join(' | ') + '.'
+            + ' Layout identificado: ' + layout + '.';
+        };
+        const isLegacyLayout = normalizedHeader.indexOf('lancamento_id') >= 0
+          && normalizedHeader.indexOf('coluna_id') >= 0
+          && normalizedHeader.indexOf('valor') >= 0;
         const firstColumnHeader = normalizedHeader.length ? normalizedHeader[0] : '';
+        const isNewLayout = firstColumnHeader === 'competencia' || firstColumnHeader === 'periodo';
+        const detectedLayout = isNewLayout ? 'novo' : (isLegacyLayout ? 'legado' : 'indefinido');
+        if (isLegacyLayout) {
+          throw new Error(describeLayoutError('Este arquivo está no layout legado (lancamento_id/coluna_id/valor). Exporte um novo CSV desta verba e preencha com a primeira coluna "competencia" ou "periodo" para importar.', 'legado'));
+        }
+        if (!isNewLayout) {
+          throw new Error(describeLayoutError('Cabeçalho inválido para importação de lançamentos.', detectedLayout));
+        }
+        const acceptedFirstColumnHeaders = ['competencia', 'periodo'];
         if (!normalizedHeader.length || acceptedFirstColumnHeaders.indexOf(firstColumnHeader) < 0) {
-          throw new Error('Cabeçalho inválido: a primeira coluna deve ser uma das opções: ' + acceptedFirstColumnHeaders.join(', ') + '. Valor lido: "' + String(rawHeader[0] || '').trim() + '".');
+          throw new Error(describeLayoutError('Cabeçalho inválido: a primeira coluna deve ser uma das opções: ' + acceptedFirstColumnHeaders.join(', ') + '. Valor lido: "' + String(rawHeader[0] || '').trim() + '".', detectedLayout));
         }
         const editableColumns = (activeLaunch.colunas || []).filter(function(coluna){
           return coluna && coluna.tipo !== 'formula' && coluna.tipo !== 'indice';
@@ -4092,7 +4111,7 @@
           mappedColumns.push(manualByName.get(key) || manualById.get(key) || null);
         }
         if (!mappedColumns.some(Boolean)) {
-          throw new Error('Cabeçalho inválido: nenhuma coluna manual conhecida foi identificada.');
+          throw new Error(describeLayoutError('Cabeçalho inválido: nenhuma coluna manual conhecida foi identificada.', detectedLayout));
         }
         const linhasByMonthKey = new Map((activeLaunch.linhas || []).map(function(item){
           return [periodToMonthKey(item && item.periodo || ''), item];
