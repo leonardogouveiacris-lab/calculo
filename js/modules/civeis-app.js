@@ -562,6 +562,34 @@
     return month + '/' + year;
   }
 
+  function periodToMonthKey(periodo){
+    const raw = String(periodo || '').trim();
+    if (!raw) return '';
+    if (/^\d{4}-\d{2}$/.test(raw)) return raw;
+    let match = raw.match(/^(\d{2})[\/\-](\d{4})$/);
+    if (match) return match[2] + '-' + match[1];
+    match = raw.match(/^(\d{2})[\/\-](\d{2})$/);
+    if (match) return ('20' + match[2]) + '-' + match[1];
+    match = raw.match(/^([a-zç]{3})\/(\d{2,4})$/i);
+    if (match) {
+      const monthAlias = String(match[1] || '').toLowerCase();
+      const monthMap = { jan:'01', fev:'02', mar:'03', abr:'04', mai:'05', jun:'06', jul:'07', ago:'08', set:'09', out:'10', nov:'11', dez:'12' };
+      const month = monthMap[monthAlias];
+      const yearRaw = String(match[2] || '');
+      if (!month) return '';
+      const year = yearRaw.length === 2 ? ('20' + yearRaw) : yearRaw;
+      return /^\d{4}$/.test(year) ? (year + '-' + month) : '';
+    }
+    return '';
+  }
+
+  function formatPeriodoMonthYear(periodo){
+    const monthKey = periodToMonthKey(periodo);
+    if (!monthKey) return String(periodo || '');
+    const parts = monthKey.split('-');
+    return parts.length === 2 ? (parts[1] + '-' + parts[0]) : String(periodo || '');
+  }
+
   function compareMonth(a, b){ return String(a.month || a).localeCompare(String(b.month || b)); }
   function toBR(iso){ if (!iso) return ''; const p = String(iso).split('-'); return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : iso; }
   function parseBCBNumber(value){
@@ -823,20 +851,20 @@
   }
 
   function defaultHonorariosConfig(){
-    return { items: [normalizeHonorarioItem({ descricao:'Honorários', tipo:'percentual', percentual:10, multiplicador:1, launchIds:[] })] };
+    return { items: [] };
   }
 
   function normalizeHonorarios(config){
     const source = config || {};
     if (Array.isArray(source)) {
       const list = source.map(normalizeHonorarioItem).filter(Boolean);
-      return { items: list.length ? list : defaultHonorariosConfig().items.slice() };
+      return { items: list };
     }
     const legacyShape = Object.prototype.hasOwnProperty.call(source, 'enabled') || Object.prototype.hasOwnProperty.call(source, 'percentual');
     const items = legacyShape
       ? [normalizeHonorarioItem(source)]
       : (Array.isArray(source.items) ? source.items.map(normalizeHonorarioItem) : []);
-    return { items: items.length ? items : defaultHonorariosConfig().items.slice() };
+    return { items: items };
   }
 
   function normalizeCusta(item){
@@ -873,9 +901,7 @@
     state.lancamentoSelecionadoId = String(state.lancamentoSelecionadoId || '');
     state.lancamentos.forEach(normalizeSummaryMapping);
     state.honorarios = normalizeHonorarios(state.honorarios);
-    if (!Array.isArray(state.honorarios.items) || !state.honorarios.items.length) {
-      state.honorarios.items = defaultHonorariosConfig().items.slice();
-    }
+    if (!Array.isArray(state.honorarios.items)) state.honorarios.items = [];
     const validLaunchIds = new Set((state.lancamentos || []).map(function(lancamento){ return String(lancamento.id || ''); }).filter(Boolean));
     state.honorarios.items = (state.honorarios.items || []).map(function(item){
       const normalized = normalizeHonorarioItem(item);
@@ -914,8 +940,7 @@
   }
 
   function monthKeyFromPeriodo(periodo){
-    const parts = String(periodo || '').split('/');
-    return parts.length === 2 ? (parts[1] + '-' + parts[0]) : '';
+    return periodToMonthKey(periodo);
   }
 
   const monthRangeCache = new Map();
@@ -1280,7 +1305,11 @@
     const text = String(formula || '').trim();
     if (!text) return text;
     const maps = buildFormulaMaps(lancamento);
-    const protectedText = text.replace(/\{\s*([a-zA-Z0-9_]+)\s*\}/g, function(match, tokenId){
+    const protectedText = text
+      .replace(/\[\s*([a-zA-Z0-9_-]+)\s*\]/g, function(match, tokenId){
+        return formulaTokenByColumnId(tokenId);
+      })
+      .replace(/\{\s*([a-zA-Z0-9_-]+)\s*\}/g, function(match, tokenId){
       return formulaTokenByColumnId(tokenId);
     });
     const aliasesReplaced = protectedText.replace(/\b([A-Z_][A-Z0-9_]*)\b/g, function(match){
@@ -1301,7 +1330,7 @@
     Object.keys(maps.letterToId).forEach(function(letter){
       idToLetter[maps.letterToId[letter]] = letter;
     });
-    return text.replace(/\{\s*([a-zA-Z0-9_]+)\s*\}/g, function(match, tokenId){
+    return text.replace(/\{\s*([a-zA-Z0-9_-]+)\s*\}/g, function(match, tokenId){
       const mappedLetter = idToLetter[String(tokenId || '').trim()];
       return mappedLetter || match;
     });
@@ -1375,7 +1404,10 @@
       .replace(/\s+/g, '')
       .replace(/[xX]/g, '*')
       .replace(/,/g, '.')
-      .replace(/\{\s*([a-zA-Z0-9_]+)\s*\}/g, function(match, tokenId){
+      .replace(/\[\s*([a-zA-Z0-9_-]+)\s*\]/g, function(match, tokenId){
+        return Object.prototype.hasOwnProperty.call(byId, tokenId) ? '(' + byId[tokenId] + ')' : '(0)';
+      })
+      .replace(/\{\s*([a-zA-Z0-9_-]+)\s*\}/g, function(match, tokenId){
         return Object.prototype.hasOwnProperty.call(byId, tokenId) ? '(' + byId[tokenId] + ')' : '(0)';
       })
       .replace(/\b([A-Z]{1,3})\b/g, function(match){
@@ -1509,7 +1541,9 @@
     editModalLaunchIndex.value = String(launchIndex);
     editModalColumnId.value = columnId;
     editModalColumnName.value = coluna.nome || '';
-    editModalColumnFormula.value = coluna.formula || '';
+    editModalColumnFormula.value = coluna.tipo === 'formula'
+      ? formatFormulaForDisplay(coluna.formula || '', lancamento)
+      : (coluna.formula || '');
     editFormulaFieldWrap.style.display = coluna.tipo === 'formula' ? 'block' : 'none';
     editIndexFieldWrap.style.display = coluna.tipo === 'indice' ? 'block' : 'none';
     editModalColumnName.readOnly = !!coluna.locked;
@@ -2630,16 +2664,20 @@
     if (summaryTableFoot) {
       summaryTableFoot.innerHTML = '' +
         '<tr>' +
-          '<td>Total geral (sem honorários separados)</td>' +
+          '<td>Total geral</td>' +
           summaryColumns.map(function(coluna){
             return '<td class="' + esc(coluna.className) + '">' + formatSummaryMoney(summaryTotalsByColumn[coluna.id] || 0) + '</td>';
           }).join('') +
         '</tr>' +
         '<tr class="summary-row-separate">' +
           '<td>Honorários separados</td>' +
-          '<td class="right">' + formatSummaryMoney(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.valorCorrigido : 0) + '</td>' +
-          '<td class="right">' + formatSummaryMoney(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.juros : 0) + '</td>' +
-          '<td class="right bold">' + formatSummaryMoney(summaryData.separatedHonorariosTotals ? summaryData.separatedHonorariosTotals.valorDevido : 0) + '</td>' +
+          summaryColumns.map(function(coluna){
+            const totals = summaryData.separatedHonorariosTotals || {};
+            const value = coluna.id === 'valorCorrigido'
+              ? totals.valorCorrigido
+              : (coluna.id === 'juros' ? totals.juros : totals.valorDevido);
+            return '<td class="' + esc(coluna.className) + '">' + formatSummaryMoney(value || 0) + '</td>';
+          }).join('') +
         '</tr>';
     }
 
@@ -2654,7 +2692,7 @@
       honorariosHost.innerHTML = '<div class="summary-empty">Nenhum honorário cadastrado.</div>';
       return;
     }
-    honorariosHost.innerHTML = state.honorarios.items.map(function(rawItem, index){
+    honorariosHost.innerHTML = state.honorarios.items.map(function(rawItem){
       const item = normalizeHonorarioItem(rawItem);
       const launchesChecklist = state.lancamentos.length
         ? state.lancamentos.map(function(lancamento){
@@ -2667,7 +2705,7 @@
       }).join('');
       return '' +
         '<div class="custa-card" data-honorario-id="' + esc(item.id) + '">' +
-          '<div class="custa-card-head"><div class="custa-card-title">Honorário ' + String(index + 1) + '</div><button type="button" class="btn btn-ghost summary-remove-btn btnEditHonorario" data-honorario-id="' + esc(item.id) + '">Editar</button></div>' +
+          '<div class="custa-card-head"><div class="custa-card-title">Honorário</div><button type="button" class="btn btn-ghost summary-remove-btn btnEditHonorario" data-honorario-id="' + esc(item.id) + '">Editar</button></div>' +
           '<div><label>Descrição</label><input type="text" class="honorario-desc" data-honorario-id="' + esc(item.id) + '" value="' + esc(item.descricao || '') + '" placeholder="Ex.: Honorários de terceiro"></div>' +
           (item.tipo === 'percentual'
             ? '<div class="custa-grid"><div><label>Percentual (%)</label><input type="text" inputmode="decimal" class="honorario-percentual" data-honorario-id="' + esc(item.id) + '" value="' + esc(item.percentual ? formatNumberBR(item.percentual, 2, 4, true) : '') + '" placeholder="10,00"></div><div><label>Multiplicador</label><input type="text" inputmode="decimal" class="honorario-multiplicador" data-honorario-id="' + esc(item.id) + '" value="' + esc(formatNumberBR(item.multiplicador || 1, 2, 4, true)) + '" placeholder="1,00"></div></div><div class="summary-checklist">' + launchesChecklist + '</div>'
@@ -2683,11 +2721,11 @@
       return;
     }
 
-    custasHost.innerHTML = state.custas.map(function(item, index){
+    custasHost.innerHTML = state.custas.map(function(item){
       return '' +
         '<div class="custa-card" data-custa-id="' + esc(item.id) + '">' +
           '<div class="custa-card-head">' +
-            '<div class="custa-card-title">Custa ' + String(index + 1) + '</div>' +
+            '<div class="custa-card-title">Custa</div>' +
             '<button type="button" class="btn btn-ghost summary-remove-btn btnRemoveCusta" data-custa-id="' + esc(item.id) + '">Remover</button>' +
           '</div>' +
           '<div class="custa-grid">' +
@@ -2773,7 +2811,7 @@
     }).join('');
     const summaryFooter = '' +
       '<tr>' +
-        '<td class="bold right">Total geral (sem honorários separados)</td>' +
+        '<td class="bold right">Total geral</td>' +
         '<td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.valorCorrigido : 0)) + '</td>' +
         '<td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.juros : 0)) + '</td>' +
         '<td class="bold right">' + esc(formatCurrencyBR(summary.grandTotals ? summary.grandTotals.valorDevido : 0)) + '</td>' +
@@ -3332,7 +3370,11 @@
     const index = getHonorarioIndexById(honorarioId);
     if (index < 0) return closeEditHonorarioModal();
     state.honorarios.items.splice(index, 1);
-    if (!state.honorarios.items.length) state.honorarios.items = defaultHonorariosConfig().items;
+    if (!state.honorarios.items.length) {
+      persistAndRefresh();
+      closeEditHonorarioModal();
+      return;
+    }
     closeEditHonorarioModal();
     persistHonorariosIncremental();
   }
@@ -3782,10 +3824,6 @@
       const launchList = typeof launchIndex === 'number'
         ? (state.lancamentos[launchIndex] ? [state.lancamentos[launchIndex]] : [])
         : state.lancamentos.slice();
-      if (!launchList.length) {
-        alert('Cadastre ao menos um lançamento antes de exportar o CSV.');
-        return;
-      }
       const header = [
         'lancamento_id',
         'verba',
@@ -3799,6 +3837,10 @@
         'valor'
       ];
       const lines = [header.join(';')];
+      if (!launchList.length) {
+        alert('Cadastre ao menos um lançamento antes de exportar o CSV.');
+        return;
+      }
       launchList.forEach(function(lancamento){
         normalizeLaunch(lancamento);
         const editableColumns = (lancamento.colunas || []).filter(function(coluna){
@@ -3811,7 +3853,7 @@
             const cells = [
               lancamento.id || '',
               lancamento.verba || '',
-              linha.periodo || '',
+              formatPeriodoMonthYear(linha.periodo || ''),
               lancamento.dataInicial || '',
               lancamento.dataFinal || '',
               lancamento.observacao || '',
@@ -3884,7 +3926,13 @@
           if (!lancamento) return;
           const coluna = findEditableColumn(lancamento, columnId);
           if (!coluna) return;
-          const linha = (lancamento.linhas || []).find(function(item){ return String(item.periodo || '') === periodo; });
+          const targetMonthKey = periodToMonthKey(periodo);
+          const linha = (lancamento.linhas || []).find(function(item){
+            const itemPeriodo = String(item && item.periodo || '');
+            if (itemPeriodo === periodo) return true;
+            if (!targetMonthKey) return false;
+            return periodToMonthKey(itemPeriodo) === targetMonthKey;
+          });
           if (!linha) return;
           const parsedValue = coluna.formato === 'data' ? parseDateInputValue(value) : roundMoney(value);
           if (columnId === 'valor') linha.valor = parsedValue;

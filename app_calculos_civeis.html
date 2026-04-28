@@ -162,7 +162,11 @@ textarea{min-height:92px;resize:vertical}
 .btn-subtle:hover{color:#1f2937;background:transparent;box-shadow:none}
 .summary-table{table-layout:auto}
 .summary-table tbody td:first-child,.summary-table thead th:first-child,.summary-table tfoot td:first-child{width:36%;min-width:220px;white-space:normal;word-break:normal;overflow-wrap:anywhere}
-.summary-table tfoot td{vertical-align:top;line-height:1.35}
+.summary-table tfoot td{vertical-align:middle;line-height:1.45;white-space:nowrap}
+.summary-table tfoot tr td{padding:12px 14px;background:var(--soft-2)}
+.summary-table tfoot tr + tr td{border-top:1px solid #d7deea}
+.summary-table tfoot td:not(:first-child){min-width:118px}
+.summary-table .summary-row-separate td{background:var(--soft-2)}
 .print-only{display:none}
 </style><script src="js/core/cp-common.js"></script><script src="js/core/cp-bcb-rates.js"></script><script src="js/core/print-layout.js"></script></head><body>
 <header class="topbar no-print" id="hdrTopbar"><div class="topbar-inner" id="hdrTopbarInner"><div class="brand" id="hdrBrand"><img class="brand-logo" data-logo="1" src="https://calculopro.com.br/wp-content/uploads/2024/11/logonegativa.png" alt="CalculoPro"/></div><div class="actions" id="hdrActions"><button class="btn" id="btnBack" type="button">Voltar ao menu</button></div></div><div class="hintbar" id="hdrHintbar"><div class="hintbar-inner" id="hdrHintbarInner"><div class="hint">Módulo inicial do cálculo cível com separação entre dados e relatório, além da lógica inicial de lançamentos por verba.</div></div></div></header>
