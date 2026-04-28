@@ -92,6 +92,11 @@
   const editHonorarioOperacao = $('editHonorarioOperacao');
   const editHonorarioSeparate = $('editHonorarioSeparate');
   const btnDeleteHonorarioModal = $('btnDeleteHonorarioModal');
+  const editCustaModal = $('editCustaModal');
+  const editCustaId = $('editCustaId');
+  const editCustaOperacao = $('editCustaOperacao');
+  const editCustaSeparate = $('editCustaSeparate');
+  const btnDeleteCustaModal = $('btnDeleteCustaModal');
   const INDEX_SOURCE_OPTIONS = {
     correcao: [
       { value:'none', label:'Sem correção' },
@@ -2769,7 +2774,7 @@
         '<div class="custa-card" data-custa-id="' + esc(item.id) + '">' +
           '<div class="custa-card-head">' +
             '<div class="custa-card-title">Custa</div>' +
-            '<button type="button" class="btn btn-ghost summary-remove-btn btnRemoveCusta" data-custa-id="' + esc(item.id) + '">Remover</button>' +
+            '<button type="button" class="btn btn-ghost summary-remove-btn btnEditCusta" data-custa-id="' + esc(item.id) + '">Editar</button>' +
           '</div>' +
           '<div class="custa-grid">' +
             '<div><label>Descrição</label><input type="text" class="custa-desc" data-custa-id="' + esc(item.id) + '" value="' + esc(item.descricao || '') + '" placeholder="Ex.: Custas iniciais"></div>' +
@@ -3422,6 +3427,48 @@
     persistHonorariosIncremental();
   }
 
+  function openEditCustaModal(custaId){
+    const index = getCustaIndexById(custaId);
+    if (index < 0 || !editCustaModal) return;
+    const item = normalizeCusta(state.custas[index]);
+    if (editCustaId) editCustaId.value = item.id;
+    if (editCustaOperacao) editCustaOperacao.value = item.operacao === 'deduzir' ? 'deduzir' : 'acrescer';
+    if (editCustaSeparate) editCustaSeparate.checked = !!item.separateInSummary;
+    editCustaModal.classList.add('open');
+    editCustaModal.setAttribute('aria-hidden', 'false');
+    setTimeout(function(){ if (editCustaOperacao) editCustaOperacao.focus(); }, 30);
+  }
+
+  function closeEditCustaModal(){
+    if (!editCustaModal) return;
+    editCustaModal.classList.remove('open');
+    editCustaModal.setAttribute('aria-hidden', 'true');
+    if (editCustaId) editCustaId.value = '';
+    if (editCustaOperacao) editCustaOperacao.value = 'acrescer';
+    if (editCustaSeparate) editCustaSeparate.checked = false;
+  }
+
+  function saveEditCustaModal(){
+    const custaId = editCustaId ? editCustaId.value : '';
+    const index = getCustaIndexById(custaId);
+    if (index < 0) return closeEditCustaModal();
+    const item = normalizeCusta(state.custas[index]);
+    item.operacao = editCustaOperacao && editCustaOperacao.value === 'deduzir' ? 'deduzir' : 'acrescer';
+    item.separateInSummary = !!(editCustaSeparate && editCustaSeparate.checked);
+    state.custas[index] = item;
+    closeEditCustaModal();
+    persistAndRefresh();
+  }
+
+  function deleteCustaFromModal(){
+    const custaId = editCustaId ? editCustaId.value : '';
+    const index = getCustaIndexById(custaId);
+    if (index < 0) return closeEditCustaModal();
+    state.custas.splice(index, 1);
+    closeEditCustaModal();
+    persistAndRefresh();
+  }
+
   async function updateHonorariosFixedFactors(dataAtualizacaoISO){
     const dataFinal = String(dataAtualizacaoISO || state.dataAtualizacao || '').trim();
     if (!dataFinal) return;
@@ -3600,12 +3647,9 @@
 
     custasHost.addEventListener('click', function(event){
       const target = event.target;
-      if (!target.classList.contains('btnRemoveCusta')) return;
+      if (!target.classList.contains('btnEditCusta')) return;
       const custaId = target.getAttribute('data-custa-id');
-      const index = getCustaIndexById(custaId);
-      if (index < 0) return;
-      state.custas.splice(index, 1);
-      persistAndRefresh();
+      openEditCustaModal(custaId);
     });
   }
 
@@ -4045,6 +4089,10 @@
   if ($('btnCancelEditHonorarioModal')) $('btnCancelEditHonorarioModal').addEventListener('click', closeEditHonorarioModal);
   if ($('btnSaveEditHonorarioModal')) $('btnSaveEditHonorarioModal').addEventListener('click', saveEditHonorarioModal);
   if (btnDeleteHonorarioModal) btnDeleteHonorarioModal.addEventListener('click', deleteHonorarioFromModal);
+  if ($('btnCloseEditCustaModal')) $('btnCloseEditCustaModal').addEventListener('click', closeEditCustaModal);
+  if ($('btnCancelEditCustaModal')) $('btnCancelEditCustaModal').addEventListener('click', closeEditCustaModal);
+  if ($('btnSaveEditCustaModal')) $('btnSaveEditCustaModal').addEventListener('click', saveEditCustaModal);
+  if (btnDeleteCustaModal) btnDeleteCustaModal.addEventListener('click', deleteCustaFromModal);
   $('btnCancelColumnModal').addEventListener('click', closeColumnModal);
   $('btnSaveColumnModal').addEventListener('click', saveColumnFromModal);
   if (modalIndexKind && modalIndexSource) {
@@ -4139,12 +4187,18 @@
       if (event.target === editHonorarioModal) closeEditHonorarioModal();
     });
   }
+  if (editCustaModal) {
+    editCustaModal.addEventListener('click', function(event){
+      if (event.target === editCustaModal) closeEditCustaModal();
+    });
+  }
 
   document.addEventListener('keydown', function(event){
     if (event.key === 'Escape' && columnModal.classList.contains('open')) closeColumnModal();
     if (event.key === 'Escape' && editColumnModal.classList.contains('open')) closeEditColumnModal();
     if (event.key === 'Escape' && editLaunchModal.classList.contains('open')) closeEditLaunchModal();
     if (event.key === 'Escape' && editHonorarioModal && editHonorarioModal.classList.contains('open')) closeEditHonorarioModal();
+    if (event.key === 'Escape' && editCustaModal && editCustaModal.classList.contains('open')) closeEditCustaModal();
     if (event.key === 'Enter' && columnModal.classList.contains('open') && (event.target === modalColumnName || event.target === modalColumnFormula || event.target === modalIndexKind || event.target === modalIndexSource || event.target === modalIndexStart || event.target === modalIndexEnd)) {
       event.preventDefault();
       saveColumnFromModal();
@@ -4160,6 +4214,10 @@
     if (event.key === 'Enter' && editHonorarioModal && editHonorarioModal.classList.contains('open') && (event.target === editHonorarioTipo || event.target === editHonorarioOperacao || event.target === editHonorarioSeparate)) {
       event.preventDefault();
       saveEditHonorarioModal();
+    }
+    if (event.key === 'Enter' && editCustaModal && editCustaModal.classList.contains('open') && (event.target === editCustaOperacao || event.target === editCustaSeparate)) {
+      event.preventDefault();
+      saveEditCustaModal();
     }
   });
 

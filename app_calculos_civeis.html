@@ -482,6 +482,37 @@ textarea{min-height:92px;resize:vertical}
   </div>
 </div>
 
+<div class="modal-backdrop no-print" id="editCustaModal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editCustaModalTitle">
+    <div class="modal-head">
+      <div>
+        <h3 class="modal-title" id="editCustaModalTitle">Editar custa</h3>
+        <p class="modal-sub">Ajuste a operação, a separação no resumo e remova a custa quando necessário.</p>
+      </div>
+      <button type="button" class="modal-close" id="btnCloseEditCustaModal" aria-label="Fechar">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editCustaId">
+      <label for="editCustaOperacao">Operação</label>
+      <select id="editCustaOperacao" class="select">
+        <option value="acrescer">Acrescer ao crédito</option>
+        <option value="deduzir">Deduzir do crédito</option>
+      </select>
+      <label class="check-inline" style="margin-top:12px">
+        <input type="checkbox" id="editCustaSeparate">
+        Separar no resumo
+      </label>
+    </div>
+    <div class="modal-actions" style="justify-content:space-between">
+      <button type="button" class="btn btn-danger" id="btnDeleteCustaModal">Remover custa</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button type="button" class="btn btn-ghost" id="btnCancelEditCustaModal">Cancelar</button>
+        <button type="button" class="btn-primary" id="btnSaveEditCustaModal">Salvar alterações</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="js/core/cp-devtools.js"></script>
 <script defer src="js/modules/civeis/state.js"></script><script defer src="js/modules/civeis/indices.js"></script><script defer src="js/modules/civeis/launches.js"></script><script defer src="js/modules/civeis/summary.js"></script><script defer src="js/modules/civeis/report.js"></script><script defer src="js/modules/civeis/bindings.js"></script><script defer src="js/modules/civeis-app.js"></script>
 </body></html>
