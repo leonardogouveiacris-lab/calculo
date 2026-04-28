@@ -4044,19 +4044,22 @@
         const activeLaunch = activeIndex >= 0 ? state.lancamentos[activeIndex] : null;
         if (!activeLaunch) throw new Error('Selecione uma verba ativa antes de importar o CSV.');
         normalizeLaunch(activeLaunch);
-        const rawHeader = rows[0].map(function(cell){ return String(cell || '').trim(); });
-        if (!rawHeader.length || String(rawHeader[0] || '').trim().toLowerCase() !== 'competência') {
-          throw new Error('Cabeçalho inválido: a primeira coluna deve ser "Competência".');
+        const rawHeader = rows[0].map(function(cell){ return String(cell || ''); });
+        const normalizedHeader = rawHeader.map(function(cell){ return normalizeCsvHeaderCell(cell); });
+        const acceptedFirstColumnHeaders = ['competencia', 'periodo'];
+        const firstColumnHeader = normalizedHeader.length ? normalizedHeader[0] : '';
+        if (!normalizedHeader.length || acceptedFirstColumnHeaders.indexOf(firstColumnHeader) < 0) {
+          throw new Error('Cabeçalho inválido: a primeira coluna deve ser uma das opções: ' + acceptedFirstColumnHeaders.join(', ') + '. Valor lido: "' + String(rawHeader[0] || '').trim() + '".');
         }
         const editableColumns = (activeLaunch.colunas || []).filter(function(coluna){
           return coluna && coluna.tipo !== 'formula' && coluna.tipo !== 'indice';
         });
         const manualColumns = editableColumns.filter(function(coluna){ return coluna.tipo === 'manual'; });
-        const manualByName = new Map(manualColumns.map(function(coluna){ return [String(coluna.nome || '').trim().toLowerCase(), coluna]; }).filter(function(entry){ return !!entry[0]; }));
-        const manualById = new Map(manualColumns.map(function(coluna){ return [String(coluna.id || '').trim().toLowerCase(), coluna]; }).filter(function(entry){ return !!entry[0]; }));
+        const manualByName = new Map(manualColumns.map(function(coluna){ return [normalizeCsvHeaderCell(coluna.nome), coluna]; }).filter(function(entry){ return !!entry[0]; }));
+        const manualById = new Map(manualColumns.map(function(coluna){ return [normalizeCsvHeaderCell(coluna.id), coluna]; }).filter(function(entry){ return !!entry[0]; }));
         const mappedColumns = [];
-        for (let i = 1; i < rawHeader.length; i += 1){
-          const key = String(rawHeader[i] || '').trim().toLowerCase();
+        for (let i = 1; i < normalizedHeader.length; i += 1){
+          const key = normalizedHeader[i];
           if (!key) {
             mappedColumns.push(null);
             continue;
@@ -4109,6 +4112,15 @@
       alert('Falha ao ler o arquivo CSV selecionado.');
     };
     reader.readAsText(file, 'utf-8');
+  }
+
+  function normalizeCsvHeaderCell(value){
+    return String(value || '')
+      .replace(/^\ufeff/, '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
   }
 
   function triggerLaunchCsvImport(launchIndex){
