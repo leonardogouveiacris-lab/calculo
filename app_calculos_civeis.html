@@ -373,9 +373,23 @@ textarea{min-height:92px;resize:vertical}
           <div class="index-source-actions">
             <button type="button" class="btn-subtle" id="btnExportIndexTemplateEdit">Modelo CSV</button>
             <button type="button" class="btn-subtle" id="btnImportIndexTableEdit">Importar CSV</button>
+            <button type="button" class="btn-subtle" id="btnCreateFixedIndexTableEdit">Criar tabela fixa</button>
           </div>
         </div>
         <select id="editModalIndexSource" class="select"></select>
+        <div id="editFixedIndexGeneratorWrap" style="display:none;margin-top:8px;padding:10px;border:1px solid var(--line,#d9d9d9);border-radius:10px">
+          <label for="editFixedTableName">Nome da tabela</label>
+          <input id="editFixedTableName" type="text" placeholder="Ex.: Juros Simples 0,3333% a.m.">
+          <div class="row" style="margin-top:8px">
+            <div class="col-6"><label for="editFixedMonthlyRate">Taxa mensal (%)</label><input id="editFixedMonthlyRate" type="text" inputmode="decimal" placeholder="0,3333"></div>
+            <div class="col-6"><label for="editFixedEntryMode">Modo da entrada</label><select id="editFixedEntryMode" class="select"><option value="percent">Percentual</option><option value="factor">Fator</option></select></div>
+            <div class="col-6"><label for="editFixedStartMonth">Competência inicial</label><input id="editFixedStartMonth" type="date"></div>
+            <div class="col-6"><label for="editFixedEndMonth">Competência final</label><input id="editFixedEndMonth" type="date"></div>
+          </div>
+          <div class="btn-row" style="margin-top:8px">
+            <button type="button" class="btn btn-ghost" id="btnSubmitFixedIndexTableEdit">Gerar tabela</button>
+          </div>
+        </div>
         <div class="row" style="margin-top:8px">
           <div class="col-6"><label for="editModalIndexStart">Aplicar a partir de</label><input id="editModalIndexStart" type="date"></div>
           <div class="col-6"><label for="editModalIndexEnd">Aplicar até</label><input id="editModalIndexEnd" type="date"></div>
