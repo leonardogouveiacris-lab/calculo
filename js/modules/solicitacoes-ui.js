@@ -164,7 +164,7 @@
       tdEmpty.className = 'center';
       tdEmpty.style.padding = '14px 12px';
       tdEmpty.style.color = '#667085';
-      tdEmpty.textContent = 'Nenhum resultado para os filtros atuais.';
+      tdEmpty.textContent = 'Nenhuma solicitação encontrada com os filtros atuais.';
       trEmpty.appendChild(tdEmpty);
       tbody.appendChild(trEmpty);
     }
@@ -186,7 +186,7 @@
   function clearDataView(){
     E('solicitacoesClienteSelect').innerHTML = '<option value="(Todos)">(Todos)</option>';
     E('solicitacoesReclamadaList').innerHTML = '';
-    E('solicitacoesFileName').textContent = 'Nenhum arquivo selecionado';
+    E('solicitacoesFileName').textContent = 'Nenhum arquivo selecionado para importação';
     E('solicitacoesFileInput').value = '';
     E('solicitacoesCompetencia').textContent = 'Competência: —';
     var out = E('nfDescricaoOutput');

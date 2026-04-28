@@ -76,8 +76,8 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
     var quality = validateImportQuality(normalized);
     if (!quality.ok) {
       alert(
-        'Layout de planilha incompatível para importação.\\n\\n' +
-        'Verifique os cabeçalhos esperados: Entrega em, Contato: Primeiro nome, Reclamada, Serviços e Total (Total).'
+        'Não foi possível importar: o layout da planilha não é compatível.\\n\\n' +
+        'Confirme se os cabeçalhos incluem: Entrega em, Contato: Primeiro nome, Reclamada, Serviços e Total (Total).'
       );
       return false;
     }
@@ -96,6 +96,7 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
     root.setReclamadaDropdown(reclamadas);
     root.updateReclamadaBtnLabel();
     applyFilters();
+    E('solicitacoesFileName').textContent = 'Arquivo importado: ' + store.allRows.length + ' registro(s) carregado(s).';
     return true;
   }
 
@@ -168,7 +169,7 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
   async function handleFileImport(event){
     var file = event.target.files && event.target.files[0];
     if (!file) return;
-    E('solicitacoesFileName').textContent = file.name;
+    E('solicitacoesFileName').textContent = 'Importando arquivo: ' + file.name;
     try {
       root.setActionBusy(E('solicitacoesExportBtn'), true, 'Aguarde...');
       var data = [];
@@ -179,22 +180,21 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
         if (isHtmlSpreadsheet(xlsText)) {
           data = parseHtmlSpreadsheet(xlsText);
         } else {
-          if (!window.XLSX) throw new Error('SheetJS não carregado');
+          if (!window.XLSX) throw new Error('Biblioteca de planilhas indisponível no momento.');
           var xlsWorkbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
           data = parseWorkbookSheet(xlsWorkbook.Sheets[xlsWorkbook.SheetNames[0]]);
         }
       } else if (/\.xlsx$/i.test(file.name)) {
-        if (!window.XLSX) throw new Error('SheetJS não carregado');
+        if (!window.XLSX) throw new Error('Biblioteca de planilhas indisponível no momento.');
         var workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
         data = parseWorkbookSheet(workbook.Sheets[workbook.SheetNames[0]]);
       } else {
-        throw new Error('Formato não suportado');
+        throw new Error('Formato não suportado. Use .xlsx, .xls ou .csv.');
       }
       afterImport(data);
     } catch (error) {
-      alert('Erro ao importar arquivo: ' + (error.message || error));
-    } finally {
-      root.setActionBusy(E('solicitacoesExportBtn'), false);
+      alert('Falha ao importar arquivo. Detalhe: ' + (error.message || error));
+      E('solicitacoesFileName').textContent = 'Falha na importação: ' + file.name;
     }
   }
 
@@ -224,8 +224,8 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
   }
 
   function exportVisible(){
-    if (!store.currentRows.length) return alert('Nenhum dado disponível para exportar.');
-    if (!window.XLSX) return alert('SheetJS não carregado.');
+    if (!store.currentRows.length) return alert('Não há dados filtrados para exportar.');
+    if (!window.XLSX) return alert('Biblioteca de planilhas indisponível no momento.');
     root.setActionBusy(E('solicitacoesExportBtn'), true, 'Exportando...');
     try {
       var rows = store.currentRows.map(function(row){
@@ -245,6 +245,7 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
       var d = new Date();
       var stamp = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
       XLSX.writeFile(wb, 'solicitacoes_' + stamp + '.xlsx');
+      E('solicitacoesFileName').textContent = 'Exportação concluída: solicitacoes_' + stamp + '.xlsx';
     } finally {
       root.setActionBusy(E('solicitacoesExportBtn'), false);
     }
