@@ -901,11 +901,19 @@
 
   function normalizeCusta(item){
     const source = Object.assign({}, item || {});
+    const separateInSummary = !!source.separateInSummary;
+    const operacao = source.operacao === 'deduzir' ? 'deduzir' : 'acrescer';
+    const includeInGrandTotal = typeof source.includeInGrandTotal === 'boolean'
+      ? source.includeInGrandTotal
+      : !separateInSummary;
     const normalized = {
       id: String(source.id || uid('custa')),
       descricao: String(source.descricao || 'Custas').trim() || 'Custas',
       valor: roundMoney(source.valor || 0),
-      multiplicador: parseBRNumber(source.multiplicador || 1) || 1
+      multiplicador: parseBRNumber(source.multiplicador || 1) || 1,
+      operacao: operacao,
+      separateInSummary: separateInSummary,
+      includeInGrandTotal: includeInGrandTotal
     };
     return Object.assign({}, source, normalized);
   }
@@ -2491,7 +2499,10 @@
       };
     });
     const custasItems = (Array.isArray(source.custas) ? source.custas : state.custas).map(normalizeCusta).map(function(item){
-      const valorEfetivo = roundMoney(item.valor * item.multiplicador);
+      const valorBase = roundMoney(item.valor * item.multiplicador);
+      const valorEfetivo = item.operacao === 'deduzir'
+        ? -Math.abs(valorBase)
+        : Math.abs(valorBase);
       return Object.assign({}, item, { valorEfetivo: valorEfetivo });
     });
     const rows = launchItems.map(function(item){
@@ -2539,11 +2550,11 @@
         kind: 'custas',
         id: item.id,
         verba: item.descricao || ('Custas ' + (index + 1)),
-        note: 'Custas incluídas manualmente.' + (item.multiplicador !== 1 ? (' Valor base × multiplicador: ' + formatCurrencyBR(item.valor) + ' × ' + formatNumberBR(item.multiplicador, 2, 4, true) + '.') : ''),
+        note: (item.separateInSummary ? 'Separado no resumo. ' : '') + (item.operacao === 'deduzir' ? 'Deduzido do crédito apurado. ' : 'Acrescido ao crédito apurado. ') + 'Custas incluídas manualmente.' + (item.multiplicador !== 1 ? (' Valor base × multiplicador: ' + formatCurrencyBR(item.valor) + ' × ' + formatNumberBR(item.multiplicador, 2, 4, true) + '.') : ''),
         valorCorrigido: item.valorEfetivo,
         juros: 0,
         valorDevido: item.valorEfetivo,
-        includeInGrandTotal: true
+        includeInGrandTotal: item.includeInGrandTotal
       });
     });
 
