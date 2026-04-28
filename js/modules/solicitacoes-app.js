@@ -171,6 +171,7 @@ window.CPFeatureFlags = Object.assign({ useCentralIndices: true }, window.CPFeat
     if (!file) return;
     E('solicitacoesFileName').textContent = 'Importando arquivo: ' + file.name;
     try {
+      root.setActionBusy(E('solicitacoesExportBtn'), true, 'Aguarde...');
       var data = [];
       if (/\.csv$/i.test(file.name)) {
         data = root.parseCSV(await file.text());
