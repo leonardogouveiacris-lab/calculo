@@ -2088,7 +2088,7 @@
           '</div>' +
           '<div style="display:flex;gap:8px;align-items:flex-start;justify-content:flex-end;opacity:.85">' +
             '<button type="button" class="btn btn-ghost btnExportLaunchCsv" data-launch-index="' + index + '" style="padding:4px 8px;font-size:11px;line-height:1.2">CSV ↓</button>' +
-            '<button type="button" class="btn btn-ghost btnImportLaunchCsv" data-launch-index="' + index + '" style="padding:4px 8px;font-size:11px;line-height:1.2" title="Layout esperado: 1ª coluna Competência + colunas manuais com os mesmos nomes exibidos na verba ativa. Formato preferencial: mm-aaaa.">CSV ↑</button>' +
+            '<button type="button" class="btn btn-ghost btnImportLaunchCsv" data-launch-index="' + index + '" style="padding:4px 8px;font-size:11px;line-height:1.2" title="Importar CSV (layout horizontal novo: 1ª coluna Competência + colunas manuais da verba)." data-csv-importer="launches-horizontal-v2">CSV ↑</button>' +
           '</div>' +
         '</div>' +
         '<div class="launch-actions">' +
@@ -3427,6 +3427,7 @@
       return;
     }
     if (target.classList.contains('btnImportLaunchCsv')){
+      if (target.getAttribute('data-csv-importer') !== 'launches-horizontal-v2') return;
       triggerLaunchCsvImport(resolvedLaunchIndex);
       return;
     }
@@ -4154,6 +4155,30 @@
       .replace(/[\u0300-\u036f]/g, '');
   }
 
+  
+
+  function debugLaunchCsvImportFlow(file, rawContent, handlerPath){
+    const content = String(rawContent || '').replace(/^\ufeff/, '');
+    const firstTwoLines = content.split(/\r?\n/).slice(0, 2);
+    console.info('[CSV Launch Import Debug] fluxo:', handlerPath);
+    console.info('[CSV Launch Import Debug] arquivo:', file && file.name ? file.name : 'sem_nome');
+    console.info('[CSV Launch Import Debug] primeiras 2 linhas:', firstTwoLines);
+  }
+
+  function handleLaunchCsvFileSelection(file, launchIndex, handlerPath){
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(){
+      const rawContent = String(reader.result || '');
+      debugLaunchCsvImportFlow(file, rawContent, handlerPath || 'handleLaunchCsvFileSelection > importLaunchesFromCsv');
+      importLaunchesFromCsv(file, resolveActiveLaunchIndex(launchIndex));
+    };
+    reader.onerror = function(){
+      alert('Falha ao ler o arquivo CSV selecionado para debug de importação.');
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
   function triggerLaunchCsvImport(launchIndex){
     const input = document.createElement('input');
     input.type = 'file';
@@ -4161,7 +4186,7 @@
     input.style.display = 'none';
     input.addEventListener('change', function(){
       const file = this.files && this.files[0] ? this.files[0] : null;
-      if (file) importLaunchesFromCsv(file, resolveActiveLaunchIndex(launchIndex));
+      if (file) handleLaunchCsvFileSelection(file, launchIndex, 'triggerLaunchCsvImport > change');
       document.body.removeChild(input);
     }, { once:true });
     document.body.appendChild(input);
@@ -4176,6 +4201,16 @@
   const legacyImportCsvLaunchesInput = $('importCsvLaunchesInput');
 
   [legacyBtnExportCsvLaunches, legacyBtnImportCsvLaunches, legacyImportCsvLaunchesInput].forEach(function(node){
+    if (!node) return;
+    node.disabled = true;
+    node.style.display = 'none';
+    node.setAttribute('aria-hidden', 'true');
+    if ('value' in node) node.value = '';
+    if (node.parentNode) node.parentNode.removeChild(node);
+  });
+
+  const legacyLaunchCsvFlowNodes = Array.from(document.querySelectorAll('[data-lancamento_id], [data-coluna_id], [name="lancamento_id"], [name="coluna_id"], #lancamento_id, #coluna_id'));
+  legacyLaunchCsvFlowNodes.forEach(function(node){
     if (!node) return;
     node.disabled = true;
     node.style.display = 'none';
