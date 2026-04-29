@@ -2126,7 +2126,7 @@
           '<button type="button" class="btn btn-ghost btnAddDateCol" data-launch-index="' + index + '">Adicionar coluna de data</button>' +
           '<button type="button" class="btn btn-ghost btnAddIndexCol" data-launch-index="' + index + '">Adicionar coluna de índice</button>' +
         '</div>' +
-        '<div>' + badges + '</div>' +
+        '<div class="launch-badges">' + badges + '</div>' +
         indexSummaryBlock +
         '<div class="table-wrap"><table class="editor-table"><thead><tr>' + headCols + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
       '</div>';
