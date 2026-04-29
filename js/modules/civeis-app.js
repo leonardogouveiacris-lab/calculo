@@ -1615,7 +1615,7 @@
     if (!isCustomIndexSource(value) || !wrap) return;
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'btn-subtle danger js-index-source-delete';
+    button.className = 'btn-subtle subtle-x js-index-source-delete';
     button.textContent = '✕';
     button.title = 'Excluir tabela personalizada selecionada';
     button.setAttribute('aria-label', 'Excluir tabela personalizada selecionada');
