@@ -649,7 +649,10 @@
     }
     match = raw.match(/^([a-zç]{3})\/(\d{2})$/i);
     if (match) {
-      const monthAlias = String(match[1] || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const monthAliasRaw = String(match[1] || '').toLowerCase();
+      const monthAlias = typeof monthAliasRaw.normalize === 'function'
+        ? monthAliasRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        : monthAliasRaw;
       const monthMap = { jan:'01', fev:'02', mar:'03', abr:'04', mai:'05', jun:'06', jul:'07', ago:'08', set:'09', out:'10', nov:'11', dez:'12' };
       const month = monthMap[monthAlias];
       if (!month || !isValidMonthNumber(month)) return { monthKey: '', error: 'mês textual inválido "' + monthAlias + '"' };
@@ -4224,12 +4227,14 @@
   }
 
   function normalizeCsvHeaderCell(value){
-    return String(value || '')
+    const base = String(value || '')
       .replace(/^\ufeff/, '')
       .trim()
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
+      .toLowerCase();
+    const normalized = typeof base.normalize === 'function'
+      ? base.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      : base;
+    return normalized;
   }
 
   
@@ -4247,9 +4252,14 @@
     setLaunchImportFeedback('Arquivo: ' + (file.name || 'arquivo_sem_nome.csv'));
     const reader = new FileReader();
     reader.onload = function(){
-      const rawContent = String(reader.result || '');
-      debugLaunchCsvImportFlow(file, rawContent, handlerPath || 'handleLaunchCsvFileSelection > importLaunchesFromCsv');
-      importLaunchesFromCsv(file, resolveActiveLaunchIndex(launchIndex));
+      try {
+        const rawContent = String(reader.result || '');
+        debugLaunchCsvImportFlow(file, rawContent, handlerPath || 'handleLaunchCsvFileSelection > importLaunchesFromCsv');
+        importLaunchesFromCsv(file, resolveActiveLaunchIndex(launchIndex));
+      } catch (error) {
+        console.error('[CSV Launch Import] falha no pré-processamento:', error && error.stack ? error.stack : error);
+        alert('Falha ao iniciar a importação do CSV. Causa: ' + String(error && error.message || 'erro desconhecido') + '.');
+      }
     };
     reader.onerror = function(){
       alert('Falha ao ler o arquivo CSV selecionado para debug de importação.');
