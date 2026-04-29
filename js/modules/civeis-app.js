@@ -152,7 +152,7 @@
           '<button type="button" class="btn-subtle" id="btnCreateFixedIndexTableModal">Criar tabela fixa</button>' +
         '</div>' +
       '</div>' +
-      '<select id="modalIndexSource" class="select"></select>' +
+      '<div class="index-source-select-row"><select id="modalIndexSource" class="select"></select></div>' +
       '<div id="fixedIndexGeneratorWrap" style="display:none;margin-top:8px;padding:10px;border:1px solid var(--line,#d9d9d9);border-radius:10px">' +
         '<label for="fixedTableName">Nome da tabela</label>' +
         '<input id="fixedTableName" type="text" placeholder="Ex.: Juros Simples 0,3333% a.m.">' +
@@ -216,6 +216,15 @@
   function getCustomIndexTableIdFromSource(sourceType){
     const raw = String(sourceType || '');
     return isCustomIndexSource(raw) ? raw.slice(CUSTOM_INDEX_SOURCE_PREFIX.length) : '';
+  }
+
+  function removeCustomIndexTableById(tableId){
+    const id = normalizeIndexTableId(tableId);
+    const before = Array.isArray(state.indexTables) ? state.indexTables.length : 0;
+    state.indexTables = (state.indexTables || []).filter(function(table){
+      return normalizeIndexTableId(table && table.id) !== id;
+    });
+    return before !== state.indexTables.length;
   }
 
   function normalizeIndexTableId(value){
@@ -1596,6 +1605,23 @@
     }).join('');
   }
 
+  function renderIndexSourceDropdownWithDelete(selectEl, kind, selectedValue){
+    if (!selectEl) return;
+    fillIndexSourceSelect(selectEl, kind, selectedValue);
+    const wrap = selectEl.parentNode;
+    const existing = wrap ? wrap.querySelector('.js-index-source-delete') : null;
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+    const value = selectEl.value || '';
+    if (!isCustomIndexSource(value) || !wrap) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn-subtle subtle-x js-index-source-delete';
+    button.textContent = '✕';
+    button.title = 'Excluir tabela personalizada selecionada';
+    button.setAttribute('aria-label', 'Excluir tabela personalizada selecionada');
+    wrap.appendChild(button);
+  }
+
   function collectExtraIndexSegments(host, kind){
     if (!host) return [];
     return Array.from(host.querySelectorAll('.js-index-segment-row')).map(function(row){
@@ -1643,7 +1669,7 @@
     if (coluna.tipo === 'indice') {
       const composition = getIndexComposition(coluna);
       const current = composition[0] ? composition[0].source : (coluna.indexSource || defaultIndexSourceByKind(coluna.indexKind || 'correcao'));
-      fillIndexSourceSelect(editModalIndexSource, coluna.indexKind || 'correcao', current);
+      renderIndexSourceDropdownWithDelete(editModalIndexSource, coluna.indexKind || 'correcao', current);
       const first = composition[0] || { start:'', end:'' };
       editModalIndexStart.value = first.start || '';
       editModalIndexEnd.value = first.end || '';
@@ -1890,7 +1916,7 @@
     if (nameLabel) nameLabel.style.display = isIndex ? 'none' : 'block';
     if (isIndex && modalIndexKind && modalIndexSource){
       modalIndexKind.value = 'correcao';
-      fillIndexSourceSelect(modalIndexSource, 'correcao');
+      renderIndexSourceDropdownWithDelete(modalIndexSource, 'correcao');
     }
     if (modalColumnSummaryRole) {
       modalColumnSummaryRole.value = 'none';
@@ -2774,6 +2800,8 @@
     }
 
     if (summaryTableFoot) {
+      const showSeparatedHonorarios = Number(summaryData.separatedHonorariosCount || 0) > 0;
+      const showSeparatedCustas = Number(summaryData.separatedCustasCount || 0) > 0;
       summaryTableFoot.innerHTML = '' +
         '<tr>' +
           '<td>Total geral</td>' +
@@ -2781,7 +2809,7 @@
             return '<td class="' + esc(coluna.className) + '">' + formatSummaryMoney(summaryTotalsByColumn[coluna.id] || 0) + '</td>';
           }).join('') +
         '</tr>' +
-        '<tr class="summary-row-separate">' +
+        (showSeparatedHonorarios ? ('<tr class="summary-row-separate">' +
           '<td>Honorários separados</td>' +
           summaryColumns.map(function(coluna){
             const totals = summaryData.separatedHonorariosTotals || {};
@@ -2790,8 +2818,8 @@
               : (coluna.id === 'juros' ? totals.juros : totals.valorDevido);
             return '<td class="' + esc(coluna.className) + '">' + formatSummaryMoney(value || 0) + '</td>';
           }).join('') +
-        '</tr>' +
-        '<tr class="summary-row-separate">' +
+        '</tr>') : '') +
+        (showSeparatedCustas ? ('<tr class="summary-row-separate">' +
           '<td>Custas separadas</td>' +
           summaryColumns.map(function(coluna){
             const totals = summaryData.separatedCustasTotals || {};
@@ -2800,7 +2828,7 @@
               : (coluna.id === 'juros' ? totals.juros : totals.valorDevido);
             return '<td class="' + esc(coluna.className) + '">' + formatSummaryMoney(value || 0) + '</td>';
           }).join('') +
-        '</tr>';
+        '</tr>') : '');
     }
 
     return summaryData;
@@ -3978,7 +4006,7 @@
 
   function refreshOpenIndexSourceSelectors(preferredSource){
     if (columnModal && columnModal.classList.contains('open') && modalColumnType && modalColumnType.value === 'indice' && modalIndexKind && modalIndexSource) {
-      fillIndexSourceSelect(modalIndexSource, modalIndexKind.value || 'correcao', preferredSource || modalIndexSource.value);
+      renderIndexSourceDropdownWithDelete(modalIndexSource, modalIndexKind.value || 'correcao', preferredSource || modalIndexSource.value);
       renderIndexSegmentList(modalIndexSegments, modalIndexKind.value || 'correcao', collectExtraIndexSegments(modalIndexSegments, modalIndexKind.value || 'correcao'));
     }
     if (editColumnModal && editColumnModal.classList.contains('open') && editModalLaunchIndex && editModalColumnId) {
@@ -3987,7 +4015,7 @@
       const lancamento = state.lancamentos[launchIndex];
       const coluna = lancamento ? lancamento.colunas.find(function(item){ return item.id === columnId; }) : null;
       const kind = coluna && coluna.indexKind ? coluna.indexKind : 'correcao';
-      fillIndexSourceSelect(editModalIndexSource, kind, preferredSource || (editModalIndexSource ? editModalIndexSource.value : ''));
+      renderIndexSourceDropdownWithDelete(editModalIndexSource, kind, preferredSource || (editModalIndexSource ? editModalIndexSource.value : ''));
       renderIndexSegmentList(editModalIndexSegments, kind, collectExtraIndexSegments(editModalIndexSegments, kind));
     }
   }
@@ -4338,8 +4366,21 @@
   if (modalIndexKind && modalIndexSource) {
     modalIndexKind.addEventListener('change', function(){
       const previousRows = collectExtraIndexSegments(modalIndexSegments, this.value || 'correcao');
-      fillIndexSourceSelect(modalIndexSource, this.value || 'correcao');
+      renderIndexSourceDropdownWithDelete(modalIndexSource, this.value || 'correcao');
       renderIndexSegmentList(modalIndexSegments, this.value || 'correcao', previousRows);
+    });
+    modalIndexSource.addEventListener('change', function(){
+      renderIndexSourceDropdownWithDelete(modalIndexSource, modalIndexKind.value || 'correcao', modalIndexSource.value || '');
+    });
+  }
+  if (editModalIndexSource) {
+    editModalIndexSource.addEventListener('change', function(){
+      const launchIndex = Number(editModalLaunchIndex && editModalLaunchIndex.value);
+      const columnId = editModalColumnId ? editModalColumnId.value : '';
+      const lancamento = state.lancamentos[launchIndex];
+      const coluna = lancamento ? (lancamento.colunas || []).find(function(item){ return item && item.id === columnId; }) : null;
+      const kind = coluna && coluna.indexKind ? coluna.indexKind : 'correcao';
+      renderIndexSourceDropdownWithDelete(editModalIndexSource, kind, editModalIndexSource.value || '');
     });
   }
   if (btnAddModalIndexSegment && modalIndexKind) {
@@ -4407,6 +4448,20 @@
     });
   });
   document.addEventListener('click', function(event){
+    if (event.target && event.target.classList && event.target.classList.contains('js-index-source-delete')) {
+      const select = event.target.parentNode ? event.target.parentNode.querySelector('select') : null;
+      const source = select ? String(select.value || '') : '';
+      const tableId = getCustomIndexTableIdFromSource(source);
+      if (!tableId) return;
+      const table = (state.indexTables || []).find(function(item){ return normalizeIndexTableId(item && item.id) === normalizeIndexTableId(tableId); });
+      const label = table && table.name ? table.name : tableId;
+      if (!confirm('Excluir a tabela personalizada "' + label + '"?')) return;
+      if (removeCustomIndexTableById(tableId)) {
+        persistAndRefresh();
+        refreshOpenIndexSourceSelectors(defaultIndexSourceByKind('correcao'));
+      }
+      return;
+    }
     const target = event.target;
     if (!target || !target.classList || !target.classList.contains('js-remove-index-segment')) return;
     const row = target.closest('.js-index-segment-row');
