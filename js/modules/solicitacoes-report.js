@@ -100,9 +100,15 @@
   }
 
   function buildMetaText(){
-    return root.E('solicitacoesTotalCount').textContent + ' • ' +
-      root.E('solicitacoesSumTotal').textContent + ' • ' +
-      root.E('solicitacoesCompetencia').textContent + ' • Cliente: ' + root.store.currentClient;
+    function getText(id){
+      var node = root.E(id);
+      return node ? String(node.textContent || '').trim() : '';
+    }
+    var totalCount = getText('solicitacoesTotalCount') || '0';
+    var sumTotal = getText('solicitacoesSumTotal') || root.toBRL(0);
+    var competencia = getText('solicitacoesCompetencia') || 'Sem competência';
+    var cliente = String(root.store.currentClient || '').trim() || 'Não informado';
+    return totalCount + ' • ' + sumTotal + ' • ' + competencia + ' • Cliente: ' + cliente;
   }
 
   function createSolicRowHtml(row){
@@ -158,7 +164,6 @@
 
   function fillLayout(layout){
     var rows = root.store.currentRows.map(createSolicRowHtml);
-    var rowNodes = root.store.currentRows.map(createSolicRowNode);
     CPPrintLayout.appendTable(layout, {
       columns: root.COLUMNS,
       rows: rows,
@@ -168,6 +173,7 @@
 
     var renderedRows = layout.root.querySelectorAll('tbody tr').length;
     if (rows.length && renderedRows !== rows.length) {
+      var rowNodes = root.store.currentRows.map(createSolicRowNode);
       legacyPaginate(layout.root, rowNodes, buildMetaText());
     }
 
