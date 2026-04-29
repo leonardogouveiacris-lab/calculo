@@ -4063,7 +4063,8 @@
 
 
   function ensureLaunchImportFeedbackNode(){
-    if (root.__cpLaunchImportFeedbackNode && root.__cpLaunchImportFeedbackNode.isConnected) return root.__cpLaunchImportFeedbackNode;
+    const feedbackScope = reportRoot || document.body;
+    if (feedbackScope.__cpLaunchImportFeedbackNode && feedbackScope.__cpLaunchImportFeedbackNode.isConnected) return feedbackScope.__cpLaunchImportFeedbackNode;
     const node = document.createElement('div');
     node.id = 'cpLaunchImportFeedback';
     node.style.margin = '8px 0';
@@ -4074,8 +4075,9 @@
     node.style.fontSize = '12px';
     node.style.color = '#334155';
     const host = $('lancamentosContainer') || document.body;
-    host.parentNode.insertBefore(node, host);
-    root.__cpLaunchImportFeedbackNode = node;
+    if (host && host.parentNode) host.parentNode.insertBefore(node, host);
+    else document.body.appendChild(node);
+    feedbackScope.__cpLaunchImportFeedbackNode = node;
     return node;
   }
 
