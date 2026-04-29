@@ -635,7 +635,7 @@
   }
 
   function parseCsvCompetenciaToMonthKey(value){
-    const raw = String(value || '').trim();
+    const raw = String(value || '').replace(/^\ufeff/, '').trim();
     if (!raw) return { monthKey: '', error: 'competência vazia' };
     let match = raw.match(/^(\d{2})-(\d{4})$/);
     if (match) {
@@ -649,7 +649,10 @@
     }
     match = raw.match(/^([a-zç]{3})\/(\d{2})$/i);
     if (match) {
-      const monthAlias = String(match[1] || '').toLowerCase();
+      const monthAliasRaw = String(match[1] || '').toLowerCase();
+      const monthAlias = typeof monthAliasRaw.normalize === 'function'
+        ? monthAliasRaw.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        : monthAliasRaw;
       const monthMap = { jan:'01', fev:'02', mar:'03', abr:'04', mai:'05', jun:'06', jul:'07', ago:'08', set:'09', out:'10', nov:'11', dez:'12' };
       const month = monthMap[monthAlias];
       if (!month || !isValidMonthNumber(month)) return { monthKey: '', error: 'mês textual inválido "' + monthAlias + '"' };
@@ -4086,8 +4089,20 @@
     setLaunchImportFeedback('Arquivo: ' + (file.name || 'arquivo_sem_nome.csv'));
     const reader = new FileReader();
     reader.onload = function(){
+      const debugInfo = {
+        fileName: file && file.name ? file.name : 'arquivo_sem_nome.csv',
+        rawHeader: [],
+        normalizedHeader: [],
+        detectedLayout: 'indefinido',
+        totalRowsRead: 0,
+        updatedCells: 0,
+        ignoredColumns: [],
+        ignoredRowsInvalidCompetencia: 0,
+        ignoredRowsCompetenciaNotFound: 0
+      };
       try {
         const rows = parseCsvRows(String(reader.result || ''));
+        debugInfo.totalRowsRead = Math.max(0, rows.length - 1);
         if (rows.length < 2) throw new Error('Arquivo CSV vazio.');
         const activeIndex = resolveActiveLaunchIndex(launchIndex);
         const activeLaunch = activeIndex >= 0 ? state.lancamentos[activeIndex] : null;
@@ -4095,11 +4110,13 @@
         normalizeLaunch(activeLaunch);
         const rawHeader = rows[0].map(function(cell){ return String(cell || ''); });
         const normalizedHeader = rawHeader.map(function(cell){ return normalizeCsvHeaderCell(cell); });
-        const fileName = file && file.name ? file.name : 'arquivo_sem_nome.csv';
+        debugInfo.rawHeader = rawHeader.slice();
+        debugInfo.normalizedHeader = normalizedHeader.slice();
+        const fileName = debugInfo.fileName;
         const firstHeaderLineDetected = rawHeader.join(' | ');
-        const previewMessage = 'Pré-validação do CSV. Arquivo: ' + fileName + '. Cabeçalho detectado: ' + firstHeaderLineDetected;
-        console.info('[CSV Launch Import Preview]', previewMessage);
-        alert(previewMessage);
+        console.info('[CSV Launch Import] arquivo:', fileName);
+        console.info('[CSV Launch Import] cabeçalho bruto:', rawHeader);
+        console.info('[CSV Launch Import] cabeçalho normalizado:', normalizedHeader);
         setLaunchImportFeedback('Arquivo: ' + fileName + ' | Cabeçalho detectado: ' + firstHeaderLineDetected);
         const describeLayoutError = function(baseMessage, layout){
           const firstThreeColumns = rawHeader.slice(0, 3).map(function(cell){ return String(cell || '').trim() || '(vazio)'; });
@@ -4114,6 +4131,8 @@
         const firstColumnHeader = normalizedHeader.length ? normalizedHeader[0] : '';
         const isNewLayout = firstColumnHeader === 'competencia' || firstColumnHeader === 'periodo';
         const detectedLayout = isNewLayout ? 'novo' : (isLegacyLayout ? 'legado' : 'indefinido');
+        debugInfo.detectedLayout = detectedLayout;
+        console.info('[CSV Launch Import] layout detectado:', detectedLayout);
         if (firstColumnHeader === 'lancamento_id') {
           throw new Error(describeLayoutError('Este é o layout antigo; use o modelo Competência + colunas manuais.', 'legado'));
         }
@@ -4138,9 +4157,12 @@
           const key = normalizedHeader[i];
           if (!key) {
             mappedColumns.push(null);
+            debugInfo.ignoredColumns.push('(vazia na posição ' + String(i + 1) + ')');
             continue;
           }
-          mappedColumns.push(manualByName.get(key) || manualById.get(key) || null);
+          const mapped = manualByName.get(key) || manualById.get(key) || null;
+          if (!mapped) debugInfo.ignoredColumns.push(rawHeader[i] || key);
+          mappedColumns.push(mapped);
         }
         if (!mappedColumns.some(Boolean)) {
           throw new Error(describeLayoutError('Cabeçalho inválido: nenhuma coluna manual conhecida foi identificada.', detectedLayout));
@@ -4182,14 +4204,20 @@
         });
         recalculateLaunch(activeLaunch);
         if (!updatedCells) throw new Error('Nenhum valor foi atualizado. Revise o conteúdo do CSV.');
+        debugInfo.updatedCells = updatedCells;
+        debugInfo.ignoredRowsInvalidCompetencia = ignoredRowsMissingCompetencia;
+        debugInfo.ignoredRowsCompetenciaNotFound = ignoredRowsCompetenciaNotFound;
         persistAndRefresh();
         const invalidCompetenciaMessage = invalidCompetenciaDetails.length
           ? (' Detalhes das competências inválidas: ' + invalidCompetenciaDetails.join('; ') + '.')
           : '';
         setLaunchImportFeedback('Importação concluída para arquivo: ' + fileName + '. Cabeçalho detectado: ' + firstHeaderLineDetected);
-        alert('Importação concluída: ' + String(updatedCells) + ' célula(s) atualizada(s) em ' + String(updatedRows) + ' competência(s). Ignoradas: ' + String(ignoredRowsMissingCompetencia) + ' linha(s) com competência inválida e ' + String(ignoredRowsCompetenciaNotFound) + ' competência(s) não encontrada(s) na verba ativa.' + invalidCompetenciaMessage);
+        alert('Importação concluída: ' + String(updatedCells) + ' célula(s) atualizada(s) em ' + String(updatedRows) + ' competência(s). Colunas ignoradas: ' + String(debugInfo.ignoredColumns.length) + '. Ignoradas: ' + String(ignoredRowsMissingCompetencia) + ' linha(s) com competência inválida e ' + String(ignoredRowsCompetenciaNotFound) + ' competência(s) não encontrada(s) na verba ativa.' + invalidCompetenciaMessage);
+        console.info('[CSV Launch Import] resumo:', debugInfo);
       } catch (error) {
-        alert('Não foi possível importar o arquivo CSV informado. ' + String(error && error.message || ''));
+        console.error('[CSV Launch Import] falha:', error && error.stack ? error.stack : error);
+        console.info('[CSV Launch Import] diagnóstico:', debugInfo);
+        alert('Não foi possível importar o arquivo CSV informado. Causa: ' + String(error && error.message || 'erro desconhecido') + '. Consulte o painel de debug para detalhes.');
       }
     };
     reader.onerror = function(){
@@ -4199,12 +4227,14 @@
   }
 
   function normalizeCsvHeaderCell(value){
-    return String(value || '')
+    const base = String(value || '')
       .replace(/^\ufeff/, '')
       .trim()
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
+      .toLowerCase();
+    const normalized = typeof base.normalize === 'function'
+      ? base.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      : base;
+    return normalized;
   }
 
   
@@ -4222,9 +4252,14 @@
     setLaunchImportFeedback('Arquivo: ' + (file.name || 'arquivo_sem_nome.csv'));
     const reader = new FileReader();
     reader.onload = function(){
-      const rawContent = String(reader.result || '');
-      debugLaunchCsvImportFlow(file, rawContent, handlerPath || 'handleLaunchCsvFileSelection > importLaunchesFromCsv');
-      importLaunchesFromCsv(file, resolveActiveLaunchIndex(launchIndex));
+      try {
+        const rawContent = String(reader.result || '');
+        debugLaunchCsvImportFlow(file, rawContent, handlerPath || 'handleLaunchCsvFileSelection > importLaunchesFromCsv');
+        importLaunchesFromCsv(file, resolveActiveLaunchIndex(launchIndex));
+      } catch (error) {
+        console.error('[CSV Launch Import] falha no pré-processamento:', error && error.stack ? error.stack : error);
+        alert('Falha ao iniciar a importação do CSV. Causa: ' + String(error && error.message || 'erro desconhecido') + '.');
+      }
     };
     reader.onerror = function(){
       alert('Falha ao ler o arquivo CSV selecionado para debug de importação.');
