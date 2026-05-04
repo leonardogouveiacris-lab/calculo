@@ -30,7 +30,19 @@
   const PRINT_TITLE = 'Relatório - Apuração de Ponto';
 
   const WIDE_EDITOR_THRESHOLD = 10;
-  const RUBRICAS = ['trabalhadas','extras50','extras100','noturnas','noturnasReduzidas','atrasos','faltas','dsr','feriados','adicionalNoturno'];
+
+  const RUBRICAS_META = [
+    { id:'RB-TRAB', key:'trabalhadas', label:'Horas Trabalhadas' },
+    { id:'RB-HE50', key:'extras50', label:'HE 50%' },
+    { id:'RB-HE100', key:'extras100', label:'HE 100%' },
+    { id:'RB-NOT', key:'noturnas', label:'Horas Noturnas' },
+    { id:'RB-NOTRED', key:'noturnasReduzidas', label:'Hora Noturna Reduzida' },
+    { id:'RB-ATR', key:'atrasos', label:'Atrasos' },
+    { id:'RB-FAL', key:'faltas', label:'Faltas' },
+    { id:'RB-DSR', key:'dsr', label:'DSR' },
+    { id:'RB-FER', key:'feriados', label:'Feriados' },
+    { id:'RB-ADN', key:'adicionalNoturno', label:'Adicional Noturno' }
+  ];
   const DEFAULT_VISIBILITY = { horarios:true, textos:true, apuracoes:true };
   const DEFAULT_REPORT_OPTIONS = { anexarMemoriaResumida:false };
   const DEFAULT_CONFIG_APURACAO = {jornadaDiariaMin:480,jornadaSemanalMin:2640,escala:'5x2',escalaPersonalizada:'',toleranciaMarcacaoMin:5,janelaNoturnaInicio:'22:00',janelaNoturnaFim:'05:00',reducaoNoturnaFator:60/52.5,heDiasUteisPercentual:50,heDomingosFeriadosPercentual:100,bancoHorasAtivo:false,bancoHorasLimiteMin:0,dsrSobreHe:true,dsrConsideraFeriados:true};
@@ -293,10 +305,10 @@ function syncIdentificacao(){
   function renderMonthlySummary(){
     const host = $('monthlySummary');
     if (!state.monthOrder.length){ host.innerHTML = '<div style="padding:12px;color:#667085">Sem competências para resumir.</div>'; return; }
-    const head = `<tr><th>Competência</th>${RUBRICAS.map((r)=>`<th>${esc(r)}</th>`).join('')}</tr>`;
+    const head = `<tr><th>Competência</th>${RUBRICAS_META.map((r)=>`<th>${esc(r.id)} ${esc(r.label)}</th>`).join('')}</tr>`;
     const body = state.monthOrder.map((m)=>{
       const resultado = (state.calc && state.calc.meses && state.calc.meses[m]) || calcularCompetenciaEngine(m);
-      return `<tr><td>${monthLabel(m)}</td>${RUBRICAS.map((r)=>`<td>${esc(CPPontoCalcUtils.formatMinutes(resultado.rubricas[r] || 0))}</td>`).join('')}</tr>`;
+      return `<tr><td>${monthLabel(m)}</td>${RUBRICAS_META.map((r)=>`<td>${esc(CPPontoCalcUtils.formatMinutes(resultado.rubricas[r.key] || 0))}</td>`).join('')}</tr>`;
     }).join('');
     host.innerHTML = `<table class="editor-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
   }
@@ -348,6 +360,7 @@ function buildReportMeta(){
     });
   }
 
+
   function renderReport(){
     const root = $('reportRoot');
     if (!state.monthOrder.length){ root.innerHTML = ''; return; }
@@ -358,10 +371,9 @@ function buildReportMeta(){
 
     const cols = state.columns;
     const grouped = groupCols(cols);
-    const legendItems = cols
-      .filter(c=>c.type==='apuracao')
-      .map(c=>`<div><b>${state.prefixes[c.id] || c.name}</b> – ${esc(c.name)}</div>`)
-      .join('') || '<div>Sem colunas de apuração.</div>';
+    const rubricaPeriodTotals = Object.fromEntries(RUBRICAS_META.map((r)=>[r.key,0]));
+    let totalLiquidoDiferencas = 0;
+    const inconsistencyTotals = { missing:0, invalid:0, overlap:0 };
 
     const layout = window.CPPrintLayout.createLayout({
       root,
@@ -372,50 +384,64 @@ function buildReportMeta(){
       spacing: { safetyBottom: 10 }
     });
 
-    const tableCols = [
-      'Data',
-      'Sem.',
-      'Feriado',
-      'Justificativa',
-      ...grouped.horarios.map(c=>esc(c.name)),
-      ...grouped.textos.map(c=>esc(c.name)),
-      ...RUBRICAS.map((r)=>esc(r))
-    ];
-
     state.monthOrder.forEach((m)=>{
       const rows = state.months[m] || [];
+      const monthTotals = Object.fromEntries(RUBRICAS_META.map((r)=>[r.key,0]));
+      const apuradoByRubrica = Object.fromEntries(RUBRICAS_META.map((r)=>[r.key,0]));
+      const paidByRubrica = Object.fromEntries(RUBRICAS_META.map((r)=>[r.key,0]));
+
       const rowHtml = rows.map(r=>{
         const diaCalc = calcularDiaEngine(cols,r);
-        const infoFeriado = getHolidayInfo(findValueByType(cols,r,'data'));
-        const justificativa = infoFeriado.feriado ? 'HE 100% e sem atraso/falta por feriado.' : '';
-        const values = [
-          findValueByType(cols,r,'data'),
-          findValueByType(cols,r,'dia'),
-          infoFeriado.feriado ? infoFeriado.nome : '—',
-          justificativa,
-          ...grouped.horarios.map(c=>formatCell(c,r[c.id]||'')),
-          ...grouped.textos.map(c=>formatCell(c,r[c.id]||'')),
-          ...RUBRICAS.map((rubrica)=>CPPontoCalcUtils.formatMinutes(diaCalc.rubricas[rubrica] || 0))
-        ];
-        return `<tr>${values.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`;
+        const inconsist = detectRowInconsistencies(r, grouped.horarios);
+        if (inconsist.missing) inconsistencyTotals.missing += 1;
+        if (inconsist.invalid) inconsistencyTotals.invalid += 1;
+        if (inconsist.overlap) inconsistencyTotals.overlap += 1;
+        RUBRICAS_META.forEach((meta)=>{
+          const val = diaCalc.rubricas[meta.key] || 0;
+          monthTotals[meta.key] += val;
+          rubricaPeriodTotals[meta.key] += val;
+        });
+        return `<tr><td>${esc(findValueByType(cols,r,'data'))}</td><td>${esc(findValueByType(cols,r,'dia'))}</td>${RUBRICAS_META.map((meta)=>`<td>${CPPontoCalcUtils.formatMinutes(diaCalc.rubricas[meta.key]||0)}</td>`).join('')}</tr>`;
+      });
+
+      RUBRICAS_META.forEach((meta)=>{
+        apuradoByRubrica[meta.key] = monthTotals[meta.key] || 0;
+        paidByRubrica[meta.key] = CPPontoCalcUtils.parseDurationToMinutes(getPaidValue(m, meta.key)) || 0;
+        totalLiquidoDiferencas += (apuradoByRubrica[meta.key] - paidByRubrica[meta.key]);
+      });
+
+      const quadroRows = RUBRICAS_META.map((meta)=>{
+        const ap = apuradoByRubrica[meta.key] || 0;
+        const pg = paidByRubrica[meta.key] || 0;
+        const df = ap - pg;
+        return `<tr><td>${esc(meta.id)}</td><td>${esc(meta.label)}</td><td>${CPPontoCalcUtils.formatMinutes(ap)}</td><td>${CPPontoCalcUtils.formatMinutes(pg)}</td><td>${CPPontoCalcUtils.formatMinutes(df)}</td></tr>`;
       });
 
       const memoriaResumoHtml = state.reportOptions && state.reportOptions.anexarMemoriaResumida ? buildMemoriaResumoCompetenciaHtml(m) : '';
       window.CPPrintLayout.appendSection(layout, {
-        html: `<h2 class="report-title">Relatório Analítico de Apuração de Ponto — ${monthLabel(m)}</h2>
-          <div class="report-meta"><b>Autor:</b> ${esc(fields.autor.value || '—')} · <b>Réu:</b> ${esc(fields.reu.value || '—')} · <b>Processo:</b> ${esc(fields.processo.value || '—')}<br><b>Vara:</b> ${esc(fields.vara.value || '—')} · <b>Município:</b> ${esc(fields.municipio.value || '—')} · <b>Período:</b> ${esc(fields.periodoInicial.value||'—')} a ${esc(fields.periodoFinal.value||'—')}</div>
-          <div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div><div class="legend"><div><b>Critérios Utilizados</b></div><div>${buildCriteriosUtilizadosHtml()}</div></div>${memoriaResumoHtml}`
+        html: `<div class="legend" style="break-inside:avoid;page-break-inside:avoid"><div><b>Identificação</b></div><div><b>Autor:</b> ${esc(fields.autor.value || '—')} · <b>Réu:</b> ${esc(fields.reu.value || '—')} · <b>Processo:</b> ${esc(fields.processo.value || '—')}<br><b>Vara:</b> ${esc(fields.vara.value || '—')} · <b>Município:</b> ${esc(fields.municipio.value || '—')} · <b>Período:</b> ${esc(fields.periodoInicial.value||'—')} a ${esc(fields.periodoFinal.value||'—')}</div></div>
+        <div class="legend" style="break-inside:avoid;page-break-inside:avoid"><div><b>Premissas/critério de cálculo</b></div><div>${buildCriteriosUtilizadosHtml()}</div></div>
+        <div class="legend" style="break-inside:avoid;page-break-inside:avoid"><div><b>Quadro mensal por rubrica — ${monthLabel(m)}</b></div><table class="report-table"><thead><tr><th>Código</th><th>Rubrica</th><th>Apurado</th><th>Pago</th><th>Diferença</th></tr></thead><tbody>${quadroRows.join('')}</tbody></table></div>
+        ${memoriaResumoHtml}`
       });
 
       window.CPPrintLayout.appendTable(layout, {
-        title: `Competência ${monthLabel(m)}`,
-        continuationLabel: `Competência ${monthLabel(m)} (continuação)`,
-        columns: tableCols,
+        title: `Apuração diária da competência ${monthLabel(m)}`,
+        continuationLabel: `Apuração diária da competência ${monthLabel(m)} (continuação)`,
+        columns: ['Data','Sem.',...RUBRICAS_META.map((r)=>`${r.id} ${r.label}`)],
         rows: rowHtml,
         tableClass: 'report-table point-report-table'
       });
+    });
 
-      window.CPPrintLayout.appendSection(layout, { html: '<div style="height:2mm"></div>' });
+    const consolidacaoRows = RUBRICAS_META.map((meta)=>`<tr><td>${esc(meta.id)}</td><td>${esc(meta.label)}</td><td>${CPPontoCalcUtils.formatMinutes(rubricaPeriodTotals[meta.key]||0)}</td></tr>`).join('');
+    const inconsistenciasHtml = `<ul><li>Marcação faltante: ${inconsistencyTotals.missing} dia(s).</li><li>Jornada inválida: ${inconsistencyTotals.invalid} dia(s).</li><li>Sobreposição de horários: ${inconsistencyTotals.overlap} dia(s).</li></ul>`;
+
+    window.CPPrintLayout.appendSection(layout, {
+      html: `<div class="legend" style="break-inside:avoid;page-break-inside:avoid"><div><b>Consolidação do período</b></div>
+      <table class="report-table"><thead><tr><th>Código</th><th>Rubrica</th><th>Total do período</th></tr></thead><tbody>${consolidacaoRows}</tbody></table>
+      <div><b>Total líquido de diferenças:</b> ${CPPontoCalcUtils.formatMinutes(totalLiquidoDiferencas)}</div>
+      <div><b>Notas automáticas de inconsistências</b>${inconsistenciasHtml}</div></div>`
     });
 
     const pages = Array.from(root.querySelectorAll('.page'));
@@ -425,6 +451,27 @@ function buildReportMeta(){
       right.innerHTML = `<div>${esc(REPORT_FOOTER.emp)}</div><div>Página ${index + 1} de ${pages.length}</div>`;
     });
   }
+
+  function detectRowInconsistencies(row, horariosCols){
+    const pairs = [];
+    for (let i=0;i<horariosCols.length;i+=2){
+      const ini = CPPontoCalcUtils.parseTimeToMinutes(row[horariosCols[i]?.id] || '');
+      const fim = CPPontoCalcUtils.parseTimeToMinutes(row[horariosCols[i+1]?.id] || '');
+      if (ini==null && fim==null) continue;
+      pairs.push([ini, fim]);
+    }
+    let missing = false, invalid = false, overlap = false;
+    const ranges = [];
+    pairs.forEach(([ini,fim])=>{
+      if (ini==null || fim==null) { missing = true; return; }
+      if (fim <= ini) { invalid = true; return; }
+      ranges.push([ini,fim]);
+    });
+    ranges.sort((a,b)=>a[0]-b[0]);
+    for (let i=1;i<ranges.length;i++) if (ranges[i][0] < ranges[i-1][1]) overlap = true;
+    return { missing, invalid, overlap };
+  }
+
 
   function findValueByType(cols, row, type){ const c = cols.find(x=>x.type===type); return c ? (row[c.id]||'') : ''; }
   function formatCell(col,val){ return (col.type==='entrada'||col.type==='saida') ? CPPontoCalcUtils.maskTime(val) : val; }
