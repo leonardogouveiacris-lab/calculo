@@ -31,7 +31,8 @@
   const WIDE_EDITOR_THRESHOLD = 10;
   const RUBRICAS = ['trabalhadas','extras50','extras100','noturnas','noturnasReduzidas','atrasos','faltas','dsr','feriados','adicionalNoturno'];
   const DEFAULT_VISIBILITY = { horarios:true, textos:true, apuracoes:true };
-  let state = { identificacao:{}, columns:[], monthOrder:[], months:{}, activeMonth:'', imported:false, prefixes:{}, visibility:Object.assign({}, DEFAULT_VISIBILITY), feriados:window.CPPontoFeriados || [] };
+  const DEFAULT_CONFIG_APURACAO = {jornadaDiariaMin:480,jornadaSemanalMin:2640,escala:'5x2',escalaPersonalizada:'',toleranciaMarcacaoMin:5,janelaNoturnaInicio:'22:00',janelaNoturnaFim:'05:00',reducaoNoturnaFator:60/52.5,heDiasUteisPercentual:50,heDomingosFeriadosPercentual:100,bancoHorasAtivo:false,bancoHorasLimiteMin:0,dsrSobreHe:true,dsrConsideraFeriados:true};
+  let state = { identificacao:{}, configApuracao:Object.assign({}, DEFAULT_CONFIG_APURACAO), columns:[], monthOrder:[], months:{}, activeMonth:'', imported:false, prefixes:{}, visibility:Object.assign({}, DEFAULT_VISIBILITY), feriados:window.CPPontoFeriados || [] };
 
   function init(){
     bindTabs(); bindActions(); load(); renderAll();
@@ -67,9 +68,31 @@
       save(); renderMonthlySummary();
     });
     Object.values(fields).forEach(el=>el && el.addEventListener('input', ()=>{ syncIdentificacao(); save(); renderReport(); }));
+    bindConfigApuracao();
   }
 
-  function syncIdentificacao(){
+  
+
+  function bindConfigApuracao(){
+    ['jornadaDiaria','jornadaSemanal','escala','escalaPersonalizada','toleranciaMarcacao','janelaNoturnaInicio','janelaNoturnaFim','reducaoNoturnaMinutos','heDiasUteis','heDomingosFeriados','bancoHorasAtivo','bancoHorasLimite','dsrSobreHe','dsrConsideraFeriados'].forEach((id)=>{ const el=$(id); if(!el) return; el.addEventListener('input', saveConfigApuracaoFromUi); el.addEventListener('change', saveConfigApuracaoFromUi); });
+  }
+  function parseHmToMinutes(v){ const m=String(v||'').trim().match(/^(\d{1,2}):(\d{2})$/); if(!m) return null; const h=Number(m[1]), mm=Number(m[2]); if(h>23||mm>59) return null; return h*60+mm; }
+  function saveConfigApuracaoFromUi(){ const p=parseConfigApuracaoFromUi(); if(!p.ok) return; state.configApuracao=p.config; save(); renderMonthlySummary(); renderReport(); }
+  function parseConfigApuracaoFromUi(){
+    const e=[];
+    const jornadaDiariaMin=CPPontoCalcUtils.parseDurationToMinutes($('jornadaDiaria').value);
+    const jornadaSemanalMin=CPPontoCalcUtils.parseDurationToMinutes($('jornadaSemanal').value);
+    const toleranciaMarcacaoMin=Number($('toleranciaMarcacao').value||0);
+    const reducaoNoturnaMinutos=Number($('reducaoNoturnaMinutos').value||52.5);
+    const escala=$('escala').value;
+    if(!jornadaDiariaMin) e.push('Informe jornada diária válida (HH:MM).'); if(!jornadaSemanalMin) e.push('Informe jornada semanal válida (HH:MM).');
+    if(toleranciaMarcacaoMin<0) e.push('Tolerância inválida.'); if(!parseHmToMinutes($('janelaNoturnaInicio').value)||!parseHmToMinutes($('janelaNoturnaFim').value)) e.push('Janela noturna inválida.');
+    if(reducaoNoturnaMinutos<=0) e.push('Redução da hora noturna inválida.'); if(escala==='personalizada' && !$('escalaPersonalizada').value.trim()) e.push('Descreva a escala personalizada.');
+    $('configApuracaoErrors').innerHTML=e.length?`<div class="hint" style="color:#b42318">${e.join('<br>')}</div>`:'';
+    return { ok:!e.length, config:{ jornadaDiariaMin,jornadaSemanalMin,escala,escalaPersonalizada:$('escalaPersonalizada').value.trim(),toleranciaMarcacaoMin,janelaNoturnaInicio:$('janelaNoturnaInicio').value,janelaNoturnaFim:$('janelaNoturnaFim').value,reducaoNoturnaFator:60/reducaoNoturnaMinutos,heDiasUteisPercentual:Number($('heDiasUteis').value||50),heDomingosFeriadosPercentual:Number($('heDomingosFeriados').value||100),bancoHorasAtivo:!!$('bancoHorasAtivo').checked,bancoHorasLimiteMin:CPPontoCalcUtils.parseDurationToMinutes($('bancoHorasLimite').value||'00:00')||0,dsrSobreHe:!!$('dsrSobreHe').checked,dsrConsideraFeriados:!!$('dsrConsideraFeriados').checked } };
+  }
+  function hydrateConfigApuracao(){ const c=Object.assign({},DEFAULT_CONFIG_APURACAO,state.configApuracao||{}); state.configApuracao=c; $('jornadaDiaria').value=CPPontoCalcUtils.formatMinutes(c.jornadaDiariaMin||0); $('jornadaSemanal').value=CPPontoCalcUtils.formatMinutes(c.jornadaSemanalMin||0); $('escala').value=c.escala||'5x2'; $('escalaPersonalizada').value=c.escalaPersonalizada||''; $('toleranciaMarcacao').value=c.toleranciaMarcacaoMin??5; $('janelaNoturnaInicio').value=c.janelaNoturnaInicio||'22:00'; $('janelaNoturnaFim').value=c.janelaNoturnaFim||'05:00'; $('reducaoNoturnaMinutos').value=(60/(c.reducaoNoturnaFator||(60/52.5))).toFixed(2); $('heDiasUteis').value=c.heDiasUteisPercentual??50; $('heDomingosFeriados').value=c.heDomingosFeriadosPercentual??100; $('bancoHorasAtivo').checked=!!c.bancoHorasAtivo; $('bancoHorasLimite').value=CPPontoCalcUtils.formatMinutes(c.bancoHorasLimiteMin||0); $('dsrSobreHe').checked=!!c.dsrSobreHe; $('dsrConsideraFeriados').checked=!!c.dsrConsideraFeriados; }
+function syncIdentificacao(){
     state.identificacao = {
       autor:fields.autor.value.trim(), reu:fields.reu.value.trim(), processo:fields.processo.value.trim(), vara:fields.vara.value.trim(),
       municipio:fields.municipio.value.trim(), periodoInicial:fields.periodoInicial.value, periodoFinal:fields.periodoFinal.value, obsGerais:fields.obsGerais.value.trim()
@@ -300,7 +323,7 @@ function buildReportMeta(){
         .join('') || '<div>Sem colunas de apuração.</div>';
       CPPrintLayout.appendSection(layout, {
         title: `Relatório Analítico de Apuração de Ponto — ${monthLabel(m)}`,
-        html: `<div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div>`
+        html: `<div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div><div class="legend"><div><b>Critérios Utilizados</b></div><div>${buildCriteriosUtilizadosHtml()}</div></div>`
       });
       CPPrintLayout.appendTable(layout, {
         columns: reportTableColumns(grouped),
@@ -359,7 +382,7 @@ function buildReportMeta(){
       window.CPPrintLayout.appendSection(layout, {
         html: `<h2 class="report-title">Relatório Analítico de Apuração de Ponto — ${monthLabel(m)}</h2>
           <div class="report-meta"><b>Autor:</b> ${esc(fields.autor.value || '—')} · <b>Réu:</b> ${esc(fields.reu.value || '—')} · <b>Processo:</b> ${esc(fields.processo.value || '—')}<br><b>Vara:</b> ${esc(fields.vara.value || '—')} · <b>Município:</b> ${esc(fields.municipio.value || '—')} · <b>Período:</b> ${esc(fields.periodoInicial.value||'—')} a ${esc(fields.periodoFinal.value||'—')}</div>
-          <div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div>`
+          <div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div><div class="legend"><div><b>Critérios Utilizados</b></div><div>${buildCriteriosUtilizadosHtml()}</div></div>`
       });
 
       window.CPPrintLayout.appendTable(layout, {
@@ -439,16 +462,18 @@ function buildReportMeta(){
     function calcularDiaEngine(cols, row){
     const horarios = cols.filter((c)=>c.type==='entrada'||c.type==='saida').map((c)=>row[c.id] || '');
     const dia = { data: parseDateFlexible(findValueByType(cols,row,'data')) || '', diaSemana: findValueByType(cols,row,'dia'), entradasSaidas: horarios, ocorrencias: [findValueByType(cols,row,'ocorrencia')], flags:{} };
-    return window.CPPontoCalcEngine.calcularDia(dia, {}, { isFeriado:(iso)=> isHoliday(iso) });
+    return window.CPPontoCalcEngine.calcularDia(dia, state.configApuracao || {}, { isFeriado:(iso)=> isHoliday(iso) });
   }
 
   function calcularCompetenciaEngine(monthKey){
     const rows = state.months[monthKey] || [];
     const registros = rows.map((row)=>calcularDiaEngine(state.columns, row).entradaNormalizada);
-    return window.CPPontoCalcEngine.calcularMes(registros, {}, { isFeriado:(iso)=> isHoliday(iso) });
+    return window.CPPontoCalcEngine.calcularMes(registros, state.configApuracao || {}, { isFeriado:(iso)=> isHoliday(iso) });
   }
 
-  function isHoliday(iso){
+  function buildCriteriosUtilizadosHtml(){ const c=Object.assign({},DEFAULT_CONFIG_APURACAO,state.configApuracao||{}); return [`Jornada diária: ${CPPontoCalcUtils.formatMinutes(c.jornadaDiariaMin)} | semanal: ${CPPontoCalcUtils.formatMinutes(c.jornadaSemanalMin)}`,`Escala: ${esc(c.escala)}${c.escala==='personalizada'?` (${esc(c.escalaPersonalizada||'—')})`:''}`,`Tolerância marcação: ${c.toleranciaMarcacaoMin} min`,`Noturno: ${esc(c.janelaNoturnaInicio)} às ${esc(c.janelaNoturnaFim)} | hora reduzida: ${(60/(c.reducaoNoturnaFator||1)).toFixed(2)} min`,`HE: ${c.heDiasUteisPercentual}% / ${c.heDomingosFeriadosPercentual}%`,`Banco de horas: ${c.bancoHorasAtivo?`ativo (limite ${CPPontoCalcUtils.formatMinutes(c.bancoHorasLimiteMin||0)})`:'inativo'}`,`DSR sobre HE: ${c.dsrSobreHe?'sim':'não'} | DSR considera feriados: ${c.dsrConsideraFeriados?'sim':'não'}`].map((t)=>`<div>${t}</div>`).join(''); }
+
+function isHoliday(iso){
     const list = Array.isArray(state.feriados) ? state.feriados : [];
     return list.some((f)=>f && (f.data===iso || f.date===iso));
   }
@@ -495,7 +520,7 @@ function monthLabel(key){ const [y,m] = key.split('-').map(Number); return `${MO
   function esc(v){ return String(v||'').replace(/[&<>\"]/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s])); }
   function downloadFile(name, content, type){ const b = new Blob([content], { type }); const u = URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(u),1000); }
   function save(){ try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(_){} }
-  function load(){ try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) state = Object.assign(state, JSON.parse(raw)); } catch(_){} state.visibility = Object.assign({}, DEFAULT_VISIBILITY, state.visibility || {}); hydrateIdentificacao(); recalcPrefixes(); }
+  function load(){ try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) state = Object.assign(state, JSON.parse(raw)); } catch(_){} state.visibility = Object.assign({}, DEFAULT_VISIBILITY, state.visibility || {}); hydrateIdentificacao(); hydrateConfigApuracao(); recalcPrefixes(); }
 
   init();
 })();

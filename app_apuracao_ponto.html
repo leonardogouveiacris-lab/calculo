@@ -5,7 +5,7 @@ a{color:var(--link);text-decoration:none}.topbar{position:sticky;top:0;z-index:5
 .btn,button{appearance:none;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--border);background:#fff;border-radius:12px;padding:10px 12px;font-size:13px;cursor:pointer;color:var(--ink)}.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}.hintbar{border-top:1px solid var(--border);background:rgba(255,255,255,.58)}.hintbar-inner{max-width:1120px;margin:0 auto;padding:10px 16px}.hint{font-size:12px;color:var(--muted)}
 .wrap{max-width:1120px;margin:0 auto;padding:18px 16px 64px}.tabs-head{display:flex;flex-direction:column;gap:4px;text-align:center;align-items:center;margin:10px 0 14px}.tabs-title{font-size:18px;font-weight:700}.tabs-sub{font-size:14px;color:var(--muted)}.tabs-shell{max-width:880px;margin:16px auto 22px;display:flex;justify-content:center}.tabs{display:flex;justify-content:center;align-items:center;gap:10px}.tab{display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 16px;line-height:1.2;font-weight:600;text-align:center;border:1px solid var(--border);background:rgba(255,255,255,.82);border-radius:999px;font-size:13px;cursor:pointer}.tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
 .tabpane{display:none}.tabpane.active{display:block}.grid{display:grid;grid-template-columns:minmax(0,880px);justify-content:center;gap:24px;margin-bottom:6px}.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 16px 14px;box-shadow:var(--shadow-soft)}.card h2{margin:0 0 8px;font-size:15px;font-weight:600;padding-bottom:10px;border-bottom:1px solid var(--border)}.card-sub{margin:10px 0;font-size:12px;color:var(--muted)}
-.row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}.col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-12{grid-column:span 12}label{display:block;font-size:12px;color:var(--muted);margin:12px 0 6px}input[type="text"],input[type="date"],textarea{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px}textarea{min-height:82px}
+.row{display:grid;grid-template-columns:repeat(12,1fr);gap:10px}.col-3{grid-column:span 3}.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-12{grid-column:span 12}label{display:block;font-size:12px;color:var(--muted);margin:12px 0 6px}input[type="text"],input[type="date"],input[type="number"],select,textarea{width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px}textarea{min-height:82px}
 .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.timeline{display:flex;gap:8px;overflow:auto;padding:4px 2px 8px}.timeline button{border-radius:999px;white-space:nowrap;padding:8px 12px;font-size:12px}.timeline button.active{background:#111827;color:#fff;border-color:#111827}
 .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:16px;background:#fff}
 .editor-actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--soft-2);font-size:12px}
@@ -66,6 +66,25 @@ a{color:var(--link);text-decoration:none}.topbar{position:sticky;top:0;z-index:5
       <input id="inputImportJson" type="file" accept=".json,application/json" style="display:none">
     </div>
   </section></section>
+  
+  <section class="grid"><section class="card"><h2>Parâmetros de Apuração</h2><div class="card-sub">Configurações contratuais e critérios aplicados no engine de apuração.</div>
+    <div class="row">
+      <div class="col-3"><label for="jornadaDiaria">Jornada diária (HH:MM)</label><input id="jornadaDiaria" type="text" value="08:00"></div>
+      <div class="col-3"><label for="jornadaSemanal">Jornada semanal (HH:MM)</label><input id="jornadaSemanal" type="text" value="44:00"></div>
+      <div class="col-3"><label for="escala">Escala</label><select id="escala"><option value="5x2">5x2</option><option value="6x1">6x1</option><option value="12x36">12x36</option><option value="personalizada">Personalizada</option></select></div>
+      <div class="col-3"><label for="escalaPersonalizada">Escala personalizada</label><input id="escalaPersonalizada" type="text" placeholder="Ex.: 4x2 revezamento"></div>
+      <div class="col-3"><label for="toleranciaMarcacao">Tolerância (min)</label><input id="toleranciaMarcacao" type="number" min="0" step="1" value="5"></div>
+      <div class="col-3"><label for="janelaNoturnaInicio">Noturno início</label><input id="janelaNoturnaInicio" type="text" value="22:00"></div>
+      <div class="col-3"><label for="janelaNoturnaFim">Noturno fim</label><input id="janelaNoturnaFim" type="text" value="05:00"></div>
+      <div class="col-3"><label for="reducaoNoturnaMinutos">Hora noturna reduzida (min)</label><input id="reducaoNoturnaMinutos" type="number" min="1" step="0.01" value="52.5"></div>
+      <div class="col-3"><label for="heDiasUteis">HE dias úteis (%)</label><input id="heDiasUteis" type="number" value="50"></div>
+      <div class="col-3"><label for="heDomingosFeriados">HE domingos/feriados (%)</label><input id="heDomingosFeriados" type="number" value="100"></div>
+      <div class="col-3"><label><input id="bancoHorasAtivo" type="checkbox"> Banco de horas ativo</label><label for="bancoHorasLimite">Limite banco (HH:MM)</label><input id="bancoHorasLimite" type="text" value="00:00"></div>
+      <div class="col-3"><label><input id="dsrSobreHe" type="checkbox" checked> DSR sobre HE</label><label><input id="dsrConsideraFeriados" type="checkbox" checked> DSR considera feriados</label></div>
+      <div class="col-12" id="configApuracaoErrors"></div>
+    </div>
+  </section></section>
+
   <section class="grid"><section class="card"><h2>Lançamentos por competência</h2><div class="card-sub">Antes da importação, a grade mostra apenas Data e Dia. Após importar, a estrutura é reconstruída conforme o tipo de cada coluna do CSV.</div><div id="timeline" class="timeline"></div><div id="editorHost" class="table-wrap"></div></section></section>
   <section class="grid"><section class="card"><h2>Resumo mensal das apurações</h2><div class="card-sub">Soma automática por competência das colunas classificadas como apuração.</div><div class="summary-options"><label for="toggleDifferences"><input id="toggleDifferences" type="checkbox">Apurar diferenças</label></div><div id="monthlySummary" class="table-wrap"></div></section></section>
 </section>
