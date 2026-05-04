@@ -1,5 +1,6 @@
 (function(){
-  const STORAGE_KEY = 'cp_apuracao_ponto_v1';
+  const STORAGE_KEY_V1 = 'cp_apuracao_ponto_v1';
+  const STORAGE_KEY_V2 = 'cp_apuracao_ponto_v2';
   const $ = (id)=>document.getElementById(id);
   const fields = {
     autor:$('autor'), reu:$('reu'), processo:$('processo'), vara:$('vara'), municipio:$('municipio'),
@@ -32,7 +33,7 @@
   const RUBRICAS = ['trabalhadas','extras50','extras100','noturnas','noturnasReduzidas','atrasos','faltas','dsr','feriados','adicionalNoturno'];
   const DEFAULT_VISIBILITY = { horarios:true, textos:true, apuracoes:true };
   const DEFAULT_CONFIG_APURACAO = {jornadaDiariaMin:480,jornadaSemanalMin:2640,escala:'5x2',escalaPersonalizada:'',toleranciaMarcacaoMin:5,janelaNoturnaInicio:'22:00',janelaNoturnaFim:'05:00',reducaoNoturnaFator:60/52.5,heDiasUteisPercentual:50,heDomingosFeriadosPercentual:100,bancoHorasAtivo:false,bancoHorasLimiteMin:0,dsrSobreHe:true,dsrConsideraFeriados:true};
-  let state = { identificacao:{}, configApuracao:Object.assign({}, DEFAULT_CONFIG_APURACAO), columns:[], monthOrder:[], months:{}, activeMonth:'', imported:false, prefixes:{}, visibility:Object.assign({}, DEFAULT_VISIBILITY), feriados:window.CPPontoFeriados || [] };
+  let state = { identificacao:{}, configApuracao:Object.assign({}, DEFAULT_CONFIG_APURACAO), columns:[], monthOrder:[], months:{}, activeMonth:'', imported:false, prefixes:{}, visibility:Object.assign({}, DEFAULT_VISIBILITY), feriados:window.CPPontoFeriados || [], raw:{ months:{} }, calc:{ diasPorMes:{}, meses:{} }, storageVersion:2 };
 
   function init(){
     bindTabs(); bindActions(); load(); renderAll();
@@ -77,7 +78,7 @@
     ['jornadaDiaria','jornadaSemanal','escala','escalaPersonalizada','toleranciaMarcacao','janelaNoturnaInicio','janelaNoturnaFim','reducaoNoturnaMinutos','heDiasUteis','heDomingosFeriados','bancoHorasAtivo','bancoHorasLimite','dsrSobreHe','dsrConsideraFeriados'].forEach((id)=>{ const el=$(id); if(!el) return; el.addEventListener('input', saveConfigApuracaoFromUi); el.addEventListener('change', saveConfigApuracaoFromUi); });
   }
   function parseHmToMinutes(v){ const m=String(v||'').trim().match(/^(\d{1,2}):(\d{2})$/); if(!m) return null; const h=Number(m[1]), mm=Number(m[2]); if(h>23||mm>59) return null; return h*60+mm; }
-  function saveConfigApuracaoFromUi(){ const p=parseConfigApuracaoFromUi(); if(!p.ok) return; state.configApuracao=p.config; save(); renderMonthlySummary(); renderReport(); }
+  function saveConfigApuracaoFromUi(){ const p=parseConfigApuracaoFromUi(); if(!p.ok) return; state.configApuracao=p.config; recalcCalcCache(); save(); renderMonthlySummary(); renderReport(); }
   function parseConfigApuracaoFromUi(){
     const e=[];
     const jornadaDiariaMin=CPPontoCalcUtils.parseDurationToMinutes($('jornadaDiaria').value);
@@ -118,6 +119,8 @@ function syncIdentificacao(){
       state.months[monthKey].push({ data: formatDateBR(iso), dia: WEEKDAYS[d.getDay()] });
     }
     state.activeMonth = state.monthOrder[0] || '';
+    syncRawFromLegacyMonths();
+    recalcCalcCache();
     reconcilePaidByMonth();
     save(); renderAll();
   }
@@ -174,6 +177,8 @@ function syncIdentificacao(){
       months[mk].push(obj);
     });
     state.columns = cols; state.months = months; state.monthOrder = order.sort(); state.activeMonth = state.monthOrder[0] || ''; state.imported = true;
+    syncRawFromLegacyMonths();
+    recalcCalcCache();
     recalcPrefixes(); reconcilePaidByMonth(); save(); renderAll();
   }
 
@@ -230,6 +235,8 @@ function syncIdentificacao(){
         if (colType==='entrada' || colType==='saida'){ v = CPPontoCalcUtils.maskTime(v); e.target.value = v; }
         if (colType==='apuracao'){ e.target.value = state.months[month][idx][col] || ''; return; }
         state.months[month][idx][col] = v;
+        syncRawFromLegacyMonths();
+        recalcCalcCache();
         save(); renderMonthlySummary(); renderReport();
       });
     });
@@ -281,7 +288,7 @@ function syncIdentificacao(){
     if (!state.monthOrder.length){ host.innerHTML = '<div style="padding:12px;color:#667085">Sem competências para resumir.</div>'; return; }
     const head = `<tr><th>Competência</th>${RUBRICAS.map((r)=>`<th>${esc(r)}</th>`).join('')}</tr>`;
     const body = state.monthOrder.map((m)=>{
-      const resultado = calcularCompetenciaEngine(m);
+      const resultado = (state.calc && state.calc.meses && state.calc.meses[m]) || calcularCompetenciaEngine(m);
       return `<tr><td>${monthLabel(m)}</td>${RUBRICAS.map((r)=>`<td>${esc(CPPontoCalcUtils.formatMinutes(resultado.rubricas[r] || 0))}</td>`).join('')}</tr>`;
     }).join('');
     host.innerHTML = `<table class="editor-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
@@ -459,16 +466,45 @@ function buildReportMeta(){
     });
   }
 
-    function calcularDiaEngine(cols, row){
-    const horarios = cols.filter((c)=>c.type==='entrada'||c.type==='saida').map((c)=>row[c.id] || '');
-    const dia = { data: parseDateFlexible(findValueByType(cols,row,'data')) || '', diaSemana: findValueByType(cols,row,'dia'), entradasSaidas: horarios, ocorrencias: [findValueByType(cols,row,'ocorrencia')], flags:{} };
-    return window.CPPontoCalcEngine.calcularDia(dia, state.configApuracao || {}, { isFeriado:(iso)=> isHoliday(iso) });
+  function toRegistroPontoDia(cols, row){
+    const dataISO = parseDateFlexible(findValueByType(cols,row,'data')) || '';
+    const marcacoes = cols.filter((c)=>c.type==='entrada'||c.type==='saida').map((c)=>CPPontoCalcUtils.maskTime(row[c.id] || ''));
+    const ocorrencias = cols.filter((c)=>c.type==='ocorrencia').map((c)=>String(row[c.id] || '').trim()).filter(Boolean);
+    const observacao = cols.filter((c)=>c.type==='observacao'||c.type==='texto').map((c)=>String(row[c.id] || '').trim()).filter(Boolean).join(' | ');
+    return { dataISO, diaSemana: findValueByType(cols,row,'dia'), marcacoes, ocorrencias, observacao, metadados:{ origem:'csv-v1-adapter' } };
   }
 
+  function syncRawFromLegacyMonths(){
+    const rawMonths = {};
+    (state.monthOrder || []).forEach((monthKey)=>{
+      const rows = state.months[monthKey] || [];
+      rawMonths[monthKey] = rows.map((row)=>toRegistroPontoDia(state.columns, row));
+    });
+    state.raw = Object.assign({}, state.raw || {}, { months: rawMonths });
+  }
+
+  function calcularDiaEngineFromRegistro(registro){
+    const dia = { data: registro.dataISO || '', diaSemana: registro.diaSemana || '', entradasSaidas: Array.isArray(registro.marcacoes) ? registro.marcacoes : [], ocorrencias: Array.isArray(registro.ocorrencias) ? registro.ocorrencias : [], flags:{} };
+    return window.CPPontoCalcEngine.calcularDia(dia, state.configApuracao || {}, { isFeriado:(iso)=> isHoliday(iso) });
+  }
+  function calcularDiaEngine(cols, row){ return calcularDiaEngineFromRegistro(toRegistroPontoDia(cols, row)); }
+
   function calcularCompetenciaEngine(monthKey){
-    const rows = state.months[monthKey] || [];
-    const registros = rows.map((row)=>calcularDiaEngine(state.columns, row).entradaNormalizada);
+    const diasRaw = (state.raw && state.raw.months && state.raw.months[monthKey]) || [];
+    const registros = diasRaw.map((registro)=>calcularDiaEngineFromRegistro(registro).entradaNormalizada);
     return window.CPPontoCalcEngine.calcularMes(registros, state.configApuracao || {}, { isFeriado:(iso)=> isHoliday(iso) });
+  }
+
+  function recalcCalcCache(){
+    const diasPorMes = {};
+    const meses = {};
+    (state.monthOrder || []).forEach((monthKey)=>{
+      const diasRaw = (state.raw && state.raw.months && state.raw.months[monthKey]) || [];
+      diasPorMes[monthKey] = diasRaw.map((registro)=>calcularDiaEngineFromRegistro(registro));
+      const entradas = diasPorMes[monthKey].map((d)=>d.entradaNormalizada);
+      meses[monthKey] = window.CPPontoCalcEngine.calcularMes(entradas, state.configApuracao || {}, { isFeriado:(iso)=> isHoliday(iso) });
+    });
+    state.calc = { diasPorMes, meses };
   }
 
   function buildCriteriosUtilizadosHtml(){ const c=Object.assign({},DEFAULT_CONFIG_APURACAO,state.configApuracao||{}); return [`Jornada diária: ${CPPontoCalcUtils.formatMinutes(c.jornadaDiariaMin)} | semanal: ${CPPontoCalcUtils.formatMinutes(c.jornadaSemanalMin)}`,`Escala: ${esc(c.escala)}${c.escala==='personalizada'?` (${esc(c.escalaPersonalizada||'—')})`:''}`,`Tolerância marcação: ${c.toleranciaMarcacaoMin} min`,`Noturno: ${esc(c.janelaNoturnaInicio)} às ${esc(c.janelaNoturnaFim)} | hora reduzida: ${(60/(c.reducaoNoturnaFator||1)).toFixed(2)} min`,`HE: ${c.heDiasUteisPercentual}% / ${c.heDomingosFeriadosPercentual}%`,`Banco de horas: ${c.bancoHorasAtivo?`ativo (limite ${CPPontoCalcUtils.formatMinutes(c.bancoHorasLimiteMin||0)})`:'inativo'}`,`DSR sobre HE: ${c.dsrSobreHe?'sim':'não'} | DSR considera feriados: ${c.dsrConsideraFeriados?'sim':'não'}`].map((t)=>`<div>${t}</div>`).join(''); }
@@ -514,13 +550,49 @@ function monthLabel(key){ const [y,m] = key.split('-').map(Number); return `${MO
     if (!state || typeof state !== 'object') return;
     state.identificacao = state.identificacao || {}; state.columns = state.columns || []; state.monthOrder = state.monthOrder || []; state.months = state.months || {};
     state.visibility = Object.assign({}, DEFAULT_VISIBILITY, state.visibility || {});
-    hydrateIdentificacao(); save(); renderAll();
+    ensureStateV2(state);
+    hydrateIdentificacao(); hydrateConfigApuracao(); recalcPrefixes(); recalcCalcCache(); save(); renderAll();
   }
 
   function esc(v){ return String(v||'').replace(/[&<>\"]/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s])); }
   function downloadFile(name, content, type){ const b = new Blob([content], { type }); const u = URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(u),1000); }
-  function save(){ try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(_){} }
-  function load(){ try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) state = Object.assign(state, JSON.parse(raw)); } catch(_){} state.visibility = Object.assign({}, DEFAULT_VISIBILITY, state.visibility || {}); hydrateIdentificacao(); hydrateConfigApuracao(); recalcPrefixes(); }
+  function ensureStateV2(target){
+    target.storageVersion = 2;
+    target.identificacao = target.identificacao || {};
+    target.columns = Array.isArray(target.columns) ? target.columns : [];
+    target.monthOrder = Array.isArray(target.monthOrder) ? target.monthOrder : [];
+    target.months = target.months || {};
+    target.visibility = Object.assign({}, DEFAULT_VISIBILITY, target.visibility || {});
+    if (!target.raw || !target.raw.months) syncRawFromLegacyMonths();
+    else target.raw.months = target.raw.months || {};
+    target.calc = target.calc || { diasPorMes:{}, meses:{} };
+  }
+
+  function migrateV1ToV2(v1Data){
+    const migrated = Object.assign({}, state, v1Data || {});
+    state = migrated;
+    ensureStateV2(state);
+    syncRawFromLegacyMonths();
+    recalcPrefixes();
+    recalcCalcCache();
+    return state;
+  }
+
+  function save(){ try { localStorage.setItem(STORAGE_KEY_V2, JSON.stringify(state)); } catch(_){} }
+  function load(){
+    try {
+      const rawV2 = localStorage.getItem(STORAGE_KEY_V2);
+      if (rawV2) {
+        state = Object.assign(state, JSON.parse(rawV2));
+      } else {
+        const rawV1 = localStorage.getItem(STORAGE_KEY_V1);
+        if (rawV1) migrateV1ToV2(JSON.parse(rawV1));
+      }
+    } catch(_){}
+    ensureStateV2(state);
+    reconcilePaidByMonth();
+    hydrateIdentificacao(); hydrateConfigApuracao(); recalcPrefixes(); recalcCalcCache();
+  }
 
   init();
 })();
