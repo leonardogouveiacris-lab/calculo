@@ -1,0 +1,46 @@
+{
+  "competencias": [
+    {
+      "competencia": "2026-01",
+      "rubricas": {
+        "trabalhadas": 1020,
+        "extras50": 60,
+        "extras100": 0,
+        "noturnas": 0,
+        "noturnasReduzidas": 0,
+        "atrasos": 0,
+        "faltas": 0,
+        "dsr": 0,
+        "feriados": 0,
+        "adicionalNoturno": 0
+      }
+    },
+    {
+      "competencia": "2026-02",
+      "rubricas": {
+        "trabalhadas": 840,
+        "extras50": 0,
+        "extras100": 240,
+        "noturnas": 420,
+        "noturnasReduzidas": 480,
+        "atrasos": 360,
+        "faltas": 0,
+        "dsr": 240,
+        "feriados": 0,
+        "adicionalNoturno": 84
+      }
+    }
+  ],
+  "totalPeriodo": {
+    "trabalhadas": 1860,
+    "extras50": 60,
+    "extras100": 240,
+    "noturnas": 420,
+    "noturnasReduzidas": 480,
+    "atrasos": 360,
+    "faltas": 0,
+    "dsr": 240,
+    "feriados": 0,
+    "adicionalNoturno": 84
+  }
+}
