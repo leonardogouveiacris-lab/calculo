@@ -29,6 +29,7 @@
   const PRINT_TITLE = 'Relatório - Apuração de Ponto';
 
   const WIDE_EDITOR_THRESHOLD = 10;
+  const RUBRICAS = ['trabalhadas','extras50','extras100','noturnas','noturnasReduzidas','atrasos','faltas','dsr','feriados','adicionalNoturno'];
   const DEFAULT_VISIBILITY = { horarios:true, textos:true, apuracoes:true };
   let state = { identificacao:{}, columns:[], monthOrder:[], months:{}, activeMonth:'', imported:false, prefixes:{}, visibility:Object.assign({}, DEFAULT_VISIBILITY), feriados:window.CPPontoFeriados || [] };
 
@@ -203,7 +204,8 @@
         if (!state.months[month] || !state.months[month][idx]) return;
         let v = e.target.value;
         const colType = (state.columns.find(c=>c.id===col)||{}).type;
-        if (colType==='entrada' || colType==='saida'){ v = maskTime(v); e.target.value = v; }
+        if (colType==='entrada' || colType==='saida'){ v = CPPontoCalcUtils.maskTime(v); e.target.value = v; }
+        if (colType==='apuracao'){ e.target.value = state.months[month][idx][col] || ''; return; }
         state.months[month][idx][col] = v;
         save(); renderMonthlySummary(); renderReport();
       });
@@ -212,9 +214,9 @@
 
   function rowHtml(row, fixedCols, cols, rowIndex){
     return '<tr>' + fixedCols.concat(cols).map(c=>{
-      const ro = c.type==='data' || c.type==='dia';
+      const ro = c.type==='data' || c.type==='dia' || c.type==='apuracao';
       let val = row[c.id] || '';
-      if ((c.type==='entrada'||c.type==='saida') && val) val = maskTime(val);
+      if ((c.type==='entrada'||c.type==='saida') && val) val = CPPontoCalcUtils.maskTime(val);
       const stickyClass = c.type==='data' ? ' class="sticky-col sticky-data"' : (c.type==='dia' ? ' class="sticky-col sticky-dia"' : '');
       const inputClass = ro ? 'readonly' : ((c.type==='entrada'||c.type==='saida') ? 'input-time' : '');
       return `<td${stickyClass}>${ro?`<input class="readonly" readonly value="${esc(val)}">`:`<input class="${inputClass}" data-month="${state.activeMonth}" data-row="${rowIndex}" data-col="${c.id}" value="${esc(val)}">`}</td>`;
@@ -253,58 +255,16 @@
 
   function renderMonthlySummary(){
     const host = $('monthlySummary');
-    const diffEnabled = !!(state.summaryOptions && state.summaryOptions.apurarDiferencas);
-    const apCols = state.columns.filter(c=>c.type==='apuracao');
-    if (!apCols.length || !state.monthOrder.length){ host.innerHTML = '<div style="padding:12px;color:#667085">Sem colunas de apuração disponíveis para resumo.</div>'; return; }
-    if (!diffEnabled){
-      const head = `<tr><th>Competência</th>${apCols.map(c=>`<th>${esc(state.prefixes[c.id] || c.name)}</th>`).join('')}</tr>`;
-      const body = state.monthOrder.map(m=>{
-        const sums = apCols.map(c=>formatMinutes(sumApuracaoMinutes(state.months[m], c.id)));
-        return `<tr><td>${monthLabel(m)}</td>${sums.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`;
-      }).join('');
-      host.innerHTML = `<table class="editor-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
-      return;
-    }
-    const head1 = `<tr><th rowspan="2">Competência</th>${apCols.map(c=>`<th colspan="3">${esc(state.prefixes[c.id] || c.name)}</th>`).join('')}</tr>`;
-    const head2 = `<tr>${apCols.map(()=>'<th>Apurado</th><th>Pago</th><th>Diferença</th>').join('')}</tr>`;
-    const body = state.monthOrder.map(m=>{
-      const colsHtml = apCols.map(c=>{
-        const apuradoMin = sumApuracaoMinutes(state.months[m], c.id);
-        const paidVal = getPaidValue(m, c.id);
-        const paidMin = parseDurationToMinutes(paidVal);
-        const diffMin = apuradoMin - paidMin;
-        return `<td>${esc(formatMinutes(apuradoMin))}</td>
-          <td><input data-paid="1" data-month="${m}" data-col="${c.id}" value="${esc(paidVal)}" placeholder="00:00" inputmode="numeric"></td>
-          <td>${esc(formatMinutes(diffMin))}</td>`;
-      }).join('');
-      return `<tr><td>${monthLabel(m)}</td>${colsHtml}</tr>`;
+    if (!state.monthOrder.length){ host.innerHTML = '<div style="padding:12px;color:#667085">Sem competências para resumir.</div>'; return; }
+    const head = `<tr><th>Competência</th>${RUBRICAS.map((r)=>`<th>${esc(r)}</th>`).join('')}</tr>`;
+    const body = state.monthOrder.map((m)=>{
+      const resultado = calcularCompetenciaEngine(m);
+      return `<tr><td>${monthLabel(m)}</td>${RUBRICAS.map((r)=>`<td>${esc(CPPontoCalcUtils.formatMinutes(resultado.rubricas[r] || 0))}</td>`).join('')}</tr>`;
     }).join('');
-    host.innerHTML = `<table class="editor-table"><thead>${head1}${head2}</thead><tbody>${body}</tbody></table>`;
-    host.querySelectorAll('input[data-paid]').forEach((input)=>{
-      input.addEventListener('input', (e)=>{
-        e.target.value = maskTime(e.target.value);
-        if (e.target.classList.contains('invalid')) e.target.classList.remove('invalid');
-      });
-      input.addEventListener('change', (e)=>{
-        const monthKey = e.target.dataset.month;
-        const colId = e.target.dataset.col;
-        const normalized = normalizePaidDuration(e.target.value);
-        if (normalized === null){
-          e.target.classList.add('invalid');
-          e.target.title = 'Informe hora válida em hh:mm (minutos entre 00 e 59).';
-          return;
-        }
-        e.target.classList.remove('invalid');
-        e.target.title = '';
-        setPaidValue(monthKey, colId, normalized);
-        e.target.value = normalized;
-        save();
-        renderMonthlySummary();
-      });
-    });
+    host.innerHTML = `<table class="editor-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
   }
 
-  function buildReportMeta(){
+function buildReportMeta(){
     return `<b>Autor:</b> ${esc(fields.autor.value || '—')} · <b>Réu:</b> ${esc(fields.reu.value || '—')} · <b>Processo:</b> ${esc(fields.processo.value || '—')}<br><b>Vara:</b> ${esc(fields.vara.value || '—')} · <b>Município:</b> ${esc(fields.municipio.value || '—')} · <b>Período:</b> ${esc(fields.periodoInicial.value||'—')} a ${esc(fields.periodoFinal.value||'—')}`;
   }
 
@@ -380,7 +340,7 @@
       'Sem.',
       ...grouped.horarios.map(c=>esc(c.name)),
       ...grouped.textos.map(c=>esc(c.name)),
-      ...grouped.apuracoes.map(c=>esc(state.prefixes[c.id] || c.name))
+      ...RUBRICAS.map((r)=>esc(r))
     ];
 
     state.monthOrder.forEach((m)=>{
@@ -391,7 +351,7 @@
           findValueByType(cols,r,'dia'),
           ...grouped.horarios.map(c=>formatCell(c,r[c.id]||'')),
           ...grouped.textos.map(c=>formatCell(c,r[c.id]||'')),
-          ...grouped.apuracoes.map(c=>formatCell(c,r[c.id]||''))
+          ...RUBRICAS.map((rubrica)=>CPPontoCalcUtils.formatMinutes(calcularDiaEngine(cols,r).rubricas[rubrica] || 0))
         ];
         return `<tr>${values.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`;
       });
@@ -422,7 +382,7 @@
   }
 
   function findValueByType(cols, row, type){ const c = cols.find(x=>x.type===type); return c ? (row[c.id]||'') : ''; }
-  function formatCell(col,val){ return (col.type==='entrada'||col.type==='saida') ? maskTime(val) : val; }
+  function formatCell(col,val){ return (col.type==='entrada'||col.type==='saida') ? CPPontoCalcUtils.maskTime(val) : val; }
 
   function groupCols(cols){
     const horarios = cols.filter(c=>c.type==='entrada'||c.type==='saida');
@@ -433,27 +393,14 @@
 
   function sumApuracaoMinutes(rows,colId){
     let minutes = 0;
-    rows.forEach(r=>{ minutes += parseDurationToMinutes(r[colId]); });
+    rows.forEach(r=>{ minutes += CPPontoCalcUtils.parseDurationToMinutes(r[colId]); });
     return minutes;
-  }
-
-  function parseDurationToMinutes(value){
-    const v = String(value || '').trim(); if (!v) return 0;
-    const hm = v.match(/^(\d{1,2}):(\d{2})$/); if (hm) return Number(hm[1])*60 + Number(hm[2]);
-    const only = v.replace(/\D/g,''); if (only.length===4) return Number(only.slice(0,2))*60 + Number(only.slice(2));
-    const num = Number(v.replace(/\./g,'').replace(',','.')); if (!Number.isFinite(num)) return 0;
-    return Math.round(num*60);
-  }
-
-  function formatMinutes(total){
-    const sign = total < 0 ? '-' : ''; const abs = Math.abs(total); const h = Math.floor(abs/60); const m = abs%60;
-    return `${sign}${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
   }
 
   function normalizePaidDuration(value){
     const raw = String(value || '').trim();
     if (!raw) return '';
-    const masked = maskTime(raw);
+    const masked = CPPontoCalcUtils.maskTime(raw);
     const hm = masked.match(/^(\d{1,2}):(\d{2})$/);
     if (!hm) return null;
     const hh = Number(hm[1]), mm = Number(hm[2]);
@@ -489,9 +436,25 @@
     });
   }
 
-  function monthLabel(key){ const [y,m] = key.split('-').map(Number); return `${MONTHS[(m||1)-1]}/${y}`; }
-  function maskTime(v){ const d=String(v||'').replace(/\D/g,'').slice(0,4); if (d.length<=2) return d; return d.slice(0,2)+':'+d.slice(2); }
-  function parseISO(v){ if(!v) return null; const d = new Date(v+'T00:00:00'); return Number.isNaN(d.getTime())?null:d; }
+    function calcularDiaEngine(cols, row){
+    const horarios = cols.filter((c)=>c.type==='entrada'||c.type==='saida').map((c)=>row[c.id] || '');
+    const dia = { data: parseDateFlexible(findValueByType(cols,row,'data')) || '', diaSemana: findValueByType(cols,row,'dia'), entradasSaidas: horarios, ocorrencias: [findValueByType(cols,row,'ocorrencia')], flags:{} };
+    return window.CPPontoCalcEngine.calcularDia(dia, {}, { isFeriado:(iso)=> isHoliday(iso) });
+  }
+
+  function calcularCompetenciaEngine(monthKey){
+    const rows = state.months[monthKey] || [];
+    const registros = rows.map((row)=>calcularDiaEngine(state.columns, row).entradaNormalizada);
+    return window.CPPontoCalcEngine.calcularMes(registros, {}, { isFeriado:(iso)=> isHoliday(iso) });
+  }
+
+  function isHoliday(iso){
+    const list = Array.isArray(state.feriados) ? state.feriados : [];
+    return list.some((f)=>f && (f.data===iso || f.date===iso));
+  }
+
+function monthLabel(key){ const [y,m] = key.split('-').map(Number); return `${MONTHS[(m||1)-1]}/${y}`; }
+    function parseISO(v){ if(!v) return null; const d = new Date(v+'T00:00:00'); return Number.isNaN(d.getTime())?null:d; }
   function toISO(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
   function formatDateBR(iso){ const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; }
   function parseDateFlexible(v){
