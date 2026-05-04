@@ -1,0 +1,6 @@
+competencia,diaSemana,data,entradasSaidas,esperado_trabalhadas,esperado_extras50,esperado_extras100,esperado_noturnas,esperado_noturnasReduzidas,esperado_atrasos,esperado_faltas,esperado_dsr,esperado_feriados,esperado_adicionalNoturno
+2026-03,seg,2026-03-02,"0800|1200|1300|1700",480,0,0,0,0,0,0,0,0,0
+2026-03,ter,2026-03-03,"0800|1200|1300|1900",600,120,0,0,0,0,0,0,0,0
+2026-03,qua,2026-03-04,"2200|0500",420,0,0,420,480,60,0,0,0,84
+2026-03,dom,2026-03-08,"0800|1200",240,0,240,0,0,0,0,240,0,0
+2026-03,sex,2026-03-06,"",0,0,0,0,0,480,480,0,0,0
