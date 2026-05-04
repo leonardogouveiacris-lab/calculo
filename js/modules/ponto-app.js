@@ -32,8 +32,9 @@
   const WIDE_EDITOR_THRESHOLD = 10;
   const RUBRICAS = ['trabalhadas','extras50','extras100','noturnas','noturnasReduzidas','atrasos','faltas','dsr','feriados','adicionalNoturno'];
   const DEFAULT_VISIBILITY = { horarios:true, textos:true, apuracoes:true };
+  const DEFAULT_REPORT_OPTIONS = { anexarMemoriaResumida:false };
   const DEFAULT_CONFIG_APURACAO = {jornadaDiariaMin:480,jornadaSemanalMin:2640,escala:'5x2',escalaPersonalizada:'',toleranciaMarcacaoMin:5,janelaNoturnaInicio:'22:00',janelaNoturnaFim:'05:00',reducaoNoturnaFator:60/52.5,heDiasUteisPercentual:50,heDomingosFeriadosPercentual:100,bancoHorasAtivo:false,bancoHorasLimiteMin:0,dsrSobreHe:true,dsrConsideraFeriados:true};
-  let state = { identificacao:{}, configApuracao:Object.assign({}, DEFAULT_CONFIG_APURACAO), columns:[], monthOrder:[], months:{}, activeMonth:'', imported:false, prefixes:{}, visibility:Object.assign({}, DEFAULT_VISIBILITY), feriadosLocais:[], feriadosManuais:[], raw:{ months:{} }, calc:{ diasPorMes:{}, meses:{} }, storageVersion:2 };
+  let state = { identificacao:{}, configApuracao:Object.assign({}, DEFAULT_CONFIG_APURACAO), columns:[], monthOrder:[], months:{}, activeMonth:'', imported:false, prefixes:{}, visibility:Object.assign({}, DEFAULT_VISIBILITY), feriadosLocais:[], feriadosManuais:[], raw:{ months:{} }, calc:{ diasPorMes:{}, meses:{} }, storageVersion:2, reportOptions:Object.assign({}, DEFAULT_REPORT_OPTIONS) };
 
   function init(){
     bindTabs(); bindActions(); load(); renderAll();
@@ -64,10 +65,8 @@
     $('btnExportJson').addEventListener('click', exportJson);
     $('btnImportJson').addEventListener('click', ()=>$('inputImportJson').click());
     $('inputImportJson').addEventListener('change', importJson);
-    $('toggleDifferences').addEventListener('change', (e)=>{
-      state.summaryOptions.apurarDiferencas = !!e.target.checked;
-      save(); renderMonthlySummary();
-    });
+    $('toggleDifferences').addEventListener('change', ()=>{ save(); renderMonthlySummary(); });
+    $('toggleMemoriaResumo').addEventListener('change', (e)=>{ state.reportOptions.anexarMemoriaResumida = !!e.target.checked; save(); renderReport(); });
     Object.values(fields).forEach(el=>el && el.addEventListener('input', ()=>{ syncIdentificacao(); save(); renderReport(); }));
     bindConfigApuracao();
   }
@@ -188,7 +187,7 @@ function syncIdentificacao(){
     state.prefixes = prefixes;
   }
 
-  function renderAll(){ renderTimeline(); renderEditor(); renderMonthlySummary(); renderReport(); }
+  function renderAll(){ const t=$('toggleMemoriaResumo'); if(t) t.checked=!!(state.reportOptions&&state.reportOptions.anexarMemoriaResumida); renderTimeline(); renderEditor(); renderMonthlySummary(); renderReport(); }
 
   function renderTimeline(){
     const host = $('timeline');
@@ -213,7 +212,7 @@ function syncIdentificacao(){
     const usefulColsCount = grouped.horarios.length + grouped.textos.length + grouped.apuracoes.length;
     const isWide = usefulColsCount > WIDE_EDITOR_THRESHOLD;
     host.classList.toggle('is-wide', isWide);
-    const head1 = `<tr><th class="sticky-col sticky-data" rowspan="2">Data</th><th class="sticky-col sticky-dia" rowspan="2">Dia</th>${activeGroups.horarios.length?`<th colspan="${activeGroups.horarios.length}">Horários Registrados</th>`:''}${activeGroups.textos.length?`<th colspan="${activeGroups.textos.length}">Ocorrências / Observações</th>`:''}${activeGroups.apuracoes.length?`<th colspan="${activeGroups.apuracoes.length}">Horas Apuradas</th>`:''}</tr>`;
+    const head1 = `<tr><th class="sticky-col sticky-data" rowspan="2">Data</th><th class="sticky-col sticky-dia" rowspan="2">Dia</th><th rowspan="2">Memória</th>${activeGroups.horarios.length?`<th colspan="${activeGroups.horarios.length}">Horários Registrados</th>`:''}${activeGroups.textos.length?`<th colspan="${activeGroups.textos.length}">Ocorrências / Observações</th>`:''}${activeGroups.apuracoes.length?`<th colspan="${activeGroups.apuracoes.length}">Horas Apuradas</th>`:''}</tr>`;
     const head2 = `<tr>${dynamicCols.map(c=>`<th>${esc(c.name)}</th>`).join('')}</tr>`;
     const fixedCols = getFixedCols(cols);
     host.innerHTML = `${renderVisibilityBar(grouped)}<table class="editor-table${isWide?' is-wide':''}"><colgroup>${buildEditorColgroup(dynamicCols)}</colgroup><thead>${head1}${head2}</thead><tbody>${rows.map((r,ri)=>rowHtml(r,fixedCols,dynamicCols,ri)).join('')}</tbody></table>`;
@@ -226,6 +225,13 @@ function syncIdentificacao(){
         renderEditor();
       });
     });
+    host.querySelectorAll('button[data-action="memoria"]').forEach((btn)=>{ btn.addEventListener('click', ()=>{
+      const idx = Number(btn.dataset.row);
+      const row = (state.months[state.activeMonth]||[])[idx];
+      if (!row) return;
+      const memoria = calcularDiaEngine(cols, row).memoriaCalculo || {};
+      alert(JSON.stringify(memoria, null, 2));
+    }); });
     host.querySelectorAll('input[data-col]').forEach(input=>{
       input.addEventListener('input', (e)=>{
         const month = e.target.dataset.month, col = e.target.dataset.col, idx = Number(e.target.dataset.row);
@@ -243,6 +249,7 @@ function syncIdentificacao(){
   }
 
   function rowHtml(row, fixedCols, cols, rowIndex){
+    const btnMemoria = `<td><button class="btn" type="button" data-action="memoria" data-row="${rowIndex}">Ver memória</button></td>`;
     return '<tr>' + fixedCols.concat(cols).map(c=>{
       const ro = c.type==='data' || c.type==='dia' || c.type==='apuracao';
       let val = row[c.id] || '';
@@ -250,7 +257,7 @@ function syncIdentificacao(){
       const stickyClass = c.type==='data' ? ' class="sticky-col sticky-data"' : (c.type==='dia' ? ' class="sticky-col sticky-dia"' : '');
       const inputClass = ro ? 'readonly' : ((c.type==='entrada'||c.type==='saida') ? 'input-time' : '');
       return `<td${stickyClass}>${ro?`<input class="readonly" readonly value="${esc(val)}">`:`<input class="${inputClass}" data-month="${state.activeMonth}" data-row="${rowIndex}" data-col="${c.id}" value="${esc(val)}">`}</td>`;
-    }).join('') + '</tr>';
+    }).join('') + btnMemoria + '</tr>';
   }
 
   function renderVisibilityBar(grouped){
@@ -393,10 +400,11 @@ function buildReportMeta(){
         return `<tr>${values.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`;
       });
 
+      const memoriaResumoHtml = state.reportOptions && state.reportOptions.anexarMemoriaResumida ? buildMemoriaResumoCompetenciaHtml(m) : '';
       window.CPPrintLayout.appendSection(layout, {
         html: `<h2 class="report-title">Relatório Analítico de Apuração de Ponto — ${monthLabel(m)}</h2>
           <div class="report-meta"><b>Autor:</b> ${esc(fields.autor.value || '—')} · <b>Réu:</b> ${esc(fields.reu.value || '—')} · <b>Processo:</b> ${esc(fields.processo.value || '—')}<br><b>Vara:</b> ${esc(fields.vara.value || '—')} · <b>Município:</b> ${esc(fields.municipio.value || '—')} · <b>Período:</b> ${esc(fields.periodoInicial.value||'—')} a ${esc(fields.periodoFinal.value||'—')}</div>
-          <div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div><div class="legend"><div><b>Critérios Utilizados</b></div><div>${buildCriteriosUtilizadosHtml()}</div></div>`
+          <div class="legend"><div><b>Legenda técnica das apurações</b></div><div class="legend-grid">${legendItems}</div></div><div class="legend"><div><b>Critérios Utilizados</b></div><div>${buildCriteriosUtilizadosHtml()}</div></div>${memoriaResumoHtml}`
       });
 
       window.CPPrintLayout.appendTable(layout, {
@@ -553,7 +561,7 @@ function monthLabel(key){ const [y,m] = key.split('-').map(Number); return `${MO
     return rows;
   }
 
-  function exportJson(){ syncIdentificacao(); downloadFile('apuracao_ponto.json', JSON.stringify(state,null,2), 'application/json;charset=utf-8;'); }
+  function exportJson(){ syncIdentificacao(); recalcCalcCache(); downloadFile('apuracao_ponto.json', JSON.stringify(state,null,2), 'application/json;charset=utf-8;'); }
   async function importJson(ev){
     const file = ev.target.files && ev.target.files[0]; if (!file) return;
     try { state = JSON.parse(await file.text()); }
@@ -575,6 +583,7 @@ function monthLabel(key){ const [y,m] = key.split('-').map(Number); return `${MO
     target.monthOrder = Array.isArray(target.monthOrder) ? target.monthOrder : [];
     target.months = target.months || {};
     target.visibility = Object.assign({}, DEFAULT_VISIBILITY, target.visibility || {});
+    target.reportOptions = Object.assign({}, DEFAULT_REPORT_OPTIONS, target.reportOptions || {});
     target.feriadosLocais = Array.isArray(target.feriadosLocais) ? target.feriadosLocais : [];
     target.feriadosManuais = Array.isArray(target.feriadosManuais) ? target.feriadosManuais : [];
     if (!target.raw || !target.raw.months) syncRawFromLegacyMonths();
@@ -606,6 +615,20 @@ function monthLabel(key){ const [y,m] = key.split('-').map(Number); return `${MO
     ensureStateV2(state);
     reconcilePaidByMonth();
     hydrateIdentificacao(); hydrateConfigApuracao(); recalcPrefixes(); recalcCalcCache();
+  }
+
+  function buildMemoriaResumoCompetenciaHtml(monthKey){
+    const dias = (state.calc && state.calc.diasPorMes && state.calc.diasPorMes[monthKey]) || [];
+    if (!dias.length) return '<div class="legend"><div><b>Memória resumida da competência</b></div><div>Sem dados.</div></div>';
+    const itens = dias.map((d)=>{
+      const mem = d.memoriaCalculo || {};
+      const data = (mem.entradasUsadas && mem.entradasUsadas.data) || d.entradaNormalizada?.data || '-';
+      const trab = CPPontoCalcUtils.formatMinutes((mem.resultadoFinalPorRubrica||{}).trabalhadas || 0);
+      const e50 = CPPontoCalcUtils.formatMinutes((mem.resultadoFinalPorRubrica||{}).extras50 || 0);
+      const e100 = CPPontoCalcUtils.formatMinutes((mem.resultadoFinalPorRubrica||{}).extras100 || 0);
+      return `<div>${esc(data)} → trab: ${esc(trab)} | HE50: ${esc(e50)} | HE100: ${esc(e100)}</div>`;
+    }).join('');
+    return `<div class="legend"><div><b>Memória resumida da competência</b></div>${itens}</div>`;
   }
 
   init();

@@ -68,7 +68,30 @@
     result.noturnasReduzidas = Math.round(result.noturnas * cfg.reducaoNoturnaFator);
     result.adicionalNoturno = Math.round(result.noturnas * (cfg.adicionalNoturnoPercentual / 100));
     if (isDomingo && worked > 0) result.dsr = worked;
-    return { entradaNormalizada: day, rubricas: result };
+    const memoriaCalculo = {
+      formulaAplicada: {
+        jornadaDiariaMin: cfg.jornadaDiariaMin,
+        adicionalNoturnoPercentual: cfg.adicionalNoturnoPercentual,
+        reducaoNoturnaFator: cfg.reducaoNoturnaFator,
+        regras: ['faltas por ausência sem folga/domingo/feriado','extras 50% em dias úteis acima da jornada','extras 100% em domingos/feriados','noturno por sobreposição 22:00-05:00']
+      },
+      entradasUsadas: {
+        data: day.data,
+        diaSemana: day.diaSemana,
+        entradasSaidas: day.entradasSaidas.slice(),
+        flags: Object.assign({}, day.flags),
+        ocorrencias: day.ocorrencias.slice()
+      },
+      etapasIntermediarias: {
+        intervalos: day.intervalos.map((it)=>({ inicio: it.inicio, fim: it.fim, duracao: it.fim - it.inicio })),
+        totalTrabalhado: worked,
+        isDomingo,
+        isFeriado,
+        totalNoturno: result.noturnas
+      },
+      resultadoFinalPorRubrica: Object.assign({}, result)
+    };
+    return { entradaNormalizada: day, rubricas: result, memoriaCalculo };
   }
 
   function merge(a,b){ Object.keys(a).forEach((k)=>{ a[k] += b[k] || 0; }); return a; }
