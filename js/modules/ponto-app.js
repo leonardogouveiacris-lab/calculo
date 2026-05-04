@@ -33,7 +33,7 @@
   const RUBRICAS = ['trabalhadas','extras50','extras100','noturnas','noturnasReduzidas','atrasos','faltas','dsr','feriados','adicionalNoturno'];
   const DEFAULT_VISIBILITY = { horarios:true, textos:true, apuracoes:true };
   const DEFAULT_CONFIG_APURACAO = {jornadaDiariaMin:480,jornadaSemanalMin:2640,escala:'5x2',escalaPersonalizada:'',toleranciaMarcacaoMin:5,janelaNoturnaInicio:'22:00',janelaNoturnaFim:'05:00',reducaoNoturnaFator:60/52.5,heDiasUteisPercentual:50,heDomingosFeriadosPercentual:100,bancoHorasAtivo:false,bancoHorasLimiteMin:0,dsrSobreHe:true,dsrConsideraFeriados:true};
-  let state = { identificacao:{}, configApuracao:Object.assign({}, DEFAULT_CONFIG_APURACAO), columns:[], monthOrder:[], months:{}, activeMonth:'', imported:false, prefixes:{}, visibility:Object.assign({}, DEFAULT_VISIBILITY), feriados:window.CPPontoFeriados || [], raw:{ months:{} }, calc:{ diasPorMes:{}, meses:{} }, storageVersion:2 };
+  let state = { identificacao:{}, configApuracao:Object.assign({}, DEFAULT_CONFIG_APURACAO), columns:[], monthOrder:[], months:{}, activeMonth:'', imported:false, prefixes:{}, visibility:Object.assign({}, DEFAULT_VISIBILITY), feriadosLocais:[], feriadosManuais:[], raw:{ months:{} }, calc:{ diasPorMes:{}, meses:{} }, storageVersion:2 };
 
   function init(){
     bindTabs(); bindActions(); load(); renderAll();
@@ -368,6 +368,8 @@ function buildReportMeta(){
     const tableCols = [
       'Data',
       'Sem.',
+      'Feriado',
+      'Justificativa',
       ...grouped.horarios.map(c=>esc(c.name)),
       ...grouped.textos.map(c=>esc(c.name)),
       ...RUBRICAS.map((r)=>esc(r))
@@ -376,12 +378,17 @@ function buildReportMeta(){
     state.monthOrder.forEach((m)=>{
       const rows = state.months[m] || [];
       const rowHtml = rows.map(r=>{
+        const diaCalc = calcularDiaEngine(cols,r);
+        const infoFeriado = getHolidayInfo(findValueByType(cols,r,'data'));
+        const justificativa = infoFeriado.feriado ? 'HE 100% e sem atraso/falta por feriado.' : '';
         const values = [
           findValueByType(cols,r,'data'),
           findValueByType(cols,r,'dia'),
+          infoFeriado.feriado ? infoFeriado.nome : '—',
+          justificativa,
           ...grouped.horarios.map(c=>formatCell(c,r[c.id]||'')),
           ...grouped.textos.map(c=>formatCell(c,r[c.id]||'')),
-          ...RUBRICAS.map((rubrica)=>CPPontoCalcUtils.formatMinutes(calcularDiaEngine(cols,r).rubricas[rubrica] || 0))
+          ...RUBRICAS.map((rubrica)=>CPPontoCalcUtils.formatMinutes(diaCalc.rubricas[rubrica] || 0))
         ];
         return `<tr>${values.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`;
       });
@@ -509,9 +516,14 @@ function buildReportMeta(){
 
   function buildCriteriosUtilizadosHtml(){ const c=Object.assign({},DEFAULT_CONFIG_APURACAO,state.configApuracao||{}); return [`Jornada diária: ${CPPontoCalcUtils.formatMinutes(c.jornadaDiariaMin)} | semanal: ${CPPontoCalcUtils.formatMinutes(c.jornadaSemanalMin)}`,`Escala: ${esc(c.escala)}${c.escala==='personalizada'?` (${esc(c.escalaPersonalizada||'—')})`:''}`,`Tolerância marcação: ${c.toleranciaMarcacaoMin} min`,`Noturno: ${esc(c.janelaNoturnaInicio)} às ${esc(c.janelaNoturnaFim)} | hora reduzida: ${(60/(c.reducaoNoturnaFator||1)).toFixed(2)} min`,`HE: ${c.heDiasUteisPercentual}% / ${c.heDomingosFeriadosPercentual}%`,`Banco de horas: ${c.bancoHorasAtivo?`ativo (limite ${CPPontoCalcUtils.formatMinutes(c.bancoHorasLimiteMin||0)})`:'inativo'}`,`DSR sobre HE: ${c.dsrSobreHe?'sim':'não'} | DSR considera feriados: ${c.dsrConsideraFeriados?'sim':'não'}`].map((t)=>`<div>${t}</div>`).join(''); }
 
-function isHoliday(iso){
-    const list = Array.isArray(state.feriados) ? state.feriados : [];
-    return list.some((f)=>f && (f.data===iso || f.date===iso));
+function getHolidayInfo(dateValue){
+    const iso = parseDateFlexible(dateValue) || dateValue;
+    if (!window.CPPontoFeriados || typeof window.CPPontoFeriados.isFeriado !== 'function') return { feriado:false, nome:'' };
+    return window.CPPontoFeriados.isFeriado(iso, { municipio:state.identificacao?.municipio || '', feriadosLocais:state.feriadosLocais || [], feriadosManuais:state.feriadosManuais || [] });
+  }
+
+  function isHoliday(iso){
+    return !!getHolidayInfo(iso).feriado;
   }
 
 function monthLabel(key){ const [y,m] = key.split('-').map(Number); return `${MONTHS[(m||1)-1]}/${y}`; }
@@ -563,6 +575,8 @@ function monthLabel(key){ const [y,m] = key.split('-').map(Number); return `${MO
     target.monthOrder = Array.isArray(target.monthOrder) ? target.monthOrder : [];
     target.months = target.months || {};
     target.visibility = Object.assign({}, DEFAULT_VISIBILITY, target.visibility || {});
+    target.feriadosLocais = Array.isArray(target.feriadosLocais) ? target.feriadosLocais : [];
+    target.feriadosManuais = Array.isArray(target.feriadosManuais) ? target.feriadosManuais : [];
     if (!target.raw || !target.raw.months) syncRawFromLegacyMonths();
     else target.raw.months = target.raw.months || {};
     target.calc = target.calc || { diasPorMes:{}, meses:{} };
